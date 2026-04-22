@@ -19,13 +19,15 @@ run_json_test() {
   local command="$2"
   local filter="$3"
   local output
+  local expected_status="${4:-0}"
 
   set +e
   output="$(eval "$command")"
   local command_status=$?
   set -e
 
-  if [ "$command_status" -ne 0 ] && ! jq -e "$filter" >/dev/null <<<"$output"; then
+  if [ "$command_status" -ne "$expected_status" ]; then
+    printf 'expected exit %s, got %s\n' "$expected_status" "$command_status" >&2
     printf '%s\n' "$output" >&2
     fail "$name"
   fi
@@ -39,19 +41,28 @@ run_json_test() {
 }
 
 create_fixture_zip() {
-  local fixture_dir="$TMP_DIR/fixture"
-  local zip_path="$TMP_DIR/obsidian-git-9.9.9.zip"
+  local version="${1:-9.9.9}"
+  local plugin_id="${2:-obsidian-git}"
+  local main_mode="${3:-present}"
+  local fixture_dir="$TMP_DIR/fixture-$version-$plugin_id-$main_mode"
+  local zip_path="$TMP_DIR/obsidian-git-$version-$plugin_id-$main_mode.zip"
 
   mkdir -p "$fixture_dir/obsidian-git"
   cat > "$fixture_dir/obsidian-git/manifest.json" <<'JSON'
 {
-  "id": "obsidian-git",
   "name": "Git",
-  "version": "9.9.9",
   "description": "Fixture Obsidian Git plugin"
 }
 JSON
-  printf 'console.log("fixture obsidian git");\n' > "$fixture_dir/obsidian-git/main.js"
+  jq --arg id "$plugin_id" --arg version "$version" '. + {id: $id, version: $version}' \
+    "$fixture_dir/obsidian-git/manifest.json" > "$fixture_dir/obsidian-git/manifest.json.tmp"
+  mv "$fixture_dir/obsidian-git/manifest.json.tmp" "$fixture_dir/obsidian-git/manifest.json"
+
+  if [ "$main_mode" = "present" ]; then
+    printf 'console.log("fixture obsidian git");\n' > "$fixture_dir/obsidian-git/main.js"
+  elif [ "$main_mode" = "empty" ]; then
+    : > "$fixture_dir/obsidian-git/main.js"
+  fi
   printf '.fixture { display: none; }\n' > "$fixture_dir/obsidian-git/styles.css"
 
   (
@@ -80,6 +91,9 @@ node --check bin/obsidian-git-setup >/dev/null
 pass "obsidian git setup plugin bin 명령 문법이 유효하다"
 
 fixture_zip="$(create_fixture_zip)"
+wrong_id_zip="$(create_fixture_zip "9.9.9" "not-obsidian-git")"
+mismatch_version_zip="$(create_fixture_zip "9.9.8" "obsidian-git")"
+empty_main_zip="$(create_fixture_zip "9.9.9" "obsidian-git" "empty")"
 export PATH="$ROOT_DIR/bin:$PATH"
 export CLAUDE_PLUGIN_ROOT="$ROOT_DIR"
 
@@ -97,7 +111,8 @@ common_json_contract='
 run_json_test \
   "없는 vault는 blocked 상태를 반환한다" \
   'obsidian-git-setup check "$TMP_DIR/missing-vault"' \
-  "$common_json_contract and .status == \"blocked\" and (.issues | index(\"vault path does not exist\"))"
+  "$common_json_contract and .status == \"blocked\" and (.issues | index(\"vault path does not exist\"))" \
+  1
 
 safe_vault="$(new_vault "vault with spaces")"
 run_json_test \
@@ -196,3 +211,56 @@ if [ -e "$team_sync_vault/.obsidian/plugins/obsidian-git/manifest.json" ]; then
 else
   pass "blocked team-sync는 plugin 파일을 쓰지 않는다"
 fi
+
+team_remote="$(mktemp -d "$TMP_DIR/team-remote.XXXXXX")"
+git -C "$team_remote" -c init.defaultBranch=main init --bare >/dev/null
+team_success_vault="$(new_vault "team-sync-success")"
+git -C "$team_success_vault" -c init.defaultBranch=main init >/dev/null
+git -C "$team_success_vault" config user.email "test@example.com"
+git -C "$team_success_vault" config user.name "Test User"
+printf '# team sync\n' > "$team_success_vault/README.md"
+git -C "$team_success_vault" add README.md
+git -C "$team_success_vault" commit -m "init" >/dev/null
+git -C "$team_success_vault" remote add origin "$team_remote"
+git -C "$team_success_vault" push -u origin main >/dev/null 2>&1
+
+run_json_test \
+  "team-sync는 remote와 upstream이 있으면 자동 동기화 preset을 적용한다" \
+  'obsidian-git-setup apply "$team_success_vault" --preset team-sync --interval 1 --enable --source-zip "$fixture_zip" --version 9.9.9' \
+  "$common_json_contract and .plugin.enabledInVault == true and .plugin.installed == true"
+
+jq -e '
+  .differentIntervalCommitAndPush == true
+  and .autoSaveInterval == 1
+  and .autoPullInterval == 1
+  and .autoPushInterval == 1
+  and .disablePush == false
+' "$team_success_vault/.obsidian/plugins/obsidian-git/data.json" >/dev/null
+pass "team-sync preset은 명시 interval과 push 활성화를 반영한다"
+
+artifact_vault="$(new_vault "artifact-failure")"
+run_json_test \
+  "plugin id가 다른 zip은 blocked 상태를 반환한다" \
+  'obsidian-git-setup apply "$artifact_vault" --preset safe --source-zip "$wrong_id_zip" --version 9.9.9' \
+  '.schema == "oh-my-obsidian/obsidian-git-setup/v1" and .status == "blocked" and (.issues[0] | contains("Unexpected plugin id"))' \
+  1
+
+if [ -e "$artifact_vault/.obsidian/plugins/obsidian-git/manifest.json" ]; then
+  fail "검증 실패 zip은 plugin 파일을 쓰면 안 된다"
+else
+  pass "검증 실패 zip은 plugin 파일을 쓰지 않는다"
+fi
+
+version_vault="$(new_vault "version-failure")"
+run_json_test \
+  "version mismatch zip은 blocked 상태를 반환한다" \
+  'obsidian-git-setup apply "$version_vault" --preset safe --source-zip "$mismatch_version_zip" --version 9.9.9' \
+  '.schema == "oh-my-obsidian/obsidian-git-setup/v1" and .status == "blocked" and (.issues[0] | contains("Plugin version mismatch"))' \
+  1
+
+empty_main_vault="$(new_vault "empty-main-failure")"
+run_json_test \
+  "main.js가 비어 있는 zip은 blocked 상태를 반환한다" \
+  'obsidian-git-setup apply "$empty_main_vault" --preset safe --source-zip "$empty_main_zip" --version 9.9.9' \
+  '.schema == "oh-my-obsidian/obsidian-git-setup/v1" and .status == "blocked" and (.issues[0] | contains("main.js is missing or empty"))' \
+  1

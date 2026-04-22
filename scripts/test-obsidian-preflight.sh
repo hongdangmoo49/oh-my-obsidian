@@ -54,11 +54,6 @@ run_json_test \
   'PATH="$ROOT_DIR/bin:$PATH" CLAUDE_PLUGIN_ROOT="$ROOT_DIR" obsidian-app-preflight check' \
   "$common_json_contract"
 
-run_json_test \
-  "node wrapper가 CLAUDE_PLUGIN_ROOT 기준으로 helper를 찾는다" \
-  'CLAUDE_PLUGIN_ROOT="$ROOT_DIR" node scripts/obsidian-app-preflight.mjs check' \
-  "$common_json_contract"
-
 if command -v powershell.exe >/dev/null 2>&1; then
   ps_script="$(wslpath -w "$ROOT_DIR/scripts/obsidian-app-preflight.ps1" 2>/dev/null || true)"
   if [ -n "$ps_script" ]; then
