@@ -16,7 +16,11 @@ You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, co
 
 ## Phase 1: Project Interview (required — ask all of these)
 
-**IMPORTANT**: Do NOT use AskUserQuestion tool. Ask questions in plain text and wait for the user's response naturally. The user will type their answers directly.
+**IMPORTANT UX RULES**:
+- Do NOT ask "press enter to skip/confirm" — empty messages cannot be sent in Claude Code.
+- If a question is optional, just skip it entirely or provide a sensible default.
+- After collecting all info, proceed to Phase 2 immediately without asking for confirmation.
+- Only use AskUserQuestion for Q2, Q3, Q5 (structured selection). Q1, Q4, Q6 are plain text.
 
 ### Q1. Project Name + Vault Path
 Ask: "프로젝트/서비스 이름이 무엇인가요?"
@@ -35,7 +39,8 @@ Use AskUserQuestion with 1 question:
   - 기타 (Other로 입력)
 
 After selection, if not "기타", ask in plain text:
-"간단히 타겟 유저나 핵심 기능을 알려주시면 볼트에 기록됩니다. (생략하려면 엔터)"
+"간단히 타겟 유저나 핵심 기능을 알려주세요. (건너뛰려면 'skip' 입력)"
+If user says 'skip', just record the project type without extra detail.
 
 ### Q3. Tech Stack
 Use AskUserQuestion with 3 questions:
@@ -59,7 +64,7 @@ Question 3 — header: "데이터베이스", multiSelect: false:
 - Redis / DynamoDB
 
 After selection, ask in plain text:
-"인프라나 외부 서비스가 있으면 알려주세요. (예: AWS, GCP, S3, Firebase 등, 생략하려면 엔터)"
+"인프라나 외부 서비스가 있으면 알려주세요. (예: AWS, GCP, S3, Firebase 등, 건너뛰려면 'skip' 입력)"
 
 ### Q4. Team Structure
 "팀 구성은 어떻게 되나요? (역할별 인원, 프론트/백엔드/디자인 등)"
@@ -95,8 +100,9 @@ Question 4 — header: "특수기능", multiSelect: true:
 - 파일/이미지 처리
 
 After user selects, ask in plain text:
-"추가하고 싶은 카테고리가 있나요? (없으면 엔터)"
-→ Append any custom categories.
+"추가하고 싶은 카테고리가 있나요? (없으면 'no' 입력)"
+→ If user provides names, append them.
+→ If user says 'no' or '없어', proceed with selected categories only.
 
 Record: selected + custom categories become **서비스 레이어** folders.
 
