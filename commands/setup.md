@@ -6,7 +6,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion
 
 ## Context
 - Current directory: !`node -e "console.log(process.cwd())"`
-- Obsidian app preflight: !`node -e "const {spawnSync}=require('node:child_process');const path=require('node:path');const root=process.env.CLAUDE_PLUGIN_ROOT||process.cwd();const script=path.join(root,'scripts','obsidian-app-preflight.mjs');const r=spawnSync(process.execPath,[script,'check'],{stdio:'inherit'});process.exit(r.status??1)"`
+- Obsidian app preflight: !`obsidian-app-preflight check`
 - OBSIDIAN_VAULT env: !`node -e "console.log(process.env.OBSIDIAN_VAULT||process.env.TOOLDI_VAULT||'not set')"`
 
 ## Your Task
@@ -67,12 +67,12 @@ Expected preflight interface:
    - Ask the user whether to run the recommended install.
    - Only if the user approves, run:
      ```bash
-     node "${CLAUDE_PLUGIN_ROOT:-.}/scripts/obsidian-app-preflight.mjs" install
+     obsidian-app-preflight install
      ```
    - If the user declines, allow "install later" and continue only after explicit confirmation.
 3. If `platform` is `windows` and the setup is running under native PowerShell, use:
    ```powershell
-   node .\scripts\obsidian-app-preflight.mjs install
+   obsidian-app-preflight install
    ```
 4. If Obsidian is missing and `recommendation.canAutoInstall` is `false`:
    - Tell the user to install from `recommendation.manualUrl`.

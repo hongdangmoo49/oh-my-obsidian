@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const action = process.argv[2] || "check";
 const vaultPath = process.argv[3] || "";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
+const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT
+  ? resolve(process.env.CLAUDE_PLUGIN_ROOT)
+  : resolve(scriptDir, "..");
+const helperDir = join(pluginRoot, "scripts");
 
 const isWindows = process.platform === "win32";
 const command = isWindows ? "powershell.exe" : "bash";
@@ -15,11 +19,11 @@ const args = isWindows
       "-ExecutionPolicy",
       "Bypass",
       "-File",
-      join(scriptDir, "obsidian-app-preflight.ps1"),
+      join(helperDir, "obsidian-app-preflight.ps1"),
       "-Action",
       action,
     ]
-  : [join(scriptDir, "obsidian-app-preflight.sh"), action];
+  : [join(helperDir, "obsidian-app-preflight.sh"), action];
 
 if (vaultPath) {
   if (isWindows) {

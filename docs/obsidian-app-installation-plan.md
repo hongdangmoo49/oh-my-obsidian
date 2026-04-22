@@ -293,10 +293,12 @@ Assumptions:
 The Claude setup command should call the Node wrapper so native Windows, macOS, Linux, WSL, and container contexts share one entry point:
 
 ```bash
-node scripts/obsidian-app-preflight.mjs check
+obsidian-app-preflight check
 ```
 
-The Unix-like provider entry point is:
+The wrapper lives in plugin `bin/`, which Claude Code adds to the Bash tool PATH while the plugin is enabled. The implementation is in `scripts/`.
+
+The Unix-like provider implementation entry point is:
 
 ```bash
 scripts/obsidian-app-preflight.sh check
