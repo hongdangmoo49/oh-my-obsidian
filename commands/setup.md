@@ -1,7 +1,7 @@
 ---
 description: "Interactive setup wizard for Obsidian vault integration"
 argument-hint: "[vault-path]"
-allowed-tools: Bash, Read, Write, Edit, Glob
+allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion
 ---
 
 ## Context
@@ -37,46 +37,35 @@ You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, co
 - Record: team roles and size
 
 ### Q5. 서비스 레이어 카테고리 선택
-Display the following list as plain text and ask the user to type the numbers or names.
+Use the AskUserQuestion tool with multiSelect enabled. Present 4 questions, each with 4 categories.
 
-"볼트의 서비스 레이어에 들어갈 카테고리를 선택해주세요.
-해당하는 번호를 모두 적어주세요. (예: 1, 4, 5, 17, 19)"
+**Call AskUserQuestion with these 4 questions:**
 
-**기본 (모든 프로젝트):**
-1. API 명세
-2. 아키텍처
-3. 코어/도메인
+Question 1 — header: "기본/코어", multiSelect: true:
+- API 명세
+- 아키텍처
+- 코어/도메인
+- 데이터베이스/스키마
 
-**백엔드:**
-4. 인증/인가
-5. 데이터베이스/스키마
-6. 비즈니스 로직
-7. 외부 API 연동
-8. 캐싱
-9. 스케줄링/배치
+Question 2 — header: "백엔드/연동", multiSelect: true:
+- 인증/인가
+- 비즈니스 로직
+- 외부 API 연동
+- 실시간 통신 (WebSocket/SSE)
 
-**프론트엔드:**
-10. 화면/페이지 정의
-11. 상태 관리
-12. 디자인 시스템
+Question 3 — header: "인프라/운영", multiSelect: true:
+- 배포/인프라
+- CI/CD
+- 모니터링/로깅
+- 보안
 
-**인프라/운영:**
-13. 배포/인프라
-14. CI/CD
-15. 모니터링/로깅
-16. 보안
+Question 4 — header: "특수기능", multiSelect: true:
+- 결제
+- 알림 (푸시/이메일/SMS)
+- 사용자/권한 관리
+- 파일/이미지 처리
 
-**특수 기능:**
-17. 결제
-18. 알림 (푸시/이메일/SMS)
-19. 실시간 통신 (WebSocket/SSE)
-20. 검색
-21. 파일/이미지 처리
-22. 사용자 관리
-23. 권한 관리
-24. 마이그레이션
-
-After user selects, ask:
+After user selects, ask in plain text:
 "추가하고 싶은 카테고리가 있나요? (없으면 엔터)"
 → Append any custom categories.
 
