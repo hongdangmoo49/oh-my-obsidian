@@ -279,9 +279,9 @@ $TOOLDI_VAULT/.obsidian/plugins/obsidian-git/data.json
 | WSL | `/proc/version` or `/proc/sys/kernel/osrelease` contains Microsoft/WSL | Install on Windows host via user-run `winget` command | Manual Windows install. |
 | Docker/container | `/.dockerenv`, cgroup markers | Do not install app in container | Print host-specific command. |
 
-## 14. First Implementation Scope: macOS Claude Plugin Stage
+## 14. Provider Interface and Current Implementation Scope
 
-The first implementation target is macOS only.
+The first implementation started with macOS and now uses a provider-style interface for Windows and Linux expansion.
 
 Assumptions:
 
@@ -290,13 +290,25 @@ Assumptions:
 - The setup command runs Obsidian app preflight before Q1 vault path.
 - The setup command does not create the vault until preflight is completed or skipped.
 
-The implementation entry point is:
+The Claude setup command should call the Node wrapper so native Windows, macOS, Linux, WSL, and container contexts share one entry point:
+
+```bash
+node scripts/obsidian-app-preflight.mjs check
+```
+
+The Unix-like provider entry point is:
 
 ```bash
 scripts/obsidian-app-preflight.sh check
 ```
 
-The script returns a stable JSON object:
+The native Windows implementation entry point is:
+
+```powershell
+.\scripts\obsidian-app-preflight.ps1 check
+```
+
+Both scripts return the same stable JSON shape:
 
 ```json
 {
@@ -335,24 +347,29 @@ The setup command owns user interaction:
 
 1. Read the JSON preflight result.
 2. If Obsidian is installed, continue to the interview.
-3. If Obsidian is missing and Homebrew is available, ask for approval to run:
+3. If Obsidian is missing and `recommendation.canAutoInstall` is true, ask for approval to run the recommended install action.
+4. If Obsidian is missing and automatic install is unavailable, show the manual download URL and ask whether to continue with "install later".
+5. If the context is a container, do not install Obsidian in the container.
 
-   ```bash
-   scripts/obsidian-app-preflight.sh install
-   ```
-
-4. If Obsidian is missing and Homebrew is unavailable, show the manual download URL and ask whether to continue with "install later".
-5. If not macOS, say this first implementation only supports macOS auto-install and allow an explicit skip.
-
-The script owns machine probing and host action execution:
+The provider scripts own machine probing and host action execution:
 
 | Action | Responsibility |
 | --- | --- |
-| `check` | Detect platform/context, Obsidian app, Homebrew, and recommended next step. |
-| `install` | On native macOS only, run `brew install --cask obsidian` when Obsidian is missing. |
-| `open-vault <path>` | On native macOS only, open the vault with the Obsidian URI scheme `obsidian://open?path=...`; fall back to `open -a "Obsidian" <path>` if URL encoding is unavailable. |
+| `check` | Detect platform/context, Obsidian app, package manager, URI handler, and recommended next step. |
+| `install` | Run the approved OS-specific install method. |
+| `open-vault <path>` | Open the generated vault with the OS-supported Obsidian URI/app launcher. |
 
-Future OS support should add provider implementations behind the same actions rather than changing the setup command contract.
+Current provider support:
+
+| Platform / context | Check | Install | Open vault |
+| --- | --- | --- | --- |
+| macOS native | `scripts/obsidian-app-preflight.sh check` | Homebrew cask | Obsidian URI, fallback to `open -a` |
+| Windows native | `scripts/obsidian-app-preflight.ps1 check` | `winget` user-scope install | `Start-Process obsidian://...` |
+| WSL | bash script through `powershell.exe` | Windows host `winget` | Windows host `obsidian://...` |
+| Linux native Debian-like | bash script | official `.deb` via `sudo apt install` | `xdg-open obsidian://...` |
+| Linux native non-Debian | bash script | official AppImage by default | `xdg-open obsidian://...` if registered |
+| Linux Snap/Flatpak fallback | bash script | user-approved fallback | depends on desktop integration |
+| Docker/container | check only | disabled | disabled |
 
 ## 15. Open Questions
 
@@ -390,7 +407,9 @@ Repo files inspected:
 - `hooks/stop-hook.sh`
 - `scripts/install.sh`
 - `scripts/install.ps1`
+- `scripts/obsidian-app-preflight.mjs`
 - `scripts/obsidian-app-preflight.sh`
+- `scripts/obsidian-app-preflight.ps1`
 
 External references checked:
 
@@ -401,6 +420,11 @@ External references checked:
 - Obsidian GitHub releases: https://github.com/obsidianmd/obsidian-releases/releases
 - Homebrew cask for Obsidian: https://formulae.brew.sh/cask/obsidian
 - Snap Store Obsidian page: https://snapcraft.io/obsidian
+- Flathub Obsidian page: https://flathub.org/apps/md.obsidian.Obsidian
+- systemd os-release specification: https://www.freedesktop.org/software/systemd/man/249/os-release.html
+- xdg-open documentation: https://portland.freedesktop.org/doc/xdg-open.html
 - Windows package manifest repository: https://github.com/microsoft/winget-pkgs/tree/master/manifests/o/Obsidian/Obsidian
+- Microsoft winget documentation: https://learn.microsoft.com/en-us/windows/package-manager/winget/
+- WSL filesystem and interop documentation: https://learn.microsoft.com/en-us/windows/wsl/filesystems
 - Obsidian Git plugin: https://github.com/Vinzent03/obsidian-git
 - Obsidian Git installation docs: https://github.com/Vinzent03/obsidian-git/blob/master/docs/Installation.md

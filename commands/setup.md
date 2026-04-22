@@ -5,9 +5,9 @@ allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion
 ---
 
 ## Context
-- Current directory: !`pwd`
-- Obsidian app preflight: !`if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -x "$CLAUDE_PLUGIN_ROOT/scripts/obsidian-app-preflight.sh" ]; then "$CLAUDE_PLUGIN_ROOT/scripts/obsidian-app-preflight.sh" check; elif [ -x "./scripts/obsidian-app-preflight.sh" ]; then "./scripts/obsidian-app-preflight.sh" check; else echo '{"schema":"oh-my-obsidian/obsidian-app-preflight/v1","action":"check","platform":"unknown","context":"unknown","obsidian":{"installed":false,"path":"","version":""},"cli":{"availableOnPath":false,"path":"","bundledCliAvailable":false,"bundledCliPath":""},"packageManagers":{},"recommendation":{"canAutoInstall":false,"installMethod":"script-missing","manualUrl":"https://obsidian.md/download"}}'; fi`
-- OBSIDIAN_VAULT env: !`echo "${OBSIDIAN_VAULT:-not set}"`
+- Current directory: !`node -e "console.log(process.cwd())"`
+- Obsidian app preflight: !`node -e "const {spawnSync}=require('node:child_process');const path=require('node:path');const root=process.env.CLAUDE_PLUGIN_ROOT||process.cwd();const script=path.join(root,'scripts','obsidian-app-preflight.mjs');const r=spawnSync(process.execPath,[script,'check'],{stdio:'inherit'});process.exit(r.status??1)"`
+- OBSIDIAN_VAULT env: !`node -e "console.log(process.env.OBSIDIAN_VAULT||process.env.TOOLDI_VAULT||'not set')"`
 
 ## Your Task
 
@@ -22,9 +22,15 @@ Before asking Q1-Q6, verify that the desktop Obsidian app can be used for the va
 
 Use the `Obsidian app preflight` JSON from Context.
 
-### Supported first target: macOS
+### Supported targets
 
-For this first implementation scope, macOS is the only auto-install target.
+Use one stable preflight interface across operating systems. The current implementation supports:
+
+- macOS native: Homebrew cask install
+- Windows native: PowerShell helper + winget install
+- WSL: Windows host check/install through `powershell.exe`
+- Linux native: Debian/Ubuntu `.deb`, AppImage, Snap/Flatpak fallback
+- Docker/container: check only; do not install desktop apps in the container
 
 Expected preflight interface:
 
@@ -55,20 +61,25 @@ Expected preflight interface:
 ### Decision flow
 
 1. If `obsidian.installed` is `true`, say Obsidian is detected and continue to Phase 1.
-2. If `platform` is `macos`, Obsidian is missing, and `recommendation.canAutoInstall` is `true`:
+2. If Obsidian is missing and `recommendation.canAutoInstall` is `true`:
    - Explain that Obsidian is the desktop app that will open the generated vault.
-   - Ask the user whether to run `brew install --cask obsidian`.
+   - Show `recommendation.installMethod` and `recommendation.installCommand`.
+   - Ask the user whether to run the recommended install.
    - Only if the user approves, run:
      ```bash
-     "${CLAUDE_PLUGIN_ROOT:-.}/scripts/obsidian-app-preflight.sh" install
+     node "${CLAUDE_PLUGIN_ROOT:-.}/scripts/obsidian-app-preflight.mjs" install
      ```
    - If the user declines, allow "install later" and continue only after explicit confirmation.
-3. If `platform` is `macos`, Obsidian is missing, and Homebrew is unavailable:
-   - Tell the user to install from `https://obsidian.md/download`.
+3. If `platform` is `windows` and the setup is running under native PowerShell, use:
+   ```powershell
+   node .\scripts\obsidian-app-preflight.mjs install
+   ```
+4. If Obsidian is missing and `recommendation.canAutoInstall` is `false`:
+   - Tell the user to install from `recommendation.manualUrl`.
    - Ask whether to continue setup and install Obsidian later.
-4. If the context is not macOS:
-   - Say this setup version only documents/implements macOS Obsidian app install automation.
-   - Continue only if the user explicitly wants to skip app installation preflight.
+5. If `context` is `container`:
+   - Do not install Obsidian in the container.
+   - Tell the user to install Obsidian on the desktop host and continue only after explicit skip/confirmation.
 
 Do not create a vault until Obsidian app preflight is completed or explicitly skipped.
 
