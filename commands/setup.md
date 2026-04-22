@@ -24,13 +24,42 @@ Ask: "프로젝트/서비스 이름이 무엇인가요?"
 → If user provided argument, use that as vault path instead.
 → Tell user the derived path and move on immediately — do NOT ask for confirmation.
 
-### Q2. Project Description
-Ask: "이 프로젝트는 어떤 서비스인가요? (도메인, 타겟 유저, 핵심 기능을 간단히 설명해주세요)"
-→ Record and move on immediately.
+### Q2. Project Type
+Use AskUserQuestion with 1 question:
+- header: "프로젝트 타입"
+- multiSelect: false
+- options:
+  - 웹 서비스/SaaS
+  - 모바일 앱
+  - 게임 (웹/모바일/PC)
+  - 기타 (Other로 입력)
+
+After selection, if not "기타", ask in plain text:
+"간단히 타겟 유저나 핵심 기능을 알려주시면 볼트에 기록됩니다. (생략하려면 엔터)"
 
 ### Q3. Tech Stack
-Ask: "사용 중인 기술 스택은 무엇인가요? (프론트엔드, 백엔드, DB, 인프라 등)"
-→ Record and move on immediately.
+Use AskUserQuestion with 3 questions:
+
+Question 1 — header: "프론트엔드", multiSelect: false:
+- React
+- Next.js
+- Vue
+- React Native / Flutter
+
+Question 2 — header: "백엔드", multiSelect: false:
+- Node.js / Express / NestJS
+- Spring Boot
+- Django / FastAPI
+- Go / Rust
+
+Question 3 — header: "데이터베이스", multiSelect: false:
+- MySQL / PostgreSQL
+- MongoDB
+- Firebase / Supabase
+- Redis / DynamoDB
+
+After selection, ask in plain text:
+"인프라나 외부 서비스가 있으면 알려주세요. (예: AWS, GCP, S3, Firebase 등, 생략하려면 엔터)"
 
 ### Q4. Team Structure
 "팀 구성은 어떻게 되나요? (역할별 인원, 프론트/백엔드/디자인 등)"
