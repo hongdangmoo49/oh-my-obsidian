@@ -268,7 +268,63 @@ git commit -m "init: vault created by oh-my-obsidian"
 
 ---
 
-## Phase 4: Success Message
+## Phase 4: Obsidian Git Plugin Setup
+
+After the vault exists and Git setup is complete, offer Obsidian Git installation as the final vault-level setup stage.
+
+This is still part of the Claude Code plugin setup flow. Keep user interaction in this command and delegate file/download validation work to the plugin bin helper.
+
+### 4.1 Explain the choices
+
+Ask:
+
+```text
+Obsidian Git을 설치할까요?
+
+1. 안전 모드 - 플러그인 파일만 설치, 비활성화, 자동 sync off
+2. 수동 모드 - 설치 + 활성화, 자동 sync off
+3. 팀 동기화 - 설치 + 활성화 + 자동 commit/pull/push
+```
+
+Make these rules clear:
+
+- The setup may install Obsidian Git files into the generated vault.
+- Community plugin enablement is a code execution setting and requires explicit user choice.
+- Restricted Mode is not bypassed. The user may still need to approve community plugins in Obsidian.
+- Git credentials, SSH keys, and PATs are not managed by this plugin.
+- The default safe mode does not auto commit, pull, or push.
+
+### 4.2 Call the helper based on the selected option
+
+Run one of:
+
+```bash
+obsidian-git-setup apply "$VAULT" --preset safe
+obsidian-git-setup apply "$VAULT" --preset manual --enable
+obsidian-git-setup apply "$VAULT" --preset team-sync --interval 10 --enable
+```
+
+If the user explicitly asks for a 1-minute team sync policy, use:
+
+```bash
+obsidian-git-setup apply "$VAULT" --preset team-sync --interval 1 --enable
+```
+
+For `team-sync`, if the helper returns `status: "blocked"`, explain the issues and fall back to `manual` or `safe` only after user confirmation.
+
+### 4.3 Validate
+
+After applying, run:
+
+```bash
+obsidian-git-setup validate "$VAULT"
+```
+
+Include the validation status and remaining manual actions in the final success message.
+
+---
+
+## Phase 5: Success Message
 
 ```
 ✅ oh-my-obsidian 설정 완료!

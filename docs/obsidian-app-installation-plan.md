@@ -246,6 +246,22 @@ $TOOLDI_VAULT/.obsidian/plugins/obsidian-git/styles.css
 $TOOLDI_VAULT/.obsidian/plugins/obsidian-git/data.json
 ```
 
+Obsidian Git setup must be implemented as a Claude plugin helper, not as ad hoc command text:
+
+```bash
+obsidian-git-setup check "$TOOLDI_VAULT"
+obsidian-git-setup apply "$TOOLDI_VAULT" --preset safe
+obsidian-git-setup apply "$TOOLDI_VAULT" --preset manual --enable
+obsidian-git-setup apply "$TOOLDI_VAULT" --preset team-sync --interval 10 --enable
+obsidian-git-setup validate "$TOOLDI_VAULT"
+```
+
+Default mode is `safe`: install plugin files and write non-automatic settings, but do not add `obsidian-git` to `community-plugins.json`.
+
+`--enable` is required before writing `obsidian-git` into `community-plugins.json`.
+
+`team-sync` requires a valid Git repo with remote and upstream tracking branch. If those checks fail, the helper must return `status: "blocked"` and not write plugin files.
+
 ## 11. Error Handling
 
 | Case | System Handling | User Message |
@@ -412,6 +428,9 @@ Repo files inspected:
 - `scripts/obsidian-app-preflight.mjs`
 - `scripts/obsidian-app-preflight.sh`
 - `scripts/obsidian-app-preflight.ps1`
+- `bin/obsidian-git-setup`
+- `scripts/obsidian-git-setup.mjs`
+- `scripts/test-obsidian-git-setup.sh`
 
 External references checked:
 
