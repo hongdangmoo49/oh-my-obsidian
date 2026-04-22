@@ -1,0 +1,29 @@
+name: oh-my-obsidian-claude
+
+services:
+  rocky-claude:
+    build:
+      context: .
+      dockerfile: docker/claude-code-rocky/Dockerfile
+      args:
+        NODE_MAJOR: 24
+    image: oh-my-obsidian/claude-code-rocky:9.3-node24
+    container_name: oh-my-obsidian-claude
+    working_dir: /workspace/oh-my-obsidian
+    tty: true
+    stdin_open: true
+    environment:
+      TERM: xterm-256color
+      COLORTERM: truecolor
+      ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
+      API_TIMEOUT_MS: "3000000"
+      PATH: /root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - .:/workspace/oh-my-obsidian
+      - claude_rocky_home:/root
+      - claude_rocky_data:/persist
+    command: ["/bin/bash", "-lc", "sleep infinity"]
+
+volumes:
+  claude_rocky_home:
+  claude_rocky_data:
