@@ -84,7 +84,7 @@ The current split is acceptable for integration:
    In that case, `team-sync` should either:
 
    - ask for a remote URL after the teammate flow is merged, then run
-     `git remote add origin <url>` and `git push -u origin <branch>`, or
+     `git remote add origin <url>` and `git push -u origin main`, or
    - clearly fall back to manual/safe mode without trying to invent a remote.
 
 2. Make blocked `team-sync` UX deterministic.

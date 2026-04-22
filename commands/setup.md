@@ -332,7 +332,7 @@ Obsidian auto-populates config on first open.
 If new repo:
 ```bash
 cd "$VAULT"
-git init
+git init -b main
 git add .
 git commit -m "init: vault created by oh-my-obsidian"
 ```
@@ -381,7 +381,7 @@ If the user explicitly asks for a 1-minute team sync policy, use:
 obsidian-git-setup apply "$VAULT" --preset team-sync --interval 1 --enable
 ```
 
-For `team-sync`, if the helper returns `status: "blocked"`, explain the issues and fall back to `manual` or `safe` only after user confirmation.
+For `team-sync`, if the helper returns `status: "blocked"`, explain the issues. If the user wants to fix the missing remote, ask for the URL and run `git remote add origin <url> && git push -u origin main` (NEVER use master). If they prefer not to, fall back to `manual` or `safe` after user confirmation.
 
 ### 4.3 Validate
 
