@@ -5,13 +5,89 @@ allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion, Agent
 ---
 
 ## Context
-- Current directory: !`pwd`
-- OBSIDIAN_VAULT env: !`echo "${OBSIDIAN_VAULT:-not set}"`
+- Current directory: !`node -e "console.log(process.cwd())"`
+- Obsidian app preflight: !`obsidian-app-preflight check`
+- OBSIDIAN_VAULT env: !`node -e "console.log(process.env.OBSIDIAN_VAULT||process.env.TOOLDI_VAULT||'not set')"`
 - Plugin root: `${CLAUDE_PLUGIN_ROOT}`
 
 ## Your Task
 
-You are the oh-my-obsidian setup wizard **orchestrator**. You do NOT generate interview questions yourself — you delegate each question to a `socratic-interviewer` subagent and present results to the user via AskUserQuestion.
+You are the oh-my-obsidian setup wizard **orchestrator**.
+
+Before the vault interview, run the Phase 0 Obsidian app preflight flow from the context below.
+After Phase 0 is complete or explicitly skipped, do NOT generate interview questions yourself — delegate each interview question to a `socratic-interviewer` subagent and present results to the user via AskUserQuestion.
+
+---
+
+## Phase 0: Obsidian App Preflight (required before vault interview)
+
+This project is a Claude Code plugin. The user is assumed to have installed or loaded the plugin already.
+Before asking Q1-Q6, verify that the desktop Obsidian app can be used for the vault that this setup will generate.
+
+Use the `Obsidian app preflight` JSON from Context.
+
+### Supported targets
+
+Use one stable preflight interface across operating systems. The current implementation supports:
+
+- macOS native: Homebrew cask install
+- Windows native: PowerShell helper + winget install
+- WSL: Windows host check/install through `powershell.exe`
+- Linux native: Debian/Ubuntu `.deb`, AppImage, Snap/Flatpak fallback
+- Docker/container: check only; do not install desktop apps in the container
+
+Expected preflight interface:
+
+```json
+{
+  "schema": "oh-my-obsidian/obsidian-app-preflight/v1",
+  "platform": "macos",
+  "context": "native",
+  "obsidian": {
+    "installed": true,
+    "path": "/Applications/Obsidian.app",
+    "version": "..."
+  },
+  "packageManagers": {
+    "homebrew": {
+      "available": true
+    }
+  },
+  "recommendation": {
+    "canAutoInstall": true,
+    "installMethod": "homebrew-cask",
+    "installCommand": "brew install --cask obsidian",
+    "manualUrl": "https://obsidian.md/download"
+  }
+}
+```
+
+### Decision flow
+
+1. If `obsidian.installed` is `true`, say Obsidian is detected and continue to Phase 1.
+2. If Obsidian is missing and `recommendation.canAutoInstall` is `true`:
+   - Explain that Obsidian is the desktop app that will open the generated vault.
+   - Show `recommendation.installMethod` and `recommendation.installCommand`.
+   - Ask the user whether to run the recommended install.
+   - Only if the user approves, run:
+     ```bash
+     obsidian-app-preflight install
+     ```
+   - If the user declines, allow "install later" and continue only after explicit confirmation.
+3. If `platform` is `windows` and the setup is running under native PowerShell, use:
+   ```powershell
+   obsidian-app-preflight install
+   ```
+4. If Obsidian is missing and `recommendation.canAutoInstall` is `false`:
+   - Tell the user to install from `recommendation.manualUrl`.
+   - Ask whether to continue setup and install Obsidian later.
+5. If `context` is `container`:
+   - Do not install Obsidian in the container.
+   - Tell the user to install Obsidian on the desktop host and continue only after explicit skip/confirmation.
+
+Do not create a vault until Obsidian app preflight is completed or explicitly skipped.
+
+---
 
 **CRITICAL UX RULES**:
 - NEVER ask "press enter to skip/confirm" — empty messages cannot be sent in Claude Code.
@@ -263,7 +339,63 @@ git commit -m "init: vault created by oh-my-obsidian"
 
 ---
 
-## Phase 4: Success Message
+## Phase 4: Obsidian Git Plugin Setup
+
+After the vault exists and Git setup is complete, offer Obsidian Git installation as the final vault-level setup stage.
+
+This is still part of the Claude Code plugin setup flow. Keep user interaction in this command and delegate file/download validation work to the plugin bin helper.
+
+### 4.1 Explain the choices
+
+Ask:
+
+```text
+Obsidian Git을 설치할까요?
+
+1. 안전 모드 - 플러그인 파일만 설치, 비활성화, 자동 sync off
+2. 수동 모드 - 설치 + 활성화, 자동 sync off
+3. 팀 동기화 - 설치 + 활성화 + 자동 commit/pull/push
+```
+
+Make these rules clear:
+
+- The setup may install Obsidian Git files into the generated vault.
+- Community plugin enablement is a code execution setting and requires explicit user choice.
+- Restricted Mode is not bypassed. The user may still need to approve community plugins in Obsidian.
+- Git credentials, SSH keys, and PATs are not managed by this plugin.
+- The default safe mode does not auto commit, pull, or push.
+
+### 4.2 Call the helper based on the selected option
+
+Run one of:
+
+```bash
+obsidian-git-setup apply "$VAULT" --preset safe
+obsidian-git-setup apply "$VAULT" --preset manual --enable
+obsidian-git-setup apply "$VAULT" --preset team-sync --interval 10 --enable
+```
+
+If the user explicitly asks for a 1-minute team sync policy, use:
+
+```bash
+obsidian-git-setup apply "$VAULT" --preset team-sync --interval 1 --enable
+```
+
+For `team-sync`, if the helper returns `status: "blocked"`, explain the issues and fall back to `manual` or `safe` only after user confirmation.
+
+### 4.3 Validate
+
+After applying, run:
+
+```bash
+obsidian-git-setup validate "$VAULT"
+```
+
+Include the validation status and remaining manual actions in the final success message.
+
+---
+
+## Phase 5: Success Message
 
 ```
 oh-my-obsidian 설정 완료!
