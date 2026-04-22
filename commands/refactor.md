@@ -137,8 +137,15 @@ Agent(
   PROPOSED MIGRATION:
   {migration_operations JSON from Phase 2}
 
+  DIRECTORIES TO BE CREATED BEFORE MIGRATION:
+  {directories_to_create JSON from Phase 2}
+
   CURRENT TREE:
   {Current Vault Tree}
+
+  CRITICAL RULE: Remember that the directories listed above will be created via `mkdir -p` BEFORE your safe_commands run. 
+  If a migration is meant to rename a folder (e.g., A -> B), and B is in the creation list, `mv A B` will place A inside B (`B/A`).
+  Adjust your `safe_commands` accordingly to prevent nested folders, or output an error if the logic is flawed.
 
   Return ONLY the JSON validation object.
   """,
