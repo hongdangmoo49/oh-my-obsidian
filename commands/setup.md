@@ -1,173 +1,186 @@
 ---
 description: "Interactive setup wizard for Obsidian vault integration"
 argument-hint: "[vault-path]"
-allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion
+allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion, Agent
 ---
 
 ## Context
 - Current directory: !`pwd`
 - OBSIDIAN_VAULT env: !`echo "${OBSIDIAN_VAULT:-not set}"`
+- Plugin root: `${CLAUDE_PLUGIN_ROOT}`
 
 ## Your Task
 
-You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, collect essential project information and construct a tailored Obsidian vault structure.
-
----
-
-## Phase 1: Project Interview
+You are the oh-my-obsidian setup wizard **orchestrator**. You do NOT generate interview questions yourself — you delegate each question to a `socratic-interviewer` subagent and present results to the user via AskUserQuestion.
 
 **CRITICAL UX RULES**:
 - NEVER ask "press enter to skip/confirm" — empty messages cannot be sent in Claude Code.
-- For optional follow-ups, use AskUserQuestion with a "건너뛰기" option. User can always use "Other" for custom typing.
-- After collecting all info, proceed to Phase 2 immediately — no final confirmation.
 - AskUserQuestion always provides an "Other" option automatically for free-text input.
+- You are the ORCHESTRATOR — question generation is delegated to the subagent.
 
 ---
 
-### Q1. Project Name + Vault Path
-Ask in plain text: "프로젝트/서비스 이름이 무엇인가요?"
-→ Vault path auto-derived: `~/Documents/Obsidian/{project-name}`
-→ If user provided argument, use that as vault path instead.
-→ Tell user the derived path and move on immediately.
+## Phase 1: Project Interview (Agent-Driven)
 
-### Q2. Project Type
-Use AskUserQuestion with 1 question:
-- header: "프로젝트 타입", multiSelect: false
-- options: 웹 서비스/SaaS, 모바일 앱, 게임 (웹/모바일/PC), 기타
+### Round Loop
 
-Then use AskUserQuestion for follow-up (1 question):
-- header: "상세 설명", multiSelect: false
-- options:
-  - "건너뛰기" — skip, record only the project type
-  - "Other로 타겟 유저/핵심 기능 입력" — user types via Other
-  - "B2C 소비자 서비스"
-  - "B2B 기업용 / 내부 도구"
-If user selects "건너뛰기", move on immediately.
+Repeat the following cycle until the user selects "구조 제안하기":
 
-### Q3. Tech Stack
-Use AskUserQuestion with 3 questions:
+#### Step A: Generate Question via Subagent
 
-Question 1 — header: "프론트엔드", multiSelect: false:
-- React
-- Next.js
-- Vue
-- React Native / Flutter
+Spawn a subagent to generate the next interview question:
 
-Question 2 — header: "백엔드", multiSelect: false:
-- Node.js / Express / NestJS
-- Spring Boot
-- Django / FastAPI
-- Go / Rust
+```
+Agent(
+  description="Generate interview question",
+  prompt="""
+  You are the socratic-interviewer agent for oh-my-obsidian vault setup.
+  Read your agent definition at ${CLAUDE_PLUGIN_ROOT}/agents/socratic-interviewer.md first.
 
-Question 3 — header: "데이터베이스", multiSelect: false:
-- MySQL / PostgreSQL
-- MongoDB
-- Firebase / Supabase
-- Redis / DynamoDB
+  INTERVIEW HISTORY SO FAR:
+  {JSON array of previous Q&A pairs, e.g. [{"question":"...","answer":"..."}]}
 
-Then use AskUserQuestion for infra follow-up (1 question):
-- header: "인프라", multiSelect: false
-- options:
-  - "AWS (EC2, S3, Lambda 등)"
-  - "GCP"
-  - "Azure / 기타"
-  - "건너뛰기"
-If user selects "건너뛰기", record only the tech stack selections.
+  CURRENT CONTEXT:
+  - Working directory: {pwd}
+  - Vault path argument: {vault_path_arg or "none"}
 
-### Q4. Team Structure
-Ask in plain text: "팀 구성은 어떻게 되나요? (역할별 인원, 프론트/백엔드/디자인 등)"
-→ Record and move on.
+  {If existing project: "The user indicated this is an existing project. Scan the current directory for config files using Glob/Read before generating your question."}
+  {If new project: "The user indicated this is a new project. Ask about project identity and goals."}
+  {If first round: "This is Round 1. Start with a DIRECT QUESTION. Do NOT introduce yourself."}
 
-### Q5. 서비스 레이어 카테고리 선택
-Use AskUserQuestion with 4 questions, all multiSelect:
+  Generate the next question in the JSON format specified in your agent definition.
+  Return ONLY the JSON object, nothing else.
+  """,
+  subagent_type="general-purpose"
+)
+```
 
-Question 1 — header: "기본/코어", multiSelect: true:
-- API 명세
-- 아키텍처
-- 코어/도메인
-- 데이터베이스/스키마
+#### Step B: Parse Subagent Response
 
-Question 2 — header: "백엔드/연동", multiSelect: true:
-- 인증/인가
-- 비즈니스 로직
-- 외부 API 연동
-- 실시간 통신 (WebSocket/SSE)
+The subagent returns a JSON object:
+```json
+{
+  "question": "질문 텍스트",
+  "header": "Q1",
+  "options": [
+    {"label": "선택지1", "description": "설명"},
+    {"label": "선택지2", "description": "설명"},
+    {"label": "구조 제안하기", "description": "지금까지의 정보로 볼트 구조 제안받기"}
+  ],
+  "context_gathered": {
+    "project_name": "...",
+    "tech_stack": [...],
+    "knowledge_domains": [...],
+    "completeness": "60%"
+  }
+}
+```
 
-Question 3 — header: "인프라/운영", multiSelect: true:
-- 배포/인프라
-- CI/CD
-- 모니터링/로깅
-- 보안
+Parse this JSON and extract `question`, `header`, `options`.
+Track `context_gathered` internally for Phase 2.
 
-Question 4 — header: "특수기능", multiSelect: true:
-- 결제
-- 알림 (푸시/이메일/SMS)
-- 사용자/권한 관리
-- 파일/이미지 처리
+If `question` is `"__SCANNING__"`, the subagent wants codebase exploration:
+- Use Glob to scan the requested file patterns in the current directory
+- Re-spawn the subagent with the scan results appended to the prompt
 
-Then use AskUserQuestion for custom additions (1 question):
-- header: "추가 카테고리", multiSelect: false
-- options:
-  - "선택 완료 (추가 없음)"
-  - "Other로 직접 입력" — user types custom category names
-If user selects "선택 완료", proceed with selected categories only.
+#### Step C: Present to User via AskUserQuestion
 
-Record: selected + custom categories become **서비스 레이어** folders.
+```json
+{
+  "questions": [{
+    "question": "<question from subagent>",
+    "header": "<header from subagent>",
+    "options": "<options from subagent>",
+    "multiSelect": false
+  }]
+}
+```
 
-### Q6. Git Repository
-Use AskUserQuestion with 1 question:
-- header: "Git 레포", multiSelect: false
-- options:
-  - "새로 만들기 (로컬 init)"
-  - "기존 레포 사용 (Other로 URL 입력)"
+#### Step D: Record Answer
+
+Store the user's answer (selected option label or "Other" text) in the interview history array.
+
+If answer is "구조 제안하기" → exit loop, proceed to Phase 2.
+Otherwise → append `{question, answer}` to history → go to Step A.
 
 ---
 
-## Phase 2: Vault Construction
+### Minimum Info Check
 
-Based on collected info, construct the vault with these **mandatory layers**:
+Before transitioning to Phase 2, verify that `context_gathered` contains:
+- `project_name` (non-null)
+- At least 2 `knowledge_domains`
 
-### Layer 1: 서비스 레이어 (Service Layer)
-Generated from Q5 selections. One folder per selected category.
-
-Example (user selected: API 명세, 인증/인가, 데이터베이스/스키마, 결제, 배포/인프라, 실시간 통신):
-```
-{서비스명}/
-├── API_명세/
-├── 인증_인가/
-├── 데이터베이스_스키마/
-├── 결제/
-├── 배포_인프라/
-└── 실시간_통신/
-```
-
-### Layer 2: 작업기록 레이어 (Work Records Layer) — ALWAYS present
-```
-작업기록/
-├── 세션기록/
-├── 의사결정/
-├── 트러블슈팅/
-└── 회의록/
-```
-
-### Layer 3: scripts/ — ALWAYS present
-```
-scripts/
-├── team-setup/
-│   ├── install.ps1
-│   ├── install.sh
-│   └── README.md
-└── README.md
-```
+If missing → spawn one more subagent call specifically to fill the gap before Phase 2.
 
 ---
 
-## Phase 3: Generate Files
+## Phase 2: Vault Structure Proposal
+
+### 2.1 Generate Structure via Subagent
+
+Spawn a subagent with vault-architect role:
+
+```
+Agent(
+  description="Design vault structure",
+  prompt="""
+  You are a vault architect. Based on the interview results below, design the optimal Obsidian vault folder structure.
+
+  Read the design principles at ${CLAUDE_PLUGIN_ROOT}/agents/vault-architect.md first.
+
+  INTERVIEW RESULTS:
+  {full interview history JSON}
+
+  CONTEXT GATHERED:
+  {context_gathered JSON}
+
+  Design a vault with 3 layers:
+
+  1. 서비스 레이어 (Service Layer) — one folder per knowledge_domain
+     - Use concise Korean names (e.g., "API_명세", "인증_인가", "배포_인프라")
+     - If existing project with detected modules → map modules to domains
+
+  2. 작업기록 레이어 (always present):
+     작업기록/세션기록/, 작업기록/의사결정/, 작업기록/트러블슈팅/, 작업기록/회의록/
+
+  3. scripts/ (always present):
+     scripts/team-setup/
+
+  Return the proposed structure as a tree diagram and a JSON array of all folders to create.
+  """,
+  subagent_type="general-purpose"
+)
+```
+
+### 2.2 Present Proposal
+
+Show the proposed tree to the user, then confirm via AskUserQuestion:
+- header: "볼트 구조", multiSelect: false
+- options:
+  - "이 구조로 확정" → proceed to Phase 3
+  - "Other로 수정/추가 요청" → incorporate feedback → regenerate → re-confirm
+
+### 2.3 Determine Vault Path
+
+If user provided `[vault-path]` argument → use that.
+Otherwise derive: `~/Documents/Obsidian/{project-name}`
+
+Confirm via AskUserQuestion:
+- header: "볼트 경로", multiSelect: false
+- options:
+  - "{derived path}" — use derived path
+  - "Other로 경로 입력" — user provides custom path
+
+---
+
+## Phase 3: Vault Construction
 
 ### 3.1 Create directories
+
 ```bash
 # 서비스 레이어
-mkdir -p "$VAULT/{서비스명}/{각 카테고리}"
+mkdir -p "$VAULT/{프로젝트명}/{각 카테고리}"
 
 # 작업기록 레이어
 mkdir -p "$VAULT/작업기록/세션기록"
@@ -180,49 +193,57 @@ mkdir -p "$VAULT/scripts/team-setup"
 ```
 
 ### 3.2 Generate vault README.md
+
 ```markdown
 # {프로젝트명} — Knowledge Vault
 
 ## 프로젝트 개요
-{Q2 answer — 서비스 설명}
+{project description from interview}
 
 ## 기술 스택
-{Q3 answer}
+{tech stack}
 
 ## 팀 구성
-{Q4 answer}
+{team info}
 
 ## 볼트 구조
 {generated tree}
 
 ## 핵심 지식 영역
-{Q5 answer — 각 카테고리 설명}
+{knowledge domains with descriptions}
 
 ---
 *oh-my-obsidian으로 관리됨*
 ```
 
 ### 3.3 Generate team-setup scripts
-Write `scripts/team-setup/install.ps1` and `install.sh`:
+
+Write `scripts/team-setup/install.ps1`:
 - Set OBSIDIAN_VAULT env var
 - Create vault category folders (idempotent)
 - Print verification steps
+
+Write `scripts/team-setup/install.sh`:
+- Same as above, Unix version
 
 Write `scripts/team-setup/README.md`:
 - Clone → install → restart → test instructions
 - In Korean
 
-### 3.4 Generate .obsidian stub (for Obsidian app)
+### 3.4 Generate .obsidian stub
+
 ```bash
 mkdir -p "$VAULT/.obsidian"
 ```
-Obsidian will auto-populate config on first open.
+Obsidian auto-populates config on first open.
 
 ### 3.5 Set environment variable
+
 - Windows: `[Environment]::SetEnvironmentVariable("OBSIDIAN_VAULT", $path, "User")`
 - Unix: append `export OBSIDIAN_VAULT="$path"` to shell profile
 
 ### 3.6 Git init/commit
+
 If new repo:
 ```bash
 cd "$VAULT"
@@ -236,7 +257,7 @@ git commit -m "init: vault created by oh-my-obsidian"
 ## Phase 4: Success Message
 
 ```
-✅ oh-my-obsidian 설정 완료!
+oh-my-obsidian 설정 완료!
 
 프로젝트: {프로젝트명}
 볼트 경로: {vault}
