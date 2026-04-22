@@ -22,9 +22,12 @@ RUN microdnf install -y \
         zsh \
     && curl -fsSL "https://rpm.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
     && microdnf install -y nodejs \
+    && npm install -g @anthropic-ai/claude-code @z_ai/coding-helper \
     && microdnf clean all
 
 ENV PATH="/root/.local/bin:${PATH}"
+
+COPY --chmod=0755 docker/claude-code-rocky/configure-zai-claude /usr/local/bin/configure-zai-claude
 
 RUN git config --system --add safe.directory /workspace/oh-my-obsidian
 

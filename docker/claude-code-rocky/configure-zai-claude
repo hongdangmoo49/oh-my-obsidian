@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+settings_file="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
+
+mkdir -p "$(dirname "$settings_file")"
+
+if [[ ! -s "$settings_file" ]]; then
+  printf '{}\n' > "$settings_file"
+fi
+
+printf 'Z.AI API key: '
+IFS= read -r -s zai_api_key
+printf '\n'
+
+if [[ -z "$zai_api_key" ]]; then
+  printf 'API key is required.\n' >&2
+  exit 1
+fi
+
+tmp_file="$(mktemp)"
+jq \
+  --arg token "$zai_api_key" \
+  '.env = (.env // {})
+   | .env.ANTHROPIC_AUTH_TOKEN = $token
+   | .env.ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic"
+   | .env.API_TIMEOUT_MS = "3000000"
+   | .env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+   | .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "glm-5.1"
+   | .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "glm-5.1"
+   | .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "glm-5.1"
+   | .env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+   | .model = "opus[1m]"
+   | .enabledPlugins = (.enabledPlugins // {})
+   | .enabledPlugins["rust-analyzer-lsp@claude-plugins-official"] = true
+   | .enabledPlugins["ouroboros@ouroboros"] = true
+   | .effortLevel = "high"' \
+  "$settings_file" > "$tmp_file"
+
+mv "$tmp_file" "$settings_file"
+chmod 600 "$settings_file"
+
+printf 'Updated %s for Z.AI GLM Coding Plan.\n' "$settings_file"
+printf 'Open a new shell or run: claude\n'
