@@ -25,15 +25,15 @@ or any knowledge that should exist in the team's Obsidian vault.
 ## Activation Steps
 
 1. **Check Environment**
-   Verify `$TOOLDI_VAULT` is set and the directory exists.
+   Verify `$OBSIDIAN_VAULT` is set and the directory exists.
    If not set, inform the user and suggest running `/oh-my-obsidian:setup`.
 
 2. **Search Strategy**
-   - **Primary**: If MCP tool `mcp__llm-store-recall__recall` is available, use it for semantic search.
-     Call it with the user's query as the search term.
-   - **Fallback**: Search vault directly:
+   - **MCP Semantic Search**: If the user has configured an MCP server with recall/search capability,
+     use it for semantic search.
+   - **Local Search**: Search vault directly:
      ```
-     grep -ril "keyword1\|keyword2" "$TOOLDI_VAULT" --include="*.md"
+     grep -ril "keyword1\|keyword2" "$OBSIDIAN_VAULT" --include="*.md"
      ```
      Search across all categories: 작업기록, 의사결정, 트러블슈팅, 회의록, 외부자료, 가이드
 

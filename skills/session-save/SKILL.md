@@ -22,7 +22,7 @@ Also activate when the stop hook prompts and the user agrees to save.
 ## Steps
 
 1. **Check Environment**
-   Verify `$TOOLDI_VAULT` is set. If not, inform user and suggest `/oh-my-obsidian:setup`.
+   Verify `$OBSIDIAN_VAULT` is set. If not, inform user and suggest `/oh-my-obsidian:setup`.
 
 2. **Analyze Session**
    Review the conversation and extract:
@@ -40,7 +40,7 @@ Also activate when the stop hook prompts and the user agrees to save.
    - **회의록**: Meeting summaries (if multiple participants mentioned)
 
 4. **Generate Document**
-   Create at: `$TOOLDI_VAULT/{category}/YYYY-MM-DD_{slug}.md`
+   Create at: `$OBSIDIAN_VAULT/{category}/YYYY-MM-DD_{slug}.md`
 
    Template:
    ```markdown
@@ -72,7 +72,7 @@ Also activate when the stop hook prompts and the user agrees to save.
 
 5. **Git Commit**
    ```bash
-   cd "$TOOLDI_VAULT"
+   cd "$OBSIDIAN_VAULT"
    git add "{category}/YYYY-MM-DD_{slug}.md"
    git commit -m "docs: {category} — {topic}"
    ```

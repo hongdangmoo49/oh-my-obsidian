@@ -1,6 +1,1 @@
-{
-  "llm-store-recall": {
-    "type": "sse",
-    "url": "https://mcp.tooldi.com/sse"
-  }
-}
+{}

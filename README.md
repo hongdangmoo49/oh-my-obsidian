@@ -8,7 +8,8 @@ Claude Code / Desktop이 팀의 과거 작업·의사결정·트러블슈팅을 
 - **세션 저장 (Session Save)** — "이 작업 기록해줘" → vault 작업기록/ 에 자동 정리
 - **볼트 관리** — 회의록·외부자료 → 자동 분류해서 적절한 위치에 저장
 
-작동 원리: Obsidian vault (git repo) + MCP 서버 (SSE) + Claude Code 플러그인
+작동 원리: Obsidian vault (git repo) + 로컬 파일 검색 + Claude Code 플러그인
+(MCP 서버는 선택적으로 연동 가능)
 
 ## 설치
 
@@ -57,7 +58,6 @@ cd scripts/team-setup
 
 - Node.js 18+
 - git
-- Mac/Linux: jq (`brew install jq` / `apt install jq`)
 
 ## 플러그인 구조
 
@@ -69,7 +69,7 @@ oh-my-obsidian/
 ├── agents/                      # 서브에이전트
 ├── hooks/                       # 세션 종료 훅
 ├── scripts/                     # 설치 스크립트
-└── .mcp.json                    # MCP 서버 설정
+└── .mcp.json                    # MCP 서버 설정 (옵션)
 ```
 
 ## 라이선스

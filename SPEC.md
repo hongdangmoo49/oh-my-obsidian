@@ -11,7 +11,8 @@
 
 ### Architecture
 ```
-Obsidian vault (git repo) + MCP server (SSE) + Claude Code plugin
+Obsidian vault (git repo) + local file search + Claude Code plugin
+(MCP server integration is optional — users can connect their own)
 ```
 
 ---
@@ -29,10 +30,9 @@ Obsidian vault (git repo) + MCP server (SSE) + Claude Code plugin
      - Git repo URL
 5. Plugin configures:
      - Vault structure
-     - MCP server (llm-store-recall)
      - Skills (recall, session-save, obsidian-vault-manager)
      - Stop hook
-     - TOOLDI_VAULT env var
+     - OBSIDIAN_VAULT env var
 6. Team members clone repo → run install scripts → collaborate
 ```
 
@@ -64,7 +64,7 @@ oh-my-obsidian/
 ├── scripts/
 │   ├── install.ps1              # Windows installer
 │   └── install.sh               # Mac/Linux installer
-├── .mcp.json                    # MCP server config
+├── .mcp.json                    # MCP server config (optional, user-defined)
 ├── guide.md                     # User-facing guide
 ├── SPEC.md                      # This file
 └── README.md                    # Plugin README
@@ -81,11 +81,6 @@ oh-my-obsidian/
   "name": "oh-my-obsidian",
   "version": "0.1.0",
   "description": "Connect Obsidian vault to Claude Code for persistent team memory",
-  "author": {
-    "name": "tooldi"
-  },
-  "repository": "",
-  "homepage": "",
   "license": "MIT",
   "keywords": ["obsidian", "vault", "memory", "recall", "team"]
 }
@@ -95,18 +90,19 @@ oh-my-obsidian/
 
 #### `/oh-my-obsidian:setup`
 Interactive setup wizard. Flow:
-1. Check if TOOLDI_VAULT is set → if not, ask for vault path
+1. Check if OBSIDIAN_VAULT is set → if not, ask for vault path
 2. Ask: "Describe your product/project"
 3. Ask: "Describe your desired vault folder structure"
 4. Ask: "Enter your vault git repo URL (or 'new' to create)"
 5. Clone/init vault at specified path
 6. Create vault structure based on user input
-7. Configure MCP server, skills, hooks, env var
+7. Configure skills, hooks, env var
 8. Generate team-setup scripts in vault
 9. Print success message with verification steps
 
 #### `/oh-my-obsidian:recall`
-Search and recall past documents from vault via MCP server.
+Search and recall past documents from vault via local file search.
+If user has configured an MCP server with search capability, use it.
 
 #### `/oh-my-obsidian:session-save`
 Save current session context to vault.
@@ -119,7 +115,7 @@ Manage vault: list, add, organize.
 #### `recall`
 - **Trigger**: "회상", "기억나", "이전에", "어떻게 했지", "recall", "remember"
 - **Behavior**: Claude automatically searches vault for relevant past context
-- **Tools**: MCP tool `mcp__llm-store-recall__recall`
+- **Tools**: Bash, Read, Glob, Grep (local search); MCP if user-configured
 
 #### `session-save`
 - **Trigger**: "기록해", "저장해", "save", "기록"
@@ -141,17 +137,10 @@ Manage vault: list, add, organize.
 
 ### 4.5 MCP Configuration (`.mcp.json`)
 
-```json
-{
-  "llm-store-recall": {
-    "type": "sse",
-    "url": "https://mcp.tooldi.com/sse"
-  }
-}
-```
+Empty by default — users configure their own MCP servers via `/oh-my-obsidian:setup` or manually.
 
 ### 4.6 Environment Variables
-- `TOOLDI_VAULT`: Absolute path to the Obsidian vault directory
+- `OBSIDIAN_VAULT`: Absolute path to the Obsidian vault directory
 
 ---
 
@@ -166,7 +155,6 @@ vault/
 ├── 트러블슈팅/        # Troubleshooting records
 ├── 회의록/            # Meeting notes
 ├── 외부자료/          # External resources
-├── 아키텍처/          # Architecture docs
 ├── 가이드/            # Guides and how-tos
 ├── .obsidian/         # Obsidian config (auto-generated)
 ├── scripts/
@@ -182,19 +170,13 @@ vault/
 ## 6. Install Scripts
 
 ### Requirements
-- Node.js 18+ (for mcp-remote)
 - git
-- Mac/Linux: jq
 
 ### Script Behavior
 1. Check prerequisites
-2. Set TOOLDI_VAULT env var (persistent)
-3. Configure MCP server in Claude Code settings
-4. Configure MCP server in Claude Desktop config (if exists)
-5. Install hooks
-6. Backup existing config with timestamp
-7. Validate MCP connectivity: `curl -N --max-time 3 -v https://mcp.tooldi.com/sse`
-8. Print verification instructions
+2. Set OBSIDIAN_VAULT env var (persistent)
+3. Create vault category folders
+4. Print verification instructions
 
 ---
 
@@ -206,8 +188,7 @@ vault/
 2. **Team member onboarding**:
    - Clone vault repo
    - Run `scripts/team-setup/install.ps1` (or `.sh`)
-   - Restart Claude Code/Desktop
-   - Verify: `claude mcp list` → "llm-store-recall ✓ Connected"
+   - Restart Claude Code
 3. **Daily usage**:
    - Recall past context: "이전에 정기결제 이슈 어떻게 해결했지?"
    - Save sessions: "이 작업 기록해줘"
@@ -222,7 +203,7 @@ vault/
 | Skills | Yes | No (manual) |
 | Commands | Yes | No |
 | Hooks | Yes | No |
-| MCP Server | Yes | Yes |
+| MCP Server | Optional | Optional |
 | Recommended | **Yes** | Limited |
 
 ---
@@ -230,10 +211,9 @@ vault/
 ## 9. Implementation Priority
 
 1. Plugin manifest + directory structure
-2. `.mcp.json` (MCP server config)
-3. `commands/setup.md` (interactive setup)
-4. Skills (recall, session-save, obsidian-vault-manager)
-5. Hooks (stop hook)
-6. Install scripts (PowerShell + Bash)
-7. Agent (vault-architect)
-8. Documentation
+2. `commands/setup.md` (interactive setup)
+3. Skills (recall, session-save, obsidian-vault-manager)
+4. Hooks (stop hook)
+5. Install scripts (PowerShell + Bash)
+6. Agent (vault-architect)
+7. Documentation

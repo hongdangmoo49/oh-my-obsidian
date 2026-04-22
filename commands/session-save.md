@@ -5,7 +5,7 @@ allowed-tools: Bash, Read, Write
 ---
 
 ## Context
-- TOOLDI_VAULT: !`echo "${TOOLDI_VAULT:-not set}"`
+- OBSIDIAN_VAULT: !`echo "${OBSIDIAN_VAULT:-not set}"`
 - Current date: !`date +%Y-%m-%d`
 - Git branch: !`git branch --show-current 2>/dev/null || echo "N/A"`
 
@@ -27,7 +27,7 @@ Create a markdown document with:
 - **Related Files**: Files that were modified or discussed
 
 ### Step 3: Save to Vault
-Write to: `$TOOLDI_VAULT/작업기록/YYYY-MM-DD_{topic-slug}.md`
+Write to: `$OBSIDIAN_VAULT/작업기록/YYYY-MM-DD_{topic-slug}.md`
 
 Template:
 ```markdown
@@ -58,7 +58,7 @@ participants: Claude + User
 ### Step 4: Git Commit
 If vault is a git repo:
 ```bash
-cd "$TOOLDI_VAULT"
+cd "$OBSIDIAN_VAULT"
 git add "작업기록/YYYY-MM-DD_{topic-slug}.md"
 git commit -m "작업기록: {topic}"
 ```

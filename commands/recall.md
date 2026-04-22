@@ -5,8 +5,8 @@ allowed-tools: Bash, Read, Glob, Grep
 ---
 
 ## Context
-- TOOLDI_VAULT: !`echo "${TOOLDI_VAULT:-not set}"`
-- Vault contents: !`if [ -d "$TOOLDI_VAULT" ]; then find "$TOOLDI_VAULT" -name "*.md" -not -path "*/.obsidian/*" -not -path "*/.git/*" 2>/dev/null | head -30; else echo "Vault not found"; fi`
+- OBSIDIAN_VAULT: !`echo "${OBSIDIAN_VAULT:-not set}"`
+- Vault contents: !`if [ -d "$OBSIDIAN_VAULT" ]; then find "$OBSIDIAN_VAULT" -name "*.md" -not -path "*/.obsidian/*" -not -path "*/.git/*" 2>/dev/null | head -30; else echo "Vault not found"; fi`
 
 ## Your Task
 
@@ -14,10 +14,10 @@ Search the Obsidian vault for relevant past context matching the user's query: {
 
 ### Search Strategy
 
-1. **Primary: MCP Semantic Search**
-   If MCP server `llm-store-recall` is available, use it for semantic search.
+1. **MCP Semantic Search (if available)**
+   If the user has configured an MCP server with recall/semantic search capability, use it.
 
-2. **Fallback: Direct Search**
+2. **Local Search**
    Search the vault directly using grep/glob:
    - Search filenames matching keywords
    - Search file contents with grep

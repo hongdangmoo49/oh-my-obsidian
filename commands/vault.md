@@ -5,8 +5,8 @@ allowed-tools: Bash, Read, Write, Edit, Glob
 ---
 
 ## Context
-- TOOLDI_VAULT: !`echo "${TOOLDI_VAULT:-not set}"`
-- Vault tree: !`if [ -d "$TOOLDI_VAULT" ]; then find "$TOOLDI_VAULT" -maxdepth 2 -not -path "*/.obsidian/*" -not -path "*/.git/*" 2>/dev/null | head -50; else echo "Vault not configured"; fi`
+- OBSIDIAN_VAULT: !`echo "${OBSIDIAN_VAULT:-not set}"`
+- Vault tree: !`if [ -d "$OBSIDIAN_VAULT" ]; then find "$OBSIDIAN_VAULT" -maxdepth 2 -not -path "*/.obsidian/*" -not -path "*/.git/*" 2>/dev/null | head -50; else echo "Vault not configured"; fi`
 
 ## Your Task
 
@@ -31,7 +31,7 @@ Show vault directory tree with file counts per category.
 1. Ask for document content or file path
 2. Ask for category (작업기록, 의사결정, 트러블슈팅, 회의록, 외부자료, 가이드)
 3. Ask for title
-4. Save to `$TOOLDI_VAULT/{category}/{title}.md` with frontmatter
+4. Save to `$OBSIDIAN_VAULT/{category}/{title}.md` with frontmatter
 5. Git commit
 
 ### `organize` — 문서 정리

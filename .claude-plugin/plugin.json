@@ -2,9 +2,6 @@
   "name": "oh-my-obsidian",
   "version": "0.1.0",
   "description": "Connect Obsidian vault to Claude Code for persistent team memory — recall past decisions, auto-save sessions, organize knowledge",
-  "author": {
-    "name": "tooldi"
-  },
   "license": "MIT",
   "keywords": ["obsidian", "vault", "memory", "recall", "team", "knowledge"]
 }

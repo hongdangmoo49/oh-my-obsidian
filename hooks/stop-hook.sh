@@ -2,7 +2,7 @@
 # oh-my-obsidian stop hook
 # Prompts user to save session context to vault before session ends
 
-VAULT="${TOOLDI_VAULT:-}"
+VAULT="${OBSIDIAN_VAULT:-}"
 
 # If vault is not configured, exit silently
 if [ -z "$VAULT" ] || [ ! -d "$VAULT" ]; then

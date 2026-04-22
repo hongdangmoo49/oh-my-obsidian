@@ -39,7 +39,7 @@ Standard categories:
 2. Analyze content to auto-detect category
 3. Generate appropriate filename: `YYYY-MM-DD_{slug}.md`
 4. Add frontmatter with metadata
-5. Save to `$TOOLDI_VAULT/{category}/`
+5. Save to `$OBSIDIAN_VAULT/{category}/`
 6. Git add + commit
 
 ### Organize

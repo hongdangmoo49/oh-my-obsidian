@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion
 ## Context
 - Current directory: !`pwd`
 - Git status: !`git status --short 2>/dev/null || echo "Not a git repo"`
-- TOOLDI_VAULT env: !`echo "${TOOLDI_VAULT:-not set}"`
+- OBSIDIAN_VAULT env: !`echo "${OBSIDIAN_VAULT:-not set}"`
 
 ## Your Task
 
@@ -16,7 +16,7 @@ You are the oh-my-obsidian setup wizard. Guide the user through setting up an Ob
 ### Step 1: Vault Path
 If the user provided a vault path as argument, use it. Otherwise ask:
 - "볼트를 생성할 경로를 입력해주세요 (추천: ~/Documents/Obsidian/<project-name>)"
-- Default suggestion: `~/Documents/Obsidian/llm-store`
+- Default suggestion: `~/Documents/Obsidian/<project-name>`
 
 ### Step 2: Product Description
 Ask the user:
@@ -38,7 +38,7 @@ Ask the user:
 - If URL: clone the repo
 
 ### Step 5: Create Vault
-Create the vault directory structure:
+Create the vault directory structure based on Step 3 choice. Default:
 ```
 {vault}/
 ├── 작업기록/
@@ -57,16 +57,15 @@ Create inside the vault at `scripts/team-setup/`:
 - `README.md` — Team member onboarding guide
 
 These scripts should:
-1. Set TOOLDI_VAULT environment variable
-2. Configure MCP server (llm-store-recall via SSE to https://mcp.tooldi.com/sse)
+1. Set OBSIDIAN_VAULT environment variable
+2. Optionally configure user-provided MCP server
 3. Configure Claude Desktop (if exists)
-4. Validate MCP connectivity
-5. Backup existing configs with timestamp
+4. Backup existing configs with timestamp
 
 ### Step 7: Configure Environment
-- Set TOOLDI_VAULT in the user's shell profile (.bashrc, .zshrc, or PowerShell profile)
-- For Windows: use `[Environment]::SetEnvironmentVariable("TOOLDI_VAULT", $path, "User")`
-- For Unix: append `export TOOLDI_VAULT="$path"` to ~/.bashrc or ~/.zshrc
+- Set OBSIDIAN_VAULT in the user's shell profile (.bashrc, .zshrc, or PowerShell profile)
+- For Windows: use `[Environment]::SetEnvironmentVariable("OBSIDIAN_VAULT", $path, "User")`
+- For Unix: append `export OBSIDIAN_VAULT="$path"` to ~/.bashrc or ~/.zshrc
 
 ### Step 8: Success Message
 Print:
@@ -81,7 +80,5 @@ Git 레포: {repo-url}
 2. cd scripts/team-setup
 3. install.ps1 (Windows) 또는 install.sh (Mac/Linux)
 4. Claude Code 재시작
-5. claude mcp list → "llm-store-recall ✓ Connected" 확인
-
-시작하기: "editor schema 회상해줘" 로 테스트
+5. 새 세션에서 테스트: "이전 작업 회상해줘"
 ```
