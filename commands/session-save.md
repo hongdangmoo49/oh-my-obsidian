@@ -27,7 +27,7 @@ Create a markdown document with:
 - **Related Files**: Files that were modified or discussed
 
 ### Step 3: Save to Vault
-Write to: `$OBSIDIAN_VAULT/작업기록/YYYY-MM-DD_{topic-slug}.md`
+Write to: `$OBSIDIAN_VAULT/작업기록/세션기록/YYYY-MM-DD_{topic-slug}.md`
 
 Template:
 ```markdown
@@ -59,7 +59,7 @@ participants: Claude + User
 If vault is a git repo:
 ```bash
 cd "$OBSIDIAN_VAULT"
-git add "작업기록/YYYY-MM-DD_{topic-slug}.md"
+git add "작업기록/세션기록/YYYY-MM-DD_{topic-slug}.md"
 git commit -m "작업기록: {topic}"
 ```
 

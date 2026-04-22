@@ -68,11 +68,15 @@ fi
 
 # ── Create Vault Structure ──
 info "\n📂 볼트 구조 생성..."
-CATEGORIES=("작업기록" "의사결정" "트러블슈팅" "회의록" "외부자료" "가이드")
-for cat in "${CATEGORIES[@]}"; do
-    mkdir -p "$VAULT_PATH/$cat"
-done
-ok "  ${#CATEGORIES[@]}개 카테고리 폴더 생성 ✓"
+# 작업기록 레이어 (mandatory)
+mkdir -p "$VAULT_PATH/작업기록/세션기록"
+mkdir -p "$VAULT_PATH/작업기록/의사결정"
+mkdir -p "$VAULT_PATH/작업기록/트러블슈팅"
+mkdir -p "$VAULT_PATH/작업기록/회의록"
+ok "  작업기록 레이어 생성 ✓"
+# scripts 레이어 (mandatory)
+mkdir -p "$VAULT_PATH/scripts/team-setup"
+ok "  scripts 레이어 생성 ✓"
 
 # ── Done ──
 ok "\n✅ oh-my-obsidian 설치 완료!\n"

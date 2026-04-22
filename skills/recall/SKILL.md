@@ -35,7 +35,9 @@ or any knowledge that should exist in the team's Obsidian vault.
      ```
      grep -ril "keyword1\|keyword2" "$OBSIDIAN_VAULT" --include="*.md"
      ```
-     Search across all categories: 작업기록, 의사결정, 트러블슈팅, 회의록, 외부자료, 가이드
+     Search across both layers:
+     - 서비스 레이어: all project-specific knowledge folders
+     - 작업기록 레이어: 세션기록, 의사결정, 트러블슈팅, 회의록
 
 3. **Result Processing**
    - Read matching files

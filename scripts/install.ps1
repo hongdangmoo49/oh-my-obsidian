@@ -53,14 +53,21 @@ Write-Success "  OBSIDIAN_VAULT = $VaultPath ✓"
 
 # ── Create Vault Structure ──
 Write-Info "`n📂 볼트 구조 생성..."
-$categories = @("작업기록", "의사결정", "트러블슈팅", "회의록", "외부자료", "가이드")
-foreach ($cat in $categories) {
+# 작업기록 레이어 (mandatory)
+$workRecords = @("작업기록\세션기록", "작업기록\의사결정", "작업기록\트러블슈팅", "작업기록\회의록")
+foreach ($cat in $workRecords) {
     $catPath = Join-Path $VaultPath $cat
     if (-not (Test-Path $catPath)) {
         New-Item -ItemType Directory -Path $catPath -Force | Out-Null
     }
 }
-Write-Success "  $($categories.Count)개 카테고리 폴더 생성 ✓"
+Write-Success "  작업기록 레이어 생성 ✓"
+# scripts 레이어 (mandatory)
+$scriptsDir = Join-Path $VaultPath "scripts\team-setup"
+if (-not (Test-Path $scriptsDir)) {
+    New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
+}
+Write-Success "  scripts 레이어 생성 ✓"
 
 # ── Done ──
 Write-Success "`n✅ oh-my-obsidian 설치 완료!`n"

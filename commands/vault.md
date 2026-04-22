@@ -14,22 +14,28 @@ Manage the Obsidian vault based on subcommand: {{ARGUMENTS}}
 
 ### `list` — 볼트 구조 보기
 Show vault directory tree with file counts per category.
+Separate display for 서비스 레이어 and 작업기록 레이어.
 
 ```
 📂 {vault-name}/
-├── 작업기록/     (N개 문서)
-├── 의사결정/     (N개 문서)
-├── 트러블슈팅/   (N개 문서)
-├── 회의록/       (N개 문서)
-├── 외부자료/     (N개 문서)
-└── 가이드/       (N개 문서)
+
+서비스 레이어:
+├── {service}/{area-1}/     (N개 문서)
+├── {service}/{area-2}/     (N개 문서)
+└── ...
+
+작업기록 레이어:
+├── 세션기록/               (N개 문서)
+├── 의사결정/               (N개 문서)
+├── 트러블슈팅/             (N개 문서)
+└── 회의록/                 (N개 문서)
 
 총 N개 문서
 ```
 
 ### `add` — 문서 추가
 1. Ask for document content or file path
-2. Ask for category (작업기록, 의사결정, 트러블슈팅, 회의록, 외부자료, 가이드)
+2. Ask for category — 서비스 레이어 or 작업기록 하위 (세션기록, 의사결정, 트러블슈팅, 회의록)
 3. Ask for title
 4. Save to `$OBSIDIAN_VAULT/{category}/{title}.md` with frontmatter
 5. Git commit

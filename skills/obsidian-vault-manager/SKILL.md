@@ -24,13 +24,17 @@ or maintain the knowledge base.
 
 ## Vault Structure
 
-Standard categories:
-- **작업기록/** — Work session logs
-- **의사결정/** — Decision records (ADR style)
-- **트러블슈팅/** — Problem/solution records
-- **회의록/** — Meeting notes and summaries
-- **외부자료/** — External resources and references
-- **가이드/** — How-tos, guides, onboarding docs
+The vault has 3 layers (determined during setup):
+
+### 서비스 레이어 — project-specific
+Dynamically generated folders based on the project's knowledge areas.
+Common examples: API/, 인증/, 배포/, 비즈니스로직/, 스키마/
+
+### 작업기록 레이어 — always present
+- **작업기록/세션기록/** — Work session logs
+- **작업기록/의사결정/** — Decision records (ADR style)
+- **작업기록/트러블슈팅/** — Problem/solution records
+- **작업기록/회의록/** — Meeting notes and summaries
 
 ## Operations
 
@@ -39,7 +43,7 @@ Standard categories:
 2. Analyze content to auto-detect category
 3. Generate appropriate filename: `YYYY-MM-DD_{slug}.md`
 4. Add frontmatter with metadata
-5. Save to `$OBSIDIAN_VAULT/{category}/`
+5. Save to appropriate location: 서비스 레이어 or `$OBSIDIAN_VAULT/작업기록/{category}/`
 6. Git add + commit
 
 ### Organize

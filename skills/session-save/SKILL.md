@@ -34,13 +34,14 @@ Also activate when the stop hook prompts and the user agrees to save.
 
 3. **Auto-Categorize**
    Determine the best category:
-   - **작업기록**: General work logs, coding sessions
-   - **의사결정**: Architectural choices, design decisions
-   - **트러블슈팅**: Bug fixes, error resolution
-   - **회의록**: Meeting summaries (if multiple participants mentioned)
+   - **작업기록/세션기록**: General work logs, coding sessions
+   - **작업기록/의사결정**: Architectural choices, design decisions
+   - **작업기록/트러블슈팅**: Bug fixes, error resolution
+   - **작업기록/회의록**: Meeting summaries (if multiple participants mentioned)
+   - **서비스 레이어**: Technical knowledge docs (API specs, schemas, etc.)
 
 4. **Generate Document**
-   Create at: `$OBSIDIAN_VAULT/{category}/YYYY-MM-DD_{slug}.md`
+   Create at: `$OBSIDIAN_VAULT/작업기록/{세션기록|의사결정|트러블슈팅}/YYYY-MM-DD_{slug}.md`
 
    Template:
    ```markdown
