@@ -15,6 +15,8 @@ services:
     environment:
       TERM: xterm-256color
       COLORTERM: truecolor
+      ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
+      API_TIMEOUT_MS: "3000000"
       PATH: /root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - .:/workspace/oh-my-obsidian
