@@ -1,79 +1,145 @@
-# oh-my-obsidian
+<p align="center">
+  <br/>
+  ◯ ─────────── ◯
+  <br/><br/>
+  <img src="https://upload.wikimedia.org/wikipedia/commons/1/10/2023_Obsidian_logo.svg" width="120" alt="Obsidian">
+  <br/><br/>
+  <strong>O H - M Y - O B S I D I A N</strong>
+  <br/><br/>
+  ◯ ─────────── ◯
+  <br/>
+</p>
 
-Claude Code / Desktop이 팀의 과거 작업·의사결정·트러블슈팅을 기억하게 만드는 플러그인.
+<p align="center">
+  <strong>Stop forgetting. Start remembering.</strong>
+  <br/>
+  <sub>Give your AI coding agents a permanent, evolving second brain.</sub>
+</p>
 
-## 기능
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+  <img src="https://img.shields.io/badge/Claude_Code-Plugin-purple" alt="Claude Code">
+</p>
 
-- **회상 (Recall)** — "예전에 정기결제 이슈 어떻게 해결했지?" → 자동으로 과거 문서 회상
-- **세션 저장 (Session Save)** — "이 작업 기록해줘" → vault 작업기록/ 에 자동 정리
-- **볼트 관리** — 회의록·외부자료 → 자동 분류해서 적절한 위치에 저장
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#why-oh-my-obsidian">Why</a> ·
+  <a href="#how-it-works">How It Works</a> ·
+  <a href="#commands">Commands</a> ·
+  <a href="#the-agents">The Agents</a>
+</p>
 
-작동 원리: Obsidian vault (git repo) + 로컬 파일 검색 + Claude Code 플러그인
-(MCP 서버는 선택적으로 연동 가능)
+**Oh-my-obsidian transforms Claude Code into an agent with infinite memory.**
 
-## 설치
+AI coding agents are brilliant but amnesiac. Oh-my-obsidian bridges this gap by integrating an Obsidian vault directly into your Claude Code workflow. Through Socratic interviews, automated refactoring, and real-time Git sync, your AI learns your project's context, records its decisions, and recalls them perfectly across sessions.
+
+---
+
+## Why Oh-My-Obsidian?
+
+Most AI coding agents start every session with a blank slate. 
+
+| Problem | What Happens | Oh-My-Obsidian Fix |
+| :--- | :--- | :--- |
+| **Amnesia** | AI forgets why a decision was made last week | `session-save` records architectural decisions into Markdown |
+| **Lost Context** | You paste the same context over and over | `recall` automatically searches the vault for relevant past work |
+| **Messy Docs** | Documentation rots and becomes disorganized | `refactor` safely reorganizes the vault as the project evolves |
+| **Setup Friction** | Hard to bootstrap a good folder structure | Socratic `setup` interviews you to generate a tailored vault |
+
+---
+
+## Quick Start
+
+**Install** — Install the plugin directly in your Claude Code session:
 
 ```bash
-# Claude Code에서 플러그인 설치
 /plugin install oh-my-obsidian
-
-# 또는 로컬 개발용
-claude --plugin-dir /path/to/oh-my-obsidian
 ```
 
-## 초기 설정
+*(For local development: `claude --plugin-dir /path/to/oh-my-obsidian`)*
 
-```bash
-# 대화형 설정 마법사 실행
-/oh-my-obsidian:setup
+**Initialize** — Run the interactive Socratic setup wizard:
+
+```
+> /oh-my-obsidian:setup
 ```
 
-설정 마법사가 인터뷰를 통해 프로젝트를 분석합니다:
-1. 프로젝트 정체성 (이름, 도메인, 핵심 기능)
-2. 기술 스택
-3. 팀 구성
-4. 핵심 지식 영역 → 서비스 레이어 자동 생성
-5. Git 레포지토리 연결
-6. 팀원용 설치 스크립트 자동 생성
+<details>
+<summary><strong>What happens during setup?</strong></summary>
 
-## 명령어
+The plugin will:
+1. Check for the Obsidian desktop app on your system.
+2. Conduct a Socratic interview to understand your project (domain, tech stack, team size).
+3. Generate a tailored folder structure via the `vault-architect` agent.
+4. Set up an Obsidian Git team-sync workflow for seamless collaboration.
+</details>
 
-| 명령어 | 설명 |
-|--------|------|
-| `/oh-my-obsidian:setup` | 대화형 설정 마법사 |
-| `/oh-my-obsidian:recall <query>` | 과거 문서 회상 |
-| `/oh-my-obsidian:session-save [topic]` | 세션 작업 기록 저장 |
-| `/oh-my-obsidian:vault <list\|add\|organize>` | 볼트 관리 |
+---
 
-## 팀원 온보딩
+## How It Works
 
-설정 완료 후, 볼트 레포의 `scripts/team-setup/` 에 설치 스크립트가 생성됩니다:
+Oh-my-obsidian acts as a bridge between the **AI (Claude Code)**, the **Knowledge Base (Obsidian)**, and the **Team (Git)**.
+
+```text
+    [ Claude Code ] <---> [ oh-my-obsidian ] <---> [ Obsidian Vault ]
+           |                                             |
+           +----------------( Git Sync )-----------------+
+```
+
+| Phase | Action |
+| :--- | :--- |
+| **Initialize** | Socratic agents interview you to design a tailored vault structure |
+| **Work** | Claude retrieves context via `recall` to solve coding tasks |
+| **Document** | Claude records decisions via `session-save` directly into the vault |
+| **Evolve** | As the project grows, `refactor` audits and safely reorganizes folders |
+
+---
+
+## Commands
+
+Use these commands directly inside your Claude Code session.
+
+| Command | Role | Description |
+| :--- | :--- | :--- |
+| `/oh-my-obsidian:setup` | **Bootstrap** | Socratic interview to create and sync a new project vault |
+| `/oh-my-obsidian:refactor` | **Evolve** | Audits an existing vault and safely executes a structural migration |
+| `/oh-my-obsidian:recall <query>` | **Retrieve** | Semantically searches the vault for past context |
+| `/oh-my-obsidian:session-save` | **Record** | Summarizes the current session and archives it to the vault |
+| `/oh-my-obsidian:vault` | **Manage** | General purpose vault management (list, add, organize) |
+
+---
+
+## The Agents
+
+Oh-my-obsidian uses specialized sub-agents to handle complex reasoning tasks. They do the heavy lifting so you don't have to.
+
+| Agent | Role | Core Question |
+| :--- | :--- | :--- |
+| **Socratic Interviewer** | Guides project setup | *"What is the core domain and tech stack of this project?"* |
+| **Vault Architect** | Designs folder structures | *"What is the optimal vault layout for this specific team?"* |
+| **Vault Auditor** | Diagnoses messy vaults | *"Where are the bottlenecks and overgrown folders in this vault?"* |
+| **Migration Verifier** | Ensures safe refactoring | *"Will moving this folder cause data loss or nested overlaps?"* |
+
+---
+
+## Team Onboarding
+
+Once a vault is initialized with Git sync, onboarding a new team member takes seconds.
+The setup command automatically generates cross-platform installation scripts in the vault.
 
 ```bash
-# 팀원: 레포 클론 후
+# Team member clones the repo, then runs:
 cd scripts/team-setup
 ./install.sh     # Mac/Linux
 .\install.ps1    # Windows
 ```
 
-## 사전 요구사항
+---
 
-- Node.js 18+
-- git
-
-## 플러그인 구조
-
-```
-oh-my-obsidian/
-├── .claude-plugin/plugin.json   # 플러그인 매니페스트
-├── commands/                    # 사용자 명령어
-├── skills/                      # 자동 활성 스킬
-├── agents/                      # 서브에이전트
-├── hooks/                       # 세션 종료 훅
-├── scripts/                     # 설치 스크립트
-└── .mcp.json                    # MCP 서버 설정 (옵션)
-```
-
-## 라이선스
-
-MIT
+<p align="center">
+  <em>"A second brain for your AI."</em>
+  <br/><br/>
+  <strong>Oh-my-obsidian</strong>
+  <br/><br/>
+  <code>MIT License</code>
+</p>
