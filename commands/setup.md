@@ -35,10 +35,50 @@ You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, co
 "팀 구성은 어떻게 되나요? (역할별 인원, 프론트/백엔드/디자인 등)"
 - Record: team roles and size
 
-### Q5. Key Knowledge Areas
-"팀이 계속 기억하고 있어야 할 핵심 지식 영역은 무엇인가요?"
-- Examples: API 명세, 인증 방식, 배포 프로세스, 비즈니스 로직, 외부 연동
-- Record: these become **서비스 레이어** categories
+### Q5. 서비스 레이어 카테고리 선택
+Show the following normalized list and let the user pick multiple. Also allow custom additions.
+
+"볼트의 서비스 레이어에 들어갈 카테고리를 선택해주세요. (복수 선택 가능, 이후 직접 추가도 가능합니다)"
+
+**기본 (모든 프로젝트):**
+1. □ API 명세
+2. □ 아키텍처
+3. □ 코어/도메인
+
+**백엔드:**
+4. □ 인증/인가
+5. □ 데이터베이스/스키마
+6. □ 비즈니스 로직
+7. □ 외부 API 연동
+8. □ 캐싱
+9. □ 스케줄링/배치
+
+**프론트엔드:**
+10. □ 화면/페이지 정의
+11. □ 상태 관리
+12. □ 디자인 시스템
+
+**인프라/운영:**
+13. □ 배포/인프라
+14. □ CI/CD
+15. □ 모니터링/로깅
+16. □ 보안
+
+**특수 기능:**
+17. □ 결제
+18. □ 알림 (푸시/이메일/SMS)
+19. □ 실시간 통신 (WebSocket/SSE)
+20. □ 검색
+21. □ 파일/이미지 처리
+22. □ 사용자 관리
+23. □ 권한 관리
+24. □ 마이그레이션
+
+After user selects, ask:
+"추가하고 싶은 카테고리가 있나요? (없으면 엔터)"
+→ Append any custom categories.
+
+Record: selected + custom categories become **서비스 레이어** folders.
 
 ### Q6. Git Repository
 "볼트 git 레포지토리 URL을 입력해주세요 (새로 만들려면 'new')"
@@ -52,42 +92,18 @@ You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, co
 Based on collected info, construct the vault with these **mandatory layers**:
 
 ### Layer 1: 서비스 레이어 (Service Layer)
-Generated from Q5 answers. Create one folder per knowledge area.
+Generated from Q5 selections. One folder per selected category.
 
-Examples based on project type:
-
-**Web Service:**
+Example (user selected: API 명세, 인증/인가, 데이터베이스/스키마, 결제, 배포/인프라, 실시간 통신):
 ```
 {서비스명}/
-├── API/
-├── 인증/
-├── 배포/
-├── 비즈니스로직/
-├── 외부연동/
-└── 스키마/
+├── API_명세/
+├── 인증_인가/
+├── 데이터베이스_스키마/
+├── 결제/
+├── 배포_인프라/
+└── 실시간_통신/
 ```
-
-**Mobile App:**
-```
-{서비스명}/
-├── 화면정의/
-├── API/
-├── 상태관리/
-├── 네이티브모듈/
-└── 빌드배포/
-```
-
-**Data Pipeline:**
-```
-{서비스명}/
-├── 데이터소스/
-├── 파이프라인/
-├── 변환로직/
-├── 모니터링/
-└── 스키마/
-```
-
-The exact structure is determined by the interview — there is no fixed template.
 
 ### Layer 2: 작업기록 레이어 (Work Records Layer) — ALWAYS present
 ```
