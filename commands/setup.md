@@ -1,7 +1,7 @@
 ---
 description: "Interactive setup wizard for Obsidian vault integration"
 argument-hint: "[vault-path]"
-allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion
+allowed-tools: Bash, Read, Write, Edit, Glob
 ---
 
 ## Context
@@ -16,14 +16,15 @@ You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, co
 
 ## Phase 1: Project Interview (required — ask all of these)
 
-### Q1. Vault Path
-"볼트를 생성할 경로를 입력해주세요"
-- Default: `~/Documents/Obsidian/<project-name>`
-- If argument provided, use it
+**IMPORTANT**: Do NOT use AskUserQuestion tool. Ask questions in plain text and wait for the user's response naturally. The user will type their answers directly.
 
-### Q2. Project Identity
+### Q1. Project Name
 "프로젝트/서비스 이름이 무엇인가요?"
+→ Vault path is auto-derived: `~/Documents/Obsidian/{project-name}`
+→ If user provided argument as vault path, use that instead.
+→ After user answers, confirm: "볼트 경로: ~/Documents/Obsidian/{project-name} (괜찮으시면 엔터, 변경하려면 경로 입력)"
 
+### Q2. Project Description
 "이 프로젝트는 어떤 서비스인가요? (도메인, 타겟 유저, 핵심 기능을 간단히 설명해주세요)"
 - Record: domain, target users, core features
 
@@ -36,43 +37,44 @@ You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, co
 - Record: team roles and size
 
 ### Q5. 서비스 레이어 카테고리 선택
-Show the following normalized list and let the user pick multiple. Also allow custom additions.
+Display the following list as plain text and ask the user to type the numbers or names.
 
-"볼트의 서비스 레이어에 들어갈 카테고리를 선택해주세요. (복수 선택 가능, 이후 직접 추가도 가능합니다)"
+"볼트의 서비스 레이어에 들어갈 카테고리를 선택해주세요.
+해당하는 번호를 모두 적어주세요. (예: 1, 4, 5, 17, 19)"
 
 **기본 (모든 프로젝트):**
-1. □ API 명세
-2. □ 아키텍처
-3. □ 코어/도메인
+1. API 명세
+2. 아키텍처
+3. 코어/도메인
 
 **백엔드:**
-4. □ 인증/인가
-5. □ 데이터베이스/스키마
-6. □ 비즈니스 로직
-7. □ 외부 API 연동
-8. □ 캐싱
-9. □ 스케줄링/배치
+4. 인증/인가
+5. 데이터베이스/스키마
+6. 비즈니스 로직
+7. 외부 API 연동
+8. 캐싱
+9. 스케줄링/배치
 
 **프론트엔드:**
-10. □ 화면/페이지 정의
-11. □ 상태 관리
-12. □ 디자인 시스템
+10. 화면/페이지 정의
+11. 상태 관리
+12. 디자인 시스템
 
 **인프라/운영:**
-13. □ 배포/인프라
-14. □ CI/CD
-15. □ 모니터링/로깅
-16. □ 보안
+13. 배포/인프라
+14. CI/CD
+15. 모니터링/로깅
+16. 보안
 
 **특수 기능:**
-17. □ 결제
-18. □ 알림 (푸시/이메일/SMS)
-19. □ 실시간 통신 (WebSocket/SSE)
-20. □ 검색
-21. □ 파일/이미지 처리
-22. □ 사용자 관리
-23. □ 권한 관리
-24. □ 마이그레이션
+17. 결제
+18. 알림 (푸시/이메일/SMS)
+19. 실시간 통신 (WebSocket/SSE)
+20. 검색
+21. 파일/이미지 처리
+22. 사용자 관리
+23. 권한 관리
+24. 마이그레이션
 
 After user selects, ask:
 "추가하고 싶은 카테고리가 있나요? (없으면 엔터)"
