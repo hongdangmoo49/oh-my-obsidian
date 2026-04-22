@@ -279,7 +279,82 @@ $TOOLDI_VAULT/.obsidian/plugins/obsidian-git/data.json
 | WSL | `/proc/version` or `/proc/sys/kernel/osrelease` contains Microsoft/WSL | Install on Windows host via user-run `winget` command | Manual Windows install. |
 | Docker/container | `/.dockerenv`, cgroup markers | Do not install app in container | Print host-specific command. |
 
-## 14. Open Questions
+## 14. First Implementation Scope: macOS Claude Plugin Stage
+
+The first implementation target is macOS only.
+
+Assumptions:
+
+- The `oh-my-obsidian` Claude Code plugin is already installed or loaded.
+- The user starts `/oh-my-obsidian:setup`.
+- The setup command runs Obsidian app preflight before Q1 vault path.
+- The setup command does not create the vault until preflight is completed or skipped.
+
+The implementation entry point is:
+
+```bash
+scripts/obsidian-app-preflight.sh check
+```
+
+The script returns a stable JSON object:
+
+```json
+{
+  "schema": "oh-my-obsidian/obsidian-app-preflight/v1",
+  "action": "check",
+  "platform": "macos",
+  "context": "native",
+  "obsidian": {
+    "installed": true,
+    "path": "/Applications/Obsidian.app",
+    "version": "1.x.x"
+  },
+  "cli": {
+    "availableOnPath": false,
+    "path": "",
+    "bundledCliAvailable": true,
+    "bundledCliPath": "/Applications/Obsidian.app/Contents/MacOS/obsidian-cli"
+  },
+  "packageManagers": {
+    "homebrew": {
+      "available": true,
+      "path": "/opt/homebrew/bin/brew",
+      "hasObsidianCask": true
+    }
+  },
+  "recommendation": {
+    "canAutoInstall": true,
+    "installMethod": "homebrew-cask",
+    "installCommand": "brew install --cask obsidian",
+    "manualUrl": "https://obsidian.md/download"
+  }
+}
+```
+
+The setup command owns user interaction:
+
+1. Read the JSON preflight result.
+2. If Obsidian is installed, continue to the interview.
+3. If Obsidian is missing and Homebrew is available, ask for approval to run:
+
+   ```bash
+   scripts/obsidian-app-preflight.sh install
+   ```
+
+4. If Obsidian is missing and Homebrew is unavailable, show the manual download URL and ask whether to continue with "install later".
+5. If not macOS, say this first implementation only supports macOS auto-install and allow an explicit skip.
+
+The script owns machine probing and host action execution:
+
+| Action | Responsibility |
+| --- | --- |
+| `check` | Detect platform/context, Obsidian app, Homebrew, and recommended next step. |
+| `install` | On native macOS only, run `brew install --cask obsidian` when Obsidian is missing. |
+| `open-vault <path>` | On native macOS only, open the vault with the Obsidian URI scheme `obsidian://open?path=...`; fall back to `open -a "Obsidian" <path>` if URL encoding is unavailable. |
+
+Future OS support should add provider implementations behind the same actions rather than changing the setup command contract.
+
+## 15. Open Questions
 
 | ID | Question | Needed Decision |
 | --- | --- | --- |
@@ -288,7 +363,7 @@ $TOOLDI_VAULT/.obsidian/plugins/obsidian-git/data.json
 | OQ-003 | Should the plugin try to open the generated vault automatically after setup? | Product decision; depends on OS/context. |
 | OQ-004 | Should `TOOLDI_VAULT` replace all current `OBSIDIAN_VAULT` references? | Engineering cleanup decision. |
 
-## 15. Risks / Design Debt
+## 16. Risks / Design Debt
 
 | ID | Item | Impact |
 | --- | --- | --- |
@@ -298,7 +373,7 @@ $TOOLDI_VAULT/.obsidian/plugins/obsidian-git/data.json
 | RD-004 | Current repo command files use `{{ARGUMENTS}}`, while Claude Code docs use `$ARGUMENTS`. | Medium |
 | RD-005 | Current repo uses both `TOOLDI_VAULT` and `OBSIDIAN_VAULT` in different files. | Medium |
 
-## 16. Implementation Trace
+## 17. Implementation Trace
 
 Repo files inspected:
 
@@ -315,10 +390,13 @@ Repo files inspected:
 - `hooks/stop-hook.sh`
 - `scripts/install.sh`
 - `scripts/install.ps1`
+- `scripts/obsidian-app-preflight.sh`
 
 External references checked:
 
-- Obsidian install help: https://help.obsidian.md/install
+- Obsidian install help: https://obsidian.md/help/install
+- Obsidian URI help: https://obsidian.md/help/uri
+- Obsidian CLI help: https://obsidian.md/help/cli
 - Obsidian download page: https://obsidian.md/download
 - Obsidian GitHub releases: https://github.com/obsidianmd/obsidian-releases/releases
 - Homebrew cask for Obsidian: https://formulae.brew.sh/cask/obsidian
@@ -326,4 +404,3 @@ External references checked:
 - Windows package manifest repository: https://github.com/microsoft/winget-pkgs/tree/master/manifests/o/Obsidian/Obsidian
 - Obsidian Git plugin: https://github.com/Vinzent03/obsidian-git
 - Obsidian Git installation docs: https://github.com/Vinzent03/obsidian-git/blob/master/docs/Installation.md
-

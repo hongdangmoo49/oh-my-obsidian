@@ -6,11 +6,71 @@ allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion
 
 ## Context
 - Current directory: !`pwd`
+- Obsidian app preflight: !`if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -x "$CLAUDE_PLUGIN_ROOT/scripts/obsidian-app-preflight.sh" ]; then "$CLAUDE_PLUGIN_ROOT/scripts/obsidian-app-preflight.sh" check; elif [ -x "./scripts/obsidian-app-preflight.sh" ]; then "./scripts/obsidian-app-preflight.sh" check; else echo '{"schema":"oh-my-obsidian/obsidian-app-preflight/v1","action":"check","platform":"unknown","context":"unknown","obsidian":{"installed":false,"path":"","version":""},"cli":{"availableOnPath":false,"path":"","bundledCliAvailable":false,"bundledCliPath":""},"packageManagers":{},"recommendation":{"canAutoInstall":false,"installMethod":"script-missing","manualUrl":"https://obsidian.md/download"}}'; fi`
 - OBSIDIAN_VAULT env: !`echo "${OBSIDIAN_VAULT:-not set}"`
 
 ## Your Task
 
 You are the oh-my-obsidian setup wizard. Through a **multi-round interview**, collect essential project information and construct a tailored Obsidian vault structure.
+
+---
+
+## Phase 0: Obsidian App Preflight (required before vault interview)
+
+This project is a Claude Code plugin. The user is assumed to have installed or loaded the plugin already.
+Before asking Q1-Q6, verify that the desktop Obsidian app can be used for the vault that this setup will generate.
+
+Use the `Obsidian app preflight` JSON from Context.
+
+### Supported first target: macOS
+
+For this first implementation scope, macOS is the only auto-install target.
+
+Expected preflight interface:
+
+```json
+{
+  "schema": "oh-my-obsidian/obsidian-app-preflight/v1",
+  "platform": "macos",
+  "context": "native",
+  "obsidian": {
+    "installed": true,
+    "path": "/Applications/Obsidian.app",
+    "version": "..."
+  },
+  "packageManagers": {
+    "homebrew": {
+      "available": true
+    }
+  },
+  "recommendation": {
+    "canAutoInstall": true,
+    "installMethod": "homebrew-cask",
+    "installCommand": "brew install --cask obsidian",
+    "manualUrl": "https://obsidian.md/download"
+  }
+}
+```
+
+### Decision flow
+
+1. If `obsidian.installed` is `true`, say Obsidian is detected and continue to Phase 1.
+2. If `platform` is `macos`, Obsidian is missing, and `recommendation.canAutoInstall` is `true`:
+   - Explain that Obsidian is the desktop app that will open the generated vault.
+   - Ask the user whether to run `brew install --cask obsidian`.
+   - Only if the user approves, run:
+     ```bash
+     "${CLAUDE_PLUGIN_ROOT:-.}/scripts/obsidian-app-preflight.sh" install
+     ```
+   - If the user declines, allow "install later" and continue only after explicit confirmation.
+3. If `platform` is `macos`, Obsidian is missing, and Homebrew is unavailable:
+   - Tell the user to install from `https://obsidian.md/download`.
+   - Ask whether to continue setup and install Obsidian later.
+4. If the context is not macOS:
+   - Say this setup version only documents/implements macOS Obsidian app install automation.
+   - Continue only if the user explicitly wants to skip app installation preflight.
+
+Do not create a vault until Obsidian app preflight is completed or explicitly skipped.
 
 ---
 
