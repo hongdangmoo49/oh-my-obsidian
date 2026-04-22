@@ -85,76 +85,112 @@ Do not create a vault until Obsidian app preflight is completed or explicitly sk
 
 ---
 
-## Phase 1: Project Interview (required — ask all of these)
+## Phase 1: Project Interview
 
-### Q1. Vault Path
-"볼트를 생성할 경로를 입력해주세요"
-- Default: `~/Documents/Obsidian/<project-name>`
-- If argument provided, use it
+**CRITICAL UX RULES**:
+- NEVER ask "press enter to skip/confirm" — empty messages cannot be sent in Claude Code.
+- For optional follow-ups, use AskUserQuestion with a "건너뛰기" option. User can always use "Other" for custom typing.
+- After collecting all info, proceed to Phase 2 immediately — no final confirmation.
+- AskUserQuestion always provides an "Other" option automatically for free-text input.
 
-### Q2. Project Identity
-"프로젝트/서비스 이름이 무엇인가요?"
+---
 
-"이 프로젝트는 어떤 서비스인가요? (도메인, 타겟 유저, 핵심 기능을 간단히 설명해주세요)"
-- Record: domain, target users, core features
+### Q1. Project Name + Vault Path
+Ask in plain text: "프로젝트/서비스 이름이 무엇인가요?"
+→ Vault path auto-derived: `~/Documents/Obsidian/{project-name}`
+→ If user provided argument, use that as vault path instead.
+→ Tell user the derived path and move on immediately.
+
+### Q2. Project Type
+Use AskUserQuestion with 1 question:
+- header: "프로젝트 타입", multiSelect: false
+- options: 웹 서비스/SaaS, 모바일 앱, 게임 (웹/모바일/PC), 기타
+
+Then use AskUserQuestion for follow-up (1 question):
+- header: "상세 설명", multiSelect: false
+- options:
+  - "건너뛰기" — skip, record only the project type
+  - "Other로 타겟 유저/핵심 기능 입력" — user types via Other
+  - "B2C 소비자 서비스"
+  - "B2B 기업용 / 내부 도구"
+If user selects "건너뛰기", move on immediately.
 
 ### Q3. Tech Stack
-"사용 중인 기술 스택은 무엇인가요? (프론트엔드, 백엔드, DB, 인프라 등)"
-- Record: languages, frameworks, databases, deployment
+Use AskUserQuestion with 3 questions:
+
+Question 1 — header: "프론트엔드", multiSelect: false:
+- React
+- Next.js
+- Vue
+- React Native / Flutter
+
+Question 2 — header: "백엔드", multiSelect: false:
+- Node.js / Express / NestJS
+- Spring Boot
+- Django / FastAPI
+- Go / Rust
+
+Question 3 — header: "데이터베이스", multiSelect: false:
+- MySQL / PostgreSQL
+- MongoDB
+- Firebase / Supabase
+- Redis / DynamoDB
+
+Then use AskUserQuestion for infra follow-up (1 question):
+- header: "인프라", multiSelect: false
+- options:
+  - "AWS (EC2, S3, Lambda 등)"
+  - "GCP"
+  - "Azure / 기타"
+  - "건너뛰기"
+If user selects "건너뛰기", record only the tech stack selections.
 
 ### Q4. Team Structure
-"팀 구성은 어떻게 되나요? (역할별 인원, 프론트/백엔드/디자인 등)"
-- Record: team roles and size
+Ask in plain text: "팀 구성은 어떻게 되나요? (역할별 인원, 프론트/백엔드/디자인 등)"
+→ Record and move on.
 
 ### Q5. 서비스 레이어 카테고리 선택
-Show the following normalized list and let the user pick multiple. Also allow custom additions.
+Use AskUserQuestion with 4 questions, all multiSelect:
 
-"볼트의 서비스 레이어에 들어갈 카테고리를 선택해주세요. (복수 선택 가능, 이후 직접 추가도 가능합니다)"
+Question 1 — header: "기본/코어", multiSelect: true:
+- API 명세
+- 아키텍처
+- 코어/도메인
+- 데이터베이스/스키마
 
-**기본 (모든 프로젝트):**
-1. □ API 명세
-2. □ 아키텍처
-3. □ 코어/도메인
+Question 2 — header: "백엔드/연동", multiSelect: true:
+- 인증/인가
+- 비즈니스 로직
+- 외부 API 연동
+- 실시간 통신 (WebSocket/SSE)
 
-**백엔드:**
-4. □ 인증/인가
-5. □ 데이터베이스/스키마
-6. □ 비즈니스 로직
-7. □ 외부 API 연동
-8. □ 캐싱
-9. □ 스케줄링/배치
+Question 3 — header: "인프라/운영", multiSelect: true:
+- 배포/인프라
+- CI/CD
+- 모니터링/로깅
+- 보안
 
-**프론트엔드:**
-10. □ 화면/페이지 정의
-11. □ 상태 관리
-12. □ 디자인 시스템
+Question 4 — header: "특수기능", multiSelect: true:
+- 결제
+- 알림 (푸시/이메일/SMS)
+- 사용자/권한 관리
+- 파일/이미지 처리
 
-**인프라/운영:**
-13. □ 배포/인프라
-14. □ CI/CD
-15. □ 모니터링/로깅
-16. □ 보안
-
-**특수 기능:**
-17. □ 결제
-18. □ 알림 (푸시/이메일/SMS)
-19. □ 실시간 통신 (WebSocket/SSE)
-20. □ 검색
-21. □ 파일/이미지 처리
-22. □ 사용자 관리
-23. □ 권한 관리
-24. □ 마이그레이션
-
-After user selects, ask:
-"추가하고 싶은 카테고리가 있나요? (없으면 엔터)"
-→ Append any custom categories.
+Then use AskUserQuestion for custom additions (1 question):
+- header: "추가 카테고리", multiSelect: false
+- options:
+  - "선택 완료 (추가 없음)"
+  - "Other로 직접 입력" — user types custom category names
+If user selects "선택 완료", proceed with selected categories only.
 
 Record: selected + custom categories become **서비스 레이어** folders.
 
 ### Q6. Git Repository
-"볼트 git 레포지토리 URL을 입력해주세요 (새로 만들려면 'new')"
-- If 'new': initialize locally
-- If URL: clone the repo
+Use AskUserQuestion with 1 question:
+- header: "Git 레포", multiSelect: false
+- options:
+  - "새로 만들기 (로컬 init)"
+  - "기존 레포 사용 (Other로 URL 입력)"
 
 ---
 
