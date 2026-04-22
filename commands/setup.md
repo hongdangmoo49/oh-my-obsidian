@@ -147,7 +147,16 @@ Agent(
   3. scripts/ (always present):
      scripts/team-setup/
 
-  Return the proposed structure as a tree diagram and a JSON array of all folders to create.
+  You MUST return ONLY a JSON object in this exact format:
+  {
+    "tree_diagram": "```\n프로젝트/\n├── ...\n```",
+    "directories_to_create": [
+      "API_명세",
+      "인증_인가",
+      "배포_인프라"
+    ],
+    "rationale": "이 구조를 제안하는 짧은 이유 설명"
+  }
   """,
   subagent_type="general-purpose"
 )
