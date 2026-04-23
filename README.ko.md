@@ -177,6 +177,7 @@ oh-my-obsidian은 **AI (Claude Code)** 와 **지식 베이스 엔진 (Obsidian)*
 | `/oh-my-obsidian:refactor` | **진화와 유지보수** | 오래된 볼트를 감사하고, 기존 문서를 잃지 않고 폴더 위치를 재조직합니다. |
 | `/oh-my-obsidian:recall <검색어>` | **정보 회상** | 찾고 싶은 과거의 문맥 및 키워드에 대해 볼트를 의미론적(Semantic)으로 심층 조회합니다. |
 | `/oh-my-obsidian:session-save` | **순간 기록** | 작업이 종료되기 전, 세션에서의 활동 요약 및 코딩 기록을 볼트에 안전히 아카이빙합니다. |
+| `/oh-my-obsidian:enable-auto-save` | **종료 훅 설정** | (기존 유저용) 세션 종료 시 자동으로 저장 훅(SessionEnd)이 발동하도록 세팅합니다. |
 | `/oh-my-obsidian:vault` | **포괄적 관리** | 현재 볼트 폴더 시스템의 일반적인 관리, 리스트 확인 등에 사용합니다. |
 
 ---
