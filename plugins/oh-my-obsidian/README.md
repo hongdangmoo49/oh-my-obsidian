@@ -59,7 +59,9 @@ What did we decide last time about the deployment notes?
 Save this session to the Obsidian vault.
 Show me the vault health check.
 Add a note to the vault for today's API decisions.
+Restore my past Codex sessions to the vault.
 $oh-my-obsidian-vault-manager Show me the vault health check.
+$oh-my-obsidian-restore-history
 ```
 
 The setup skill performs:
@@ -71,14 +73,20 @@ The setup skill performs:
 5. setup-state bootstrap and managed artifact writes
 6. optional Obsidian Git choice
 7. validation
+8. optional Codex session history restore
 
 ## Included Surfaces
 
-- `skills/`: setup, recall, session-save, and vault-manager skills for Codex.
+- `skills/`: setup, recall, session-save, vault-manager, and restore-history
+  skills for Codex.
+- `restore-history`: scans `~/.codex/sessions/` (or `$CODEX_HOME/sessions/`)
+  for past Codex rollout JSONL files, parses user messages and tool usage,
+  and writes structured Markdown session notes to the vault.
 - `vault-manager`: supports list, add, organize-plan/apply, and health-check
   flows for an attached vault.
-- `scripts/`: plugin-local helpers for setup, vault operations, Obsidian app
-  preflight, Obsidian Git setup, and hook preview merge planning.
+- `scripts/`: plugin-local helpers for setup, vault operations, Codex history
+  restore, Obsidian app preflight, Obsidian Git setup, and hook preview merge
+  planning.
 - `templates/`: reserved for vault and onboarding templates.
 - `hooks-preview/`: optional Stop-hook preview template only.
 - `config-snippets/`: hook configuration snippet with an install-time path
