@@ -1,0 +1,15 @@
+{
+    "name": "obsidian-hub",
+    "owner": {
+        "name": "hongdangmoo49",
+        "email": "ssh0611@gmail.com"
+    },
+    "plugins": [
+        {
+            "name": "oh-my-obsidian",
+            "source": "../",
+            "description": "Give your AI coding agent a permanent second brain. Connect Claude to an Obsidian vault to auto-record decisions and recall context.",
+            "version": "0.1.0"
+        }
+    ]
+}

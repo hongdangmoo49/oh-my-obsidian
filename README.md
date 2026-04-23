@@ -54,8 +54,17 @@ Most AI coding agents start every session with a blank slate.
 
 ## Quick Start
 
-**Install** — Install the plugin directly in your Claude Code session:
+**Install via Custom Marketplace** — Install directly from our GitHub repository to get the latest version immediately:
 
+```bash
+# 1. Add our custom marketplace
+/plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
+
+# 2. Install the plugin
+/plugin install oh-my-obsidian@obsidian-hub
+```
+
+**Install via Official Marketplace** — (Pending Approval) If installed from the official Claude registry:
 ```bash
 /plugin install oh-my-obsidian
 ```
