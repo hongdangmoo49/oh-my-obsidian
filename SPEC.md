@@ -49,6 +49,7 @@ oh-my-obsidian/
 │   ├── refactor.md              # Vault refactoring orchestrator
 │   ├── recall.md                # Recall past documents
 │   ├── session-save.md          # Save session to vault
+│   ├── enable-auto-save.md      # Register SessionEnd auto-save hook
 │   └── vault.md                 # Vault management
 ├── agents/
 │   ├── vault-architect.md       # Agent for vault structure design
