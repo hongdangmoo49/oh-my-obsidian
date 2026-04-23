@@ -337,6 +337,134 @@ git add .
 git commit -m "init: vault created by oh-my-obsidian"
 ```
 
+### 3.7 Configure Claude Lifecycle Hook (SessionEnd)
+
+Set up a Claude Code hook so that `/oh-my-obsidian:session-save` runs automatically when the user exits the session.
+
+Instruct the Bash tool to execute the following Node.js code securely (e.g., by writing it to a temporary `inject-hook.js` file, running `node inject-hook.js`, and then deleting it). This ensures cross-platform compatibility without relying on `jq`:
+
+```javascript
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const file = path.join(os.homedir(), ".claude", "settings.json");
+let data = {};
+if (fs.existsSync(file)) {
+  try { data = JSON.parse(fs.readFileSync(file, "utf8")); } catch(e){}
+}
+if (!data.hooks) data.hooks = {};
+if (!data.hooks.SessionEnd) data.hooks.SessionEnd = [];
+const cmd = "claude -p '/oh-my-obsidian:session-save'";
+data.hooks.SessionEnd = data.hooks.SessionEnd.filter(h => !(h.hooks && h.hooks[0] && h.hooks[0].command === cmd));
+data.hooks.SessionEnd.push({ matcher: "", hooks: [{ type: "command", command: cmd }] });
+fs.mkdirSync(path.dirname(file), { recursive: true });
+fs.writeFileSync(file, JSON.stringify(data, null, 2));
+```
+
+---
+
+## Phase 3.5: Optional History Restore (Lightweight)
+
+After the vault is constructed and git is initialized, offer to scan the user's existing Claude Code history for the current project.
+
+**ERROR HANDLING**: All operations in this phase are non-blocking. If any step fails (file not found, read error, write error, git error), print a warning message and continue to Phase 4.
+
+### 3.5.1 Ask User
+
+Present via AskUserQuestion:
+- question: "현재 프로젝트의 기존 Claude Code 사용 기록을 볼트에 복원할까요? history.jsonl에서 사용자 프롬프트를 추출하여 기초적인 세션 기록을 생성합니다. 전체 대화 내용은 나중에 /oh-my-obsidian:restore-history 명령어로 복원할 수 있습니다."
+- header: "기록 복원"
+- options:
+  - label: "네, 복원해주세요"
+    description: "history.jsonl에서 현재 프로젝트의 사용 기록을 추출합니다"
+  - label: "건너뛰기"
+    description: "나중에 /oh-my-obsidian:restore-history로 복원할 수 있습니다"
+
+If user selects "건너뛰기" → proceed to Phase 4.
+
+### 3.5.2 Read and Filter History
+
+Read the file at `~/.claude/history.jsonl` using the Read tool. This file is lightweight (~155KB, ~450 lines) and safe to read in full.
+
+If the file does not exist:
+- Print: "history.jsonl 파일이 없습니다. 기록 복원을 건너뜁니다."
+- Continue to Phase 4.
+
+Filter entries where the "project" field matches the current working directory path.
+Group the filtered entries by "sessionId".
+
+If no entries match:
+- Print: "현재 프로젝트에 대한 기존 사용 기록이 없습니다."
+- Continue to Phase 4.
+
+### 3.5.3 Generate Session Records
+
+For each session group (sessionId), generate a basic session record file. No subagent is needed — the data is lightweight (just user prompts).
+
+**Per-session skip rules** (apply to the ENTIRE session, not individual entries):
+- Skip if ALL display entries are slash commands (starting with /)
+- Skip if ALL display entries are shorter than 10 characters
+- If even ONE substantive entry exists, keep the session
+
+Template for each session:
+
+```markdown
+---
+date: {first timestamp in session, formatted YYYY-MM-DD HH:mm}
+topic: {first substantive user prompt, truncated to 60 chars}
+category: 세션기록
+participants: Claude + User
+sessionId: {sessionId}
+restoredFrom: history.jsonl
+---
+
+# {topic}
+
+## 요약
+{sessionId} 세션의 사용자 요청 기록입니다.
+전체 대화 내용은 /oh-my-obsidian:restore-history 명령어로 복원할 수 있습니다.
+
+## 사용자 요청 목록
+- {HH:mm}: {display text, truncated to 120 chars}
+
+## 비고
+이 기록은 history.jsonl에서 자동 생성된 경량 복원본입니다.
+```
+
+Save to: `$OBSIDIAN_VAULT/작업기록/세션기록/YYYY-MM-DD_{slug}.md`
+
+**Topic inference rules:**
+- Use the first display entry that is NOT a slash command and is >= 10 characters
+- Truncate to 60 characters
+- If all entries are commands/short, use "세션 기록" as topic
+
+**Slug generation rules:**
+- Start with the topic string
+- Replace spaces with hyphens (-)
+- Strip ONLY filesystem-unsafe characters: `\ / : * ? " < > |`
+- Keep Korean characters (UTF-8 is universally supported)
+- If result is empty, use first 8 characters of sessionId
+- Truncate to 60 characters max
+- Example: "사용자 인증 시스템 구현" → "사용자-인증-시스템-구현"
+
+### 3.5.4 Git Commit
+
+If any files were generated:
+```bash
+cd "$VAULT"
+git add "작업기록/세션기록/"
+git commit -m "restore: history.jsonl에서 기존 사용 기록 복원 (N개 세션)"
+```
+
+If git commit fails (e.g., dirty working tree):
+- Print: "Git 커밋에 실패했습니다. 나중에 수동으로 커밋할 수 있습니다."
+- Continue to Phase 4.
+
+Print: "N개 세션 기록이 볼트에 복원되었습니다."
+
+If no sessions were generated (all skipped):
+Print: "복원할 의미 있는 세션 기록이 없습니다. Phase 4로 계속합니다."
+
 ---
 
 ## Phase 4: Obsidian Git Plugin Setup
@@ -411,6 +539,7 @@ Git 레포: {repo-url or 'local'}
 1. git clone {repo-url}
 2. cd scripts/team-setup
 3. install.ps1 (Windows) 또는 install.sh (Mac/Linux)
-4. Claude Code 재시작
-5. 테스트: "이전 작업 회상해줘"
+4. 테스트: "이전 작업 회상해줘"
+
+참고: 귀하의 시스템에 세션 종료 시(SessionEnd) 자동 저장을 수행하는 훅이 등록되었습니다!
 ```
