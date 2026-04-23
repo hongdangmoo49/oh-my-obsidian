@@ -54,6 +54,8 @@ AI 코딩 에이전트들은 영리하지만 기억력이 짧습니다. oh-my-ob
 
 ## ⚡ 빠른 시작 (Quick Start)
 
+### Claude Code 빠른 시작
+
 ```bash
 # 1. 커스텀 마켓플레이스를 사용자 환경에 추가
 /plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
@@ -75,6 +77,25 @@ AI 코딩 에이전트들은 영리하지만 기억력이 짧습니다. oh-my-ob
 > /oh-my-obsidian:setup
 ```
 
+### Codex 빠른 시작
+
+Codex에서는 이 저장소의 다음 마켓플레이스 파일을 사용하세요:
+
+```text
+.agents/plugins/marketplace.json
+```
+
+Codex는 이 로컬 마켓플레이스 엔트리 또는 로컬 플러그인 경로
+`./plugins/oh-my-obsidian`를 통해 설치할 수 있습니다. `.agents/`와
+`plugins/oh-my-obsidian/`가 포함된 로컬 체크아웃이라면 이것이 문서화된
+sparse/local marketplace path입니다.
+
+그 다음 Codex에게 이렇게 요청합니다:
+
+```text
+Set up an Obsidian vault for this project.
+```
+
 <details>
 <summary><strong>초기 설정(setup) 과정에서 어떤 일이 일어나나요?</strong></summary>
 
@@ -82,8 +103,48 @@ AI 코딩 에이전트들은 영리하지만 기억력이 짧습니다. oh-my-ob
 1. 시스템 내 Obsidian 데스크톱 앱 의존성이 있는지 검사합니다.
 2. 현재 프로젝트(도메인, 기술 스택, 팀 규모)에 대해 이해하기 위한 소크라테스식 심층 인터뷰를 진행합니다.
 3. `vault-architect` 보조 에이전트를 가동해 입력받은 팀 맞춤형 폴더/문서 분류 구조 계층을 디자인합니다.
-4. 끊김 없는 팀 문해 협업을 위한 옵시디언 버전 관리용 Git 패키지 자동 동기화를 세팅합니다.
+4. 별도 승인을 거쳐 optional Obsidian Git 선택지(`safe`, `manual`, `team-sync`)를 제안합니다.
 </details>
+
+## Codex 플러그인
+
+Codex 지원은 별도 플러그인 루트에서 배포됩니다:
+
+```text
+plugins/oh-my-obsidian/
+```
+
+Codex에서는 다음 마켓플레이스 파일을 사용하세요:
+
+```text
+.agents/plugins/marketplace.json
+```
+
+이 엔트리는 로컬 플러그인 `./plugins/oh-my-obsidian`를 설치합니다.
+Codex에서 `.claude-plugin/marketplace.json`을 재사용하면 안 됩니다.
+
+일반적인 Codex 시작 흐름:
+
+1. Codex 플러그인 관리 화면 또는 `/plugins`를 연다
+2. 이 저장소의 `.agents` 마켓플레이스를 추가하거나 로컬 플러그인 경로를 설치한다
+3. Codex에게 `Set up an Obsidian vault for this project.` 라고 요청한다
+
+이 `.agents` 엔트리가 로컬 체크아웃 기준의 supported sparse/local
+marketplace path입니다.
+
+Codex 플러그인도 guided setup, recall, session-save, vault manager, opt-in
+hooks preview를 포함합니다.
+
+## 기능 매트릭스
+
+| 기능 | Claude Code Plugin | Codex v1 | Codex Hooks Preview |
+| :--- | :--- | :--- | :--- |
+| Guided setup | 예 | 예 | 해당 없음 |
+| Recall | 예 | 예 | 해당 없음 |
+| Session save | 예 | 예 | 저장 리마인더만 |
+| Vault manager | 예 | 예 | 해당 없음 |
+| Hook 자동 활성화 | 예 | 아니오 | opt-in |
+| Hook 설치 위치 | Claude 설정 | 해당 없음 | `~/.codex/hooks/...` 또는 repo `.codex/hooks/...` |
 
 ---
 
@@ -156,11 +217,28 @@ cd scripts/team-setup
 
 ## ⚙️ 내부 동작 원리 (Under the Hood)
 
-해당 시스템은 완전한 백그라운드 편의성을 위해 초기 세션 개설(`/oh-my-obsidian:setup`) 도중 아래에 서술된 기능 세팅 프로세스를 백단에서 모두 자동 처리합니다. 로컬 터미널 및 파일 제어 권한이 필요하여, **모든 설치 및 설정 작업은 사전에 반드시 사용자에게 '동의(Consents)' 절차 질문 프롬프트를 띄운 후 실행됩니다.** 
+초기 설정 중에는 아래 작업을 도와줄 수 있지만, 민감한 단계는 모두 별도 승인 기반입니다. 패키지 매니저 설치, shell profile 수정, config pointer 생성, 서드파티 다운로드, community plugin 활성화, auto-sync 선택은 각각 따로 승인되어야 하며 필요하면 건너뛸 수 있습니다.
 
-1. **Obsidian 데스크톱 앱 동기화/가이드**: 사용자의 랩탑 공간 내에 'Obsidian'이 구비되어 있는지 점검합니다. 없을 시 시스템 운영체제(Windows/Mac)에 따른 패키지 메이커 다운로드 커맨드(brew, winget 등)를 주입하여 백그라운드 설치 자동 수행 혹은 브라우저 다운로드 인터페이스로 안내합니다.
-2. **Obsidian Git 플러그인 자동 구성**: 팀원 간 원활한 분산 동기화를 확실히 관리하기 위해, `.obsidian/plugins/obsidian-git` 와 같은 백업 관련 툴셋 폴더를 시스템에 미리 자체 개설하여 Git 플러그인의 공식 릴리스를 연동 세팅합니다.
-3. **로컬 스크립트 생성 및 환경 변수 등록**: 이후 합류할 팀원들의 클론 저장소 환경을 구축하는데 필요한 `.ps1` 또는 `.sh` 자동 스크립트를 Vault 생성 단계에서 알아서 퍼블리싱해주며, `OBSIDIAN_VAULT` 위치의 로컬 환경 변수 삽입 처리를 자동적으로 수행해 냅니다.
+1. **Obsidian 데스크톱 앱 감지와 설치 가이드**: 현재 환경에서 Obsidian 사용 가능 여부를 먼저 점검합니다. 자동 설치는 플랫폼과 실행 맥락이 허용될 때만, 그리고 사용자가 명시적으로 승인했을 때만 제안됩니다. container/WSL은 더 엄격한 제한을 따릅니다.
+2. **Obsidian Git 플러그인 선택지**: vault가 준비된 뒤 `safe`, `manual`, `team-sync` 중 하나를 제안할 수 있습니다. 다운로드, 활성화, sync 동작은 기본값이 아니라 각각 별도 승인 항목입니다.
+3. **로컬 스크립트 생성과 환경 설정 가이드**: 온보딩용 스크립트는 생성할 수 있지만, `OBSIDIAN_VAULT`를 위한 shell profile 수정이나 Codex config-pointer 생성은 opt-in이며 승인 기반입니다.
+
+## 권한 경계
+
+Claude Code와 Codex 흐름 모두 다음 작업 전에는 명시적 승인이 필요합니다:
+
+- 패키지 매니저 설치
+- shell profile 수정
+- 서드파티 Obsidian Git 다운로드
+- community plugin 활성화
+- auto-sync 또는 team-sync 활성화
+- git remote 변경 또는 push
+- overwrite, move, delete, reconcile
+- hook preview 설치
+
+Codex 전용 승인 경계:
+
+- Codex config pointer 생성
 
 ## 📂 플러그인 폴더망 구조 (Structure)
 

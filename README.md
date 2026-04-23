@@ -54,6 +54,8 @@ Most AI coding agents start every session with a blank slate.
 
 ## Quick Start
 
+### Claude Code Quick Start
+
 ```bash
 # 1. Add our custom marketplace
 /plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
@@ -75,6 +77,25 @@ Most AI coding agents start every session with a blank slate.
 > /oh-my-obsidian:setup
 ```
 
+### Codex Quick Start
+
+Use the Codex-native marketplace in this repository:
+
+```text
+.agents/plugins/marketplace.json
+```
+
+Codex can install through that local marketplace entry or from the local plugin
+path `./plugins/oh-my-obsidian`. This is also the documented sparse/local
+marketplace path for a repo checkout that includes `.agents/` and
+`plugins/oh-my-obsidian/`.
+
+Then ask Codex:
+
+```text
+Set up an Obsidian vault for this project.
+```
+
 <details>
 <summary><strong>What happens during setup?</strong></summary>
 
@@ -82,8 +103,48 @@ The plugin will:
 1. Check for the Obsidian desktop app on your system.
 2. Conduct a Socratic interview to understand your project (domain, tech stack, team size).
 3. Generate a tailored folder structure via the `vault-architect` agent.
-4. Set up an Obsidian Git team-sync workflow for seamless collaboration.
+4. Offer an optional Obsidian Git choice (`safe`, `manual`, or `team-sync`) after separate approvals.
 </details>
+
+## Codex Plugin
+
+Codex support is shipped from a separate plugin root:
+
+```text
+plugins/oh-my-obsidian/
+```
+
+Use the Codex-native marketplace file:
+
+```text
+.agents/plugins/marketplace.json
+```
+
+That entry installs the local plugin from `./plugins/oh-my-obsidian`. Do not
+reuse `.claude-plugin/marketplace.json` for Codex.
+
+Typical Codex start flow:
+
+1. open Codex plugin management or `/plugins`
+2. add the local `.agents` marketplace for this repo, or install the local plugin path
+3. ask Codex: `Set up an Obsidian vault for this project.`
+
+This same `.agents` entry is the supported sparse/local marketplace path when
+the repository is checked out locally for Codex use.
+
+The Codex plugin keeps the same product shape: guided setup, recall,
+session-save, vault management, and an opt-in hooks preview.
+
+## Feature Matrix
+
+| Capability | Claude Code Plugin | Codex v1 | Codex Hooks Preview |
+| :--- | :--- | :--- | :--- |
+| Guided setup | Yes | Yes | N/A |
+| Recall | Yes | Yes | N/A |
+| Session save | Yes | Yes | Reminder only |
+| Vault manager | Yes | Yes | N/A |
+| Hook auto-enable | Yes | No | Opt-in only |
+| Hook install path | Claude config | N/A | `~/.codex/hooks/...` or repo `.codex/hooks/...` |
 
 ---
 
@@ -157,11 +218,31 @@ Items that users must **manually** prepare to run the plugin normally:
 
 ## ⚙️ Under the Hood
 
-For user convenience, this plugin automatically performs the following tasks during the initial setup (`/oh-my-obsidian:setup`), and may use file download/execution permissions on your local PC. **All installation and configuration tasks will prompt you for consent before proceeding.**
+During setup, the plugin can help with the following tasks, but each sensitive
+step is permission-gated and may be skipped. Package-manager installs, shell
+profile edits, config-pointer creation, third-party downloads, community plugin
+enablement, and auto-sync choices all require separate approval.
 
-1. **Obsidian Desktop App Synchronization/Guide**: If Obsidian is not installed on your PC, it assists in or automates the installation by running OS-specific installation scripts (brew, winget, etc.) based on your operating system (Windows/Mac).
-2. **Obsidian Git Plugin Auto-configuration**: To ensure smooth memo synchronization among team members, it automatically creates the `.obsidian/plugins/obsidian-git` folder in your vault and downloads the latest release of the Git plugin to set it up.
-3. **Local Script Generation & Environment Variable Registration**: Generates `.ps1` or `.sh` scripts required for local repository setup during team onboarding, and assists in setting the `OBSIDIAN_VAULT` environment variable.
+1. **Obsidian Desktop App Detection and Install Guidance**: The setup checks whether Obsidian is available in the current environment. Automatic install is only offered when the platform/context supports it and only after explicit approval. Container and WSL flows have stricter limits.
+2. **Obsidian Git Plugin Choices**: After the vault exists, setup can offer `safe`, `manual`, or `team-sync` Obsidian Git options. Download, enablement, and sync behavior are separate approvals, not defaults.
+3. **Local Script Generation and Environment Setup Guidance**: Setup generates onboarding scripts and can help users set `OBSIDIAN_VAULT`, but shell profile edits or Codex config-pointer creation are opt-in and approval-gated.
+
+## Permission Boundaries
+
+Both Claude Code and Codex flows require explicit approval before:
+
+- package-manager installs
+- shell profile mutation
+- third-party Obsidian Git downloads
+- community plugin enablement
+- auto-sync or team-sync behavior
+- git remote changes or push operations
+- overwrites, moves, deletes, or reconcile actions
+- hook preview installation
+
+Codex-only approval boundary:
+
+- creation of Codex config pointers
 
 ## Plugin Structure
 
