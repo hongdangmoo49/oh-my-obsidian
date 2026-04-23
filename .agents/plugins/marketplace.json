@@ -1,0 +1,20 @@
+{
+  "name": "omob-codex",
+  "interface": {
+    "displayName": "Oh My Obsidian Codex"
+  },
+  "plugins": [
+    {
+      "name": "oh-my-obsidian",
+      "source": {
+        "source": "local",
+        "path": "./plugins/oh-my-obsidian"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

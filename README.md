@@ -54,6 +54,8 @@ Most AI coding agents start every session with a blank slate.
 
 ## Quick Start
 
+### Claude Code Quick Start
+
 ```bash
 # 1. Add our custom marketplace
 /plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
@@ -75,6 +77,43 @@ Most AI coding agents start every session with a blank slate.
 > /oh-my-obsidian:setup
 ```
 
+### Codex Quick Start
+
+Codex reads the repository marketplace from:
+
+```text
+.agents/plugins/marketplace.json
+```
+
+Add the marketplace from GitHub:
+
+```bash
+codex plugin marketplace add hongdangmoo49/oh-my-obsidian
+```
+
+Then open Codex and install `oh-my-obsidian` from the plugin directory:
+
+```text
+/plugins
+```
+
+Then ask Codex:
+
+```text
+Set up an Obsidian vault for this project.
+```
+
+After setup, you can continue with Codex using natural-language prompts or an
+explicit skill name such as:
+
+```text
+What did we decide last time about the vault layout?
+Save this session to the Obsidian vault.
+Show me the vault health check.
+Add a note to the vault for today's API decisions.
+$oh-my-obsidian-recall Find our prior vault-layout decision.
+```
+
 <details>
 <summary><strong>What happens during setup?</strong></summary>
 
@@ -82,14 +121,57 @@ The plugin will:
 1. Check for the Obsidian desktop app on your system.
 2. Conduct a Socratic interview to understand your project (domain, tech stack, team size).
 3. Generate a tailored folder structure via the `vault-architect` agent.
-4. Set up an Obsidian Git team-sync workflow for seamless collaboration.
+4. Offer an optional Obsidian Git choice (`safe`, `manual`, or `team-sync`) after separate approvals.
 </details>
+
+## Codex Plugin
+
+Codex support is shipped from a separate plugin root:
+
+```text
+plugins/oh-my-obsidian/
+```
+
+Use the Codex-native marketplace file:
+
+```text
+.agents/plugins/marketplace.json
+```
+
+When users add `hongdangmoo49/oh-my-obsidian` as a Codex marketplace source,
+Codex reads this marketplace and exposes the bundled `oh-my-obsidian` plugin.
+Do not reuse `.claude-plugin/marketplace.json` for Codex.
+
+Typical Codex start flow:
+
+1. run `codex plugin marketplace add hongdangmoo49/oh-my-obsidian`
+2. run `codex`, then open `/plugins` and install `oh-my-obsidian`
+3. ask Codex: `Set up an Obsidian vault for this project.`
+
+The Codex plugin keeps the same product shape: guided setup, recall,
+session-save, vault management, and an opt-in hooks preview. In Codex, these
+flows are typically used through natural-language prompts or explicit skill
+invocation rather than Claude-style slash commands.
+
+## Feature Matrix
+
+| Capability | Claude Code Plugin | Codex v1 | Codex Hooks Preview |
+| :--- | :--- | :--- | :--- |
+| Guided setup | Yes | Yes | N/A |
+| Recall | Yes | Yes | N/A |
+| Session save | Yes | Yes | Reminder only |
+| Vault manager | Yes | Yes | N/A |
+| Hook auto-enable | Yes | No | Opt-in only |
+| Hook install path | Claude config | N/A | `~/.codex/hooks/...` or repo `.codex/hooks/...` |
 
 ---
 
 ## How It Works
 
 Oh-my-obsidian acts as a bridge between the **AI (Claude Code)**, the **Knowledge Base (Obsidian)**, and the **Team (Git)**.
+
+In Codex, the same loop is driven through skill-guided prompts rather than the
+Claude command surface shown below.
 
 ```text
     [ Claude Code ] <---> [ oh-my-obsidian ] <---> [ Obsidian Vault ]
@@ -100,8 +182,8 @@ Oh-my-obsidian acts as a bridge between the **AI (Claude Code)**, the **Knowledg
 | Phase | Action |
 | :--- | :--- |
 | **Initialize** | Socratic agents interview you to design a tailored vault structure |
-| **Work** | Claude retrieves context via `recall` to solve coding tasks |
-| **Document** | Claude records decisions via `session-save` directly into the vault |
+| **Work** | The agent retrieves context via `recall` to solve coding tasks |
+| **Document** | The agent records decisions via `session-save` directly into the vault |
 | **Evolve** | As the project grows, `refactor` audits and safely reorganizes folders |
 
 ---
@@ -109,6 +191,11 @@ Oh-my-obsidian acts as a bridge between the **AI (Claude Code)**, the **Knowledg
 ## Commands
 
 Use these commands directly inside your Claude Code session.
+
+In Codex, use the equivalent natural-language prompts or explicitly invoke the
+installed skill surface, such as `$oh-my-obsidian-setup`,
+`$oh-my-obsidian-recall`, `$oh-my-obsidian-session-save`, and
+`$oh-my-obsidian-vault-manager`.
 
 | Command | Role | Description |
 | :--- | :--- | :--- |
@@ -158,23 +245,48 @@ Items that users must **manually** prepare to run the plugin normally:
 
 ## ⚙️ Under the Hood
 
-For user convenience, this plugin automatically performs the following tasks during the initial setup (`/oh-my-obsidian:setup`), and may use file download/execution permissions on your local PC. **All installation and configuration tasks will prompt you for consent before proceeding.**
+During setup, the plugin can help with the following tasks, but each sensitive
+step is permission-gated and may be skipped. Package-manager installs, shell
+profile edits, config-pointer creation, third-party downloads, community plugin
+enablement, and auto-sync choices all require separate approval.
 
-1. **Obsidian Desktop App Synchronization/Guide**: If Obsidian is not installed on your PC, it assists in or automates the installation by running OS-specific installation scripts (brew, winget, etc.) based on your operating system (Windows/Mac).
-2. **Obsidian Git Plugin Auto-configuration**: To ensure smooth memo synchronization among team members, it automatically creates the `.obsidian/plugins/obsidian-git` folder in your vault and downloads the latest release of the Git plugin to set it up.
-3. **Local Script Generation & Environment Variable Registration**: Generates `.ps1` or `.sh` scripts required for local repository setup during team onboarding, and assists in setting the `OBSIDIAN_VAULT` environment variable.
+1. **Obsidian Desktop App Detection and Install Guidance**: The setup checks whether Obsidian is available in the current environment. Automatic install is only offered when the platform/context supports it and only after explicit approval. Container and WSL flows have stricter limits.
+2. **Obsidian Git Plugin Choices**: After the vault exists, setup can offer `safe`, `manual`, or `team-sync` Obsidian Git options. Download, enablement, and sync behavior are separate approvals, not defaults.
+3. **Local Script Generation and Environment Setup Guidance**: Setup generates onboarding scripts and can help users set `OBSIDIAN_VAULT`, but shell profile edits or Codex config-pointer creation are opt-in and approval-gated.
+
+For Codex follow-up skills, vault resolution checks `OBSIDIAN_VAULT` first and
+then the optional approved config pointer at `~/.oh-my-obsidian/config.json`.
+
+## Permission Boundaries
+
+Both Claude Code and Codex flows require explicit approval before:
+
+- package-manager installs
+- shell profile mutation
+- third-party Obsidian Git downloads
+- community plugin enablement
+- auto-sync or team-sync behavior
+- git remote changes or push operations
+- overwrites, moves, deletes, or reconcile actions
+- hook preview installation
+
+Codex-only approval boundary:
+
+- creation of Codex config pointers
 
 ## Plugin Structure
 
 ```
 oh-my-obsidian/
-├── .claude-plugin/plugin.json   # Plugin manifest
-├── commands/                    # User commands
-├── skills/                      # Auto-triggered skills
-├── agents/                      # Sub-agents
-├── hooks/                       # Session stop hooks
-├── scripts/                     # Installation scripts
-└── .mcp.json                    # MCP server config (optional)
+├── .claude-plugin/plugin.json   # Claude plugin manifest
+├── commands/                    # Claude command surface
+├── skills/                      # Claude/root skills
+├── agents/                      # Claude sub-agents
+├── hooks/                       # Claude session hooks
+├── scripts/                     # Shared/root installation scripts
+├── .mcp.json                    # MCP server config (optional)
+├── .agents/plugins/marketplace.json
+└── plugins/oh-my-obsidian/      # Codex plugin surface
 ```
 
 ---

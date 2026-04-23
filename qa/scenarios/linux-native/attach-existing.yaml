@@ -1,0 +1,27 @@
+id: linux-native-attach-existing
+title: Attach a compatible existing vault
+platform: linux-native
+objective:
+  - Verify no-overwrite attach for a compatible existing vault
+  - Verify conflicts block attach without mutating managed content
+preconditions:
+  repo_root: "<repo-root>"
+  temp_home: "<temp-home>"
+  vault_path: "<temp-workdir>/existing-vault"
+setup:
+  - Prepare an existing vault without setup-state
+  - Create compatible folders such as Demo_Project/API and Demo_Project/Infra
+  - For conflict branch, create a conflicting README.md or stray .oh-my-obsidian directory
+conversation:
+  - Prompt: "Set up an Obsidian vault for this project."
+  - Choose attach flow
+  - Approve only if the vault is compatible
+assertions:
+  - Compatible attach writes setup-state and preserves existing content
+  - Conflicting attach fails without overwrite
+  - qa/scripts/assert-setup-state.sh <vault-path> in_progress
+artifacts_to_capture:
+  - qa/artifacts/attach-existing-before.txt
+  - qa/artifacts/attach-existing-after.txt
+public_repo_redaction:
+  - Use only fixture content, never a real personal vault

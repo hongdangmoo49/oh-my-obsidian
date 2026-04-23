@@ -2,7 +2,7 @@
 oh-my-obsidian Obsidian app preflight for native Windows.
 
 This script mirrors scripts/obsidian-app-preflight.sh for Windows hosts.
-It is intended to be called by the Claude Code plugin setup flow.
+It is intended to be called by the Codex plugin setup flow.
 #>
 
 param(

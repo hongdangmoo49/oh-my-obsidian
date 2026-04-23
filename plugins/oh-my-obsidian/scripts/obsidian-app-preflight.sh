@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # oh-my-obsidian Obsidian app preflight.
-# This script is intended to be called by the Claude Code plugin setup flow.
+# This script is intended to be called by the Codex plugin setup flow.
 
 set -euo pipefail
 

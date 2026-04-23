@@ -16,10 +16,23 @@ $ claude
 > /plugin install oh-my-obsidian@omob
 ```
 
+Codex companion flow:
+```bash
+$ codex plugin marketplace add hongdangmoo49/oh-my-obsidian
+```
+Then the user opens Codex, enters `/plugins`, installs `oh-my-obsidian`, and asks:
+```text
+Set up an Obsidian vault for this project.
+```
+
 ### 2. Trigger Socratic Setup
 Once installed, the user runs the initialization wizard to connect their workspace to the Obsidian knowledge base.
 ```bash
 > /oh-my-obsidian:setup
+```
+In Codex, do not type the Claude slash command above. Ask naturally instead:
+```text
+Set up an Obsidian vault for this project.
 ```
 
 ### 3. Preflight: Environment Check & Obsidian Auto-Installation
@@ -53,6 +66,11 @@ Instead of simply closing the terminal, the user types the following command:
 ```
 *(Note: You can also configure this to trigger automatically upon session termination using the `stop-hook`.)*
 
+In Codex, the same flow is typically triggered with a direct prompt such as:
+```text
+Save this session to the Obsidian vault.
+```
+
 ### 3. Context Compression & Document Archiving by AI
 The plugin seamlessly reads through **the context of the conversation and all code modifications** made throughout the day.
 * **Claude:** "I scanned today's session. You migrated the authentication structure to JWT and made a critical architectural decision to hash tokens using the `crypto` library. Shall I write a progress document about this and save it to your Obsidian vault?"
@@ -60,11 +78,16 @@ The plugin seamlessly reads through **the context of the conversation and all co
 * **Claude:**
   1. Auto-generates the file `2024-04-23_Session_Summary_JWT_Auth.md` in the vault.
   2. Neatly summarizes the session into "Background (Why)", "Core Code Logic (What)", and "Pending Tasks for Tomorrow (Todo)".
-  3. Automatically performs a Git Commit & Push in the background so the entire team stays informed!
+  3. Commits the new note when git state and approvals are safe, or clearly reports when commit/push is skipped.
 
 ### 4. Coding the Next Day (Recall)
 The next day, the user opens the terminal and requests:
 * **User:** "Continue from where we left off yesterday."
 * **Claude:** *(Auto-scans the Vault)* "Yes, based on the vault document you saved yesterday, the JWT token issuance logic is complete. Today, I'll resume writing the code starting with the pending task: 'Refresh Token renewal logic'!"
+
+In Codex, the same recall flow can start with:
+```text
+What did we decide yesterday about JWT token issuance?
+```
 
 **No more copying and pasting background knowledge or digging through repository history. Infinite context control starts here.**

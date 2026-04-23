@@ -7,13 +7,14 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rename,
   rm,
   stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { get } from "node:https";
 
 const SCHEMA = "oh-my-obsidian/obsidian-git-setup/v1";
@@ -61,8 +62,12 @@ function parseArgs(argv) {
     action: argv[0] || "check",
     vaultPath: argv[1] || "",
     preset: "safe",
+    presetExplicit: false,
     enable: false,
+    enableExplicit: false,
+    reconcile: false,
     interval: 10,
+    intervalExplicit: false,
     sourceZip: process.env.OH_MY_OBSIDIAN_OBSIDIAN_GIT_ZIP || "",
     version: process.env.OH_MY_OBSIDIAN_OBSIDIAN_GIT_VERSION || "",
   };
@@ -71,10 +76,15 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === "--enable") {
       parsed.enable = true;
+      parsed.enableExplicit = true;
+    } else if (arg === "--reconcile") {
+      parsed.reconcile = true;
     } else if (arg === "--preset") {
       parsed.preset = argv[++index] || "";
+      parsed.presetExplicit = true;
     } else if (arg === "--interval") {
       parsed.interval = Number(argv[++index] || "10");
+      parsed.intervalExplicit = true;
     } else if (arg === "--source-zip") {
       parsed.sourceZip = argv[++index] || "";
     } else if (arg === "--version") {
@@ -90,13 +100,26 @@ function parseArgs(argv) {
 async function applySetup(vaultPath) {
   const issues = [];
   const preState = await buildState("apply", vaultPath);
+  const setupState = await readSetupStateIfExists(vaultPath);
+  const effectivePreset = args.presetExplicit
+    ? args.preset
+    : preState.plugin.effectivePreset || setupState?.obsidianGit?.preset || args.preset;
+  const effectiveInterval =
+    effectivePreset === "team-sync"
+      ? args.intervalExplicit
+        ? args.interval
+        : Number(setupState?.obsidianGit?.interval || args.interval || 10)
+      : 0;
+  const effectiveEnable = args.enableExplicit
+    ? args.enable
+    : preState.plugin.enabledInVault;
 
   if (!preState.vault.exists) {
     return await buildState("apply", vaultPath, ["vault path does not exist"]);
   }
 
-  if (args.preset === "team-sync") {
-    if (!args.enable) {
+  if (effectivePreset === "team-sync") {
+    if (!effectiveEnable) {
       issues.push("team-sync requires --enable");
     }
     if (!preState.git.available) {
@@ -113,9 +136,9 @@ async function applySetup(vaultPath) {
     }
   }
 
-  const preset = buildPreset(args.preset, args.interval);
+  const preset = buildPreset(effectivePreset, effectiveInterval);
   if (!preset) {
-    issues.push(`unknown preset: ${args.preset}`);
+    issues.push(`unknown preset: ${effectivePreset}`);
   }
 
   const pluginDir = join(vaultPath, ".obsidian", "plugins", PLUGIN_ID);
@@ -124,7 +147,7 @@ async function applySetup(vaultPath) {
 
   const existingData = await readJsonObjectIfExists(dataPath, "obsidian-git data.json", issues);
   let existingCommunity = null;
-  if (args.enable) {
+  if (effectiveEnable) {
     existingCommunity = await readJsonArrayIfExists(
       communityPluginsPath,
       "community-plugins.json",
@@ -132,8 +155,26 @@ async function applySetup(vaultPath) {
     );
   }
 
+  const pluginAlreadyManaged =
+    (await pathExists(join(pluginDir, "manifest.json"))) ||
+    (await pathExists(join(pluginDir, "main.js"))) ||
+    (await pathExists(join(pluginDir, "styles.css"))) ||
+    (await pathExists(dataPath));
+  if (pluginAlreadyManaged && !args.reconcile) {
+    issues.push("existing Obsidian Git files or settings require explicit reconcile approval");
+  }
+
   if (issues.length > 0) {
     return await buildState("apply", vaultPath, issues);
+  }
+
+  try {
+    await validateSetupStateForVault(vaultPath);
+    await validateVaultWriteTarget(vaultPath, ".obsidian/plugins/obsidian-git/manifest.json");
+    await validateVaultWriteTarget(vaultPath, ".obsidian/plugins/obsidian-git/data.json");
+    await validateVaultWriteTarget(vaultPath, ".obsidian/community-plugins.json");
+  } catch (error) {
+    return await buildState("apply", vaultPath, [error.message]);
   }
 
   const release = await resolveRelease(args.sourceZip, args.version);
@@ -150,7 +191,7 @@ async function applySetup(vaultPath) {
     const nextData = { ...existingData, ...preset };
     await writeJsonAtomic(dataPath, nextData);
 
-    if (args.enable) {
+    if (effectiveEnable) {
       const nextCommunity = Array.isArray(existingCommunity) ? [...existingCommunity] : [];
       if (!nextCommunity.includes(PLUGIN_ID)) {
         nextCommunity.push(PLUGIN_ID);
@@ -159,12 +200,19 @@ async function applySetup(vaultPath) {
     }
 
     await updateSetupState(vaultPath, {
+      choice: effectivePreset,
       installed: true,
       version: release.version,
       source: release.zipUrl,
-      enabled: args.enable,
-      preset: args.preset,
-      interval: args.preset === "team-sync" ? args.interval : 0,
+      enabled: effectiveEnable ? true : preState.plugin.enabledInVault,
+      preset: effectivePreset,
+      status:
+        effectivePreset === "team-sync"
+          ? "enabled-team-sync"
+          : effectivePreset === "manual"
+            ? (effectiveEnable ? "enabled-manual" : "needs-user-action")
+            : "installed-disabled",
+      interval: effectivePreset === "team-sync" ? effectiveInterval : 0,
       installedAt: new Date().toISOString(),
     });
   } finally {
@@ -177,12 +225,14 @@ async function applySetup(vaultPath) {
 function buildPreset(preset, interval) {
   if (preset === "safe" || preset === "manual") {
     return {
+      differentIntervalCommitAndPush: false,
       autoSaveInterval: 0,
       autoPullInterval: 0,
       autoPushInterval: 0,
       autoPullOnBoot: false,
       disablePush: true,
       pullBeforePush: true,
+      disablePopupsForNoChanges: false,
       commitMessage: DEFAULT_COMMIT_MESSAGE,
       autoCommitMessage: DEFAULT_COMMIT_MESSAGE,
     };
@@ -319,8 +369,15 @@ async function buildState(action, vaultPath, extraIssues = []) {
   const installed =
     manifest.id === PLUGIN_ID &&
     (await fileIsNonEmpty(mainPath)) &&
-    (await pathExists(stylesPath)) &&
-    data !== null;
+    (await pathExists(stylesPath));
+
+  const setupState = vaultExists ? await readSetupStateIfExists(vaultPath) : null;
+  const persistedPreset =
+    setupState?.obsidianGit?.preset || setupState?.obsidianGit?.choice || "";
+  const effectivePreset = args.presetExplicit ? args.preset : persistedPreset || args.preset;
+  const expectsEnabled = args.enableExplicit
+    ? args.enable
+    : effectivePreset === "manual" || effectivePreset === "team-sync";
 
   if (action === "validate") {
     if (!gitAvailable) issues.push(gitState.issue || "git is not available");
@@ -332,7 +389,9 @@ async function buildState(action, vaultPath, extraIssues = []) {
   let status = "ready";
   if (issues.length > 0) {
     status = "blocked";
-  } else if (!enabledInVault || !upstreamConfigured || !remoteConfigured) {
+  } else if ((effectivePreset === "manual" || effectivePreset === "team-sync") && !enabledInVault) {
+    status = "needs-user-action";
+  } else if (effectivePreset === "team-sync" && (!upstreamConfigured || !remoteConfigured)) {
     status = "needs-user-action";
   }
 
@@ -362,6 +421,8 @@ async function buildState(action, vaultPath, extraIssues = []) {
       installed,
       installedVersion: manifest.version || "",
       enabledInVault,
+      effectivePreset,
+      expectsEnabled,
       files: {
         manifest: await pathExists(manifestPath),
         main: await fileIsNonEmpty(mainPath),
@@ -371,38 +432,104 @@ async function buildState(action, vaultPath, extraIssues = []) {
     },
     status,
     issues,
-    recommendations: buildRecommendations({ installed, enabledInVault, remoteConfigured, upstreamConfigured }),
+    recommendations: buildRecommendations({
+      installed,
+      enabledInVault,
+      remoteConfigured,
+      upstreamConfigured,
+      effectivePreset,
+      expectsEnabled,
+    }),
   };
 }
 
-function buildRecommendations({ installed, enabledInVault, remoteConfigured, upstreamConfigured }) {
+function buildRecommendations({
+  installed,
+  enabledInVault,
+  remoteConfigured,
+  upstreamConfigured,
+  effectivePreset,
+  expectsEnabled,
+}) {
   const recommendations = [];
   if (!installed) {
     recommendations.push("Run obsidian-git-setup apply <vault> --preset safe");
   }
-  if (installed && !enabledInVault) {
+  if (installed && !enabledInVault && expectsEnabled) {
     recommendations.push("Enable Obsidian Git with --enable or in Obsidian community plugin settings");
   }
-  if (!remoteConfigured) {
+  if (effectivePreset === "team-sync" && !remoteConfigured) {
     recommendations.push("Configure a git remote before enabling team-sync");
   }
-  if (!upstreamConfigured) {
+  if (effectivePreset === "team-sync" && !upstreamConfigured) {
     recommendations.push("Set an upstream tracking branch before enabling team-sync");
   }
   recommendations.push("Open Obsidian and approve community plugins if prompted");
   return recommendations;
 }
 
-async function updateSetupState(vaultPath, obsidianGit) {
+async function validateSetupStateForVault(vaultPath) {
   const stateDir = join(vaultPath, ".oh-my-obsidian");
   const statePath = join(stateDir, "setup-state.json");
-  await mkdir(stateDir, { recursive: true });
-  const existing = (await readJsonObjectIfExists(statePath, "setup-state.json", [], false)) || {};
+  const issues = [];
+  const existing = await readJsonObjectIfExists(statePath, "setup-state.json", issues, true);
+  if (!existing || issues.length > 0 || existing.schema !== "oh-my-obsidian/setup-state/v1") {
+    throw new Error("valid setup-state.json is required before Obsidian Git apply");
+  }
+  const vaultRealPath = await realpath(vaultPath);
+  if (existing.vaultRealPath !== vaultRealPath) {
+    throw new Error("setup-state vaultRealPath does not match the target vault");
+  }
+  return existing;
+}
+
+async function updateSetupState(vaultPath, obsidianGit) {
+  const statePath = join(vaultPath, ".oh-my-obsidian", "setup-state.json");
+  const existing = await validateSetupStateForVault(vaultPath);
   await writeJsonAtomic(statePath, {
     ...existing,
-    schema: existing.schema || "oh-my-obsidian/setup-state/v1",
-    obsidianGit,
+    updatedAt: new Date().toISOString(),
+    obsidianGit: {
+      ...existing.obsidianGit,
+      choice: obsidianGit.choice ?? existing.obsidianGit?.choice ?? "",
+      preset: obsidianGit.preset,
+      status: obsidianGit.status ?? existing.obsidianGit?.status ?? "",
+      installed: obsidianGit.installed,
+      enabled: obsidianGit.enabled,
+      version: obsidianGit.version,
+      source: obsidianGit.source,
+      interval: obsidianGit.interval,
+      installedAt: obsidianGit.installedAt,
+    },
   });
+}
+
+async function readSetupStateIfExists(vaultPath) {
+  const issues = [];
+  const state = await readJsonObjectIfExists(
+    join(vaultPath, ".oh-my-obsidian", "setup-state.json"),
+    "setup-state.json",
+    issues,
+    false
+  );
+  if (!state || issues.length > 0) return null;
+  return state;
+}
+
+async function validateVaultWriteTarget(vaultPath, relativePath) {
+  const vaultRealPath = await realpath(vaultPath);
+  const segments = relativePath.split("/").filter(Boolean);
+  let currentPath = vaultPath;
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    currentPath = join(currentPath, segments[index]);
+    if (await pathExists(currentPath)) {
+      const currentRealPath = await realpath(currentPath);
+      const rel = relative(vaultRealPath, currentRealPath);
+      if (rel !== "" && (rel.startsWith("..") || rel.startsWith("../"))) {
+        throw new Error(`write target escapes vault: ${relativePath}`);
+      }
+    }
+  }
 }
 
 async function readJsonObjectIfExists(path, label, issues, required = false) {

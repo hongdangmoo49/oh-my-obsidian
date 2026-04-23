@@ -48,6 +48,18 @@ Expected preflight interface:
     "path": "/Applications/Obsidian.app",
     "version": "..."
   },
+  "git": {
+    "status": "usable",
+    "availableOnPath": true,
+    "path": "/opt/homebrew/bin/git",
+    "version": "2.41.0",
+    "systemGitUsable": true,
+    "systemGitPath": "/usr/bin/git",
+    "systemGitVersion": "2.39.3",
+    "developerToolsPath": "/Library/Developer/CommandLineTools",
+    "issue": "",
+    "fixCommand": ""
+  },
   "packageManagers": {
     "homebrew": {
       "available": true
@@ -84,6 +96,10 @@ Expected preflight interface:
 5. If `context` is `container`:
    - Do not install Obsidian in the container.
    - Tell the user to install Obsidian on the desktop host and continue only after explicit skip/confirmation.
+6. If `git.status` is present and not `"usable"`:
+   - Do not promise automatic git initialization or `team-sync`.
+   - Explain `git.issue` and show `git.fixCommand` when present.
+   - Ask the user whether to fix the git issue first and rerun `obsidian-app-preflight check`, or continue setup without automatic git initialization and `team-sync`.
 
 Do not create a vault until Obsidian app preflight is completed or explicitly skipped.
 
@@ -345,6 +361,8 @@ git add .
 git commit -m "init: vault created by oh-my-obsidian"
 ```
 
+If preflight reported `git.status != "usable"`, do not run this block. Explain the git issue, show `git.fixCommand` when available, and ask whether to fix the git issue first and rerun preflight or continue setup without git initialization. If the user continues without git initialization, set `GIT_ENABLED=false`.
+
 If user skips, set a flag `GIT_ENABLED=false` for subsequent phases to check.
 
 ### 3.7 Configure Claude Lifecycle Hook (SessionEnd)
@@ -526,6 +544,8 @@ obsidian-git-setup apply "$VAULT" --preset team-sync --interval 1 --enable
 
 For `team-sync`, if the helper returns `status: "blocked"`, explain the issues. If the user wants to fix the missing remote, ask for the URL and run `git remote add origin <url> && git push -u origin main` (NEVER use master). If they prefer not to, fall back to `manual` or `safe` after user confirmation.
 
+If preflight reported `git.status != "usable"`, do not offer automatic `team-sync` until the git issue is fixed. Explain the git issue, show `git.fixCommand` when available, and ask whether to fix the git issue first and rerun preflight or continue with `safe`, `manual`, or `skip`.
+
 ### 4.3 Validate
 
 After applying, run:
@@ -533,6 +553,8 @@ After applying, run:
 ```bash
 obsidian-git-setup validate "$VAULT"
 ```
+
+If preflight still reports `git.status != "usable"` and validation returns the same git-related issue, do not present that as an unexpected setup failure. Instead, report that Obsidian Git installation is applied but git validation is pending until the user runs `git.fixCommand` and reruns `obsidian-app-preflight check`.
 
 Include the validation status and remaining manual actions in the final success message.
 

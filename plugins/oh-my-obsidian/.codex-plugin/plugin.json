@@ -1,0 +1,37 @@
+{
+  "name": "oh-my-obsidian",
+  "version": "0.1.0",
+  "description": "Connect Codex to an Obsidian vault for persistent project memory, guided setup, recall, and session notes.",
+  "author": {
+    "name": "hongdangmoo49"
+  },
+  "homepage": "https://github.com/hongdangmoo49/oh-my-obsidian",
+  "repository": "https://github.com/hongdangmoo49/oh-my-obsidian",
+  "license": "MIT",
+  "keywords": [
+    "obsidian",
+    "codex",
+    "second-brain",
+    "agentic-ai",
+    "memory",
+    "knowledge-base",
+    "developer-tools"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Oh My Obsidian",
+    "shortDescription": "Persistent Obsidian memory for Codex.",
+    "longDescription": "Oh My Obsidian guides Codex users through Obsidian vault setup, records project sessions, recalls previous decisions, and keeps team knowledge in plain Markdown.",
+    "developerName": "hongdangmoo49",
+    "category": "Productivity",
+    "capabilities": [
+      "Guided Obsidian vault setup"
+    ],
+    "websiteURL": "https://github.com/hongdangmoo49/oh-my-obsidian",
+    "privacyPolicyURL": "https://github.com/hongdangmoo49/oh-my-obsidian",
+    "termsOfServiceURL": "https://github.com/hongdangmoo49/oh-my-obsidian",
+    "defaultPrompt": [
+      "Set up an Obsidian vault for this project."
+    ]
+  }
+}

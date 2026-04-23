@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__OH_MY_OBSIDIAN_HOOK_PATH__",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
