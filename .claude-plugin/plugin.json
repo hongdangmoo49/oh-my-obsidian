@@ -1,6 +1,10 @@
 {
   "name": "oh-my-obsidian",
   "version": "0.1.0",
+  "author": {
+    "name": "hongdangmoo49"
+  },
+  "repository": "https://github.com/hongdangmoo49/oh-my-obsidian",
   "description": "Give your AI coding agent a permanent second brain. Connect Claude Code to an Obsidian vault to auto-record decisions, instantly recall project context, and orchestrate automated refactoring for your team's knowledge base.",
   "license": "MIT",
   "keywords": [
