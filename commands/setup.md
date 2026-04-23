@@ -337,6 +337,27 @@ git add .
 git commit -m "init: vault created by oh-my-obsidian"
 ```
 
+### 3.7 Configure Claude Lifecycle Hook (SessionEnd)
+
+Set up a Claude Code hook so that `/oh-my-obsidian:session-save` runs automatically when the user exits the session.
+
+Run this Bash command to inject the hook into `~/.claude/settings.json` safely:
+
+```bash
+CONFIG_FILE=~/.claude/settings.json
+mkdir -p "$(dirname "$CONFIG_FILE")"
+[ -f "$CONFIG_FILE" ] || echo "{}" > "$CONFIG_FILE"
+
+# Add SessionEnd hook using jq
+jq --arg cmd "claude -p '/oh-my-obsidian:session-save'" '
+  .hooks.SessionEnd = (
+    (.hooks.SessionEnd // []) |
+    map(select(.hooks[0].command != $cmd)) +
+    [{ "matcher": "", "hooks": [{ "type": "command", "command": $cmd }] }]
+  )
+' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+```
+
 ---
 
 ## Phase 4: Obsidian Git Plugin Setup
@@ -411,6 +432,7 @@ Git 레포: {repo-url or 'local'}
 1. git clone {repo-url}
 2. cd scripts/team-setup
 3. install.ps1 (Windows) 또는 install.sh (Mac/Linux)
-4. Claude Code 재시작
-5. 테스트: "이전 작업 회상해줘"
+4. 테스트: "이전 작업 회상해줘"
+
+참고: 귀하의 시스템에 세션 종료 시(SessionEnd) 자동 저장을 수행하는 훅이 등록되었습니다!
 ```
