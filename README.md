@@ -79,21 +79,39 @@ Most AI coding agents start every session with a blank slate.
 
 ### Codex Quick Start
 
-Use the Codex-native marketplace in this repository:
+Codex reads the repository marketplace from:
 
 ```text
 .agents/plugins/marketplace.json
 ```
 
-Codex can install through that local marketplace entry or from the local plugin
-path `./plugins/oh-my-obsidian`. This is also the documented sparse/local
-marketplace path for a repo checkout that includes `.agents/` and
-`plugins/oh-my-obsidian/`.
+Add the marketplace from GitHub:
+
+```bash
+codex plugin marketplace add hongdangmoo49/oh-my-obsidian
+```
+
+Then open Codex and install `oh-my-obsidian` from the plugin directory:
+
+```text
+/plugins
+```
 
 Then ask Codex:
 
 ```text
 Set up an Obsidian vault for this project.
+```
+
+After setup, you can continue with Codex using natural-language prompts or an
+explicit skill name such as:
+
+```text
+What did we decide last time about the vault layout?
+Save this session to the Obsidian vault.
+Show me the vault health check.
+Add a note to the vault for today's API decisions.
+$oh-my-obsidian-recall Find our prior vault-layout decision.
 ```
 
 <details>
@@ -120,20 +138,20 @@ Use the Codex-native marketplace file:
 .agents/plugins/marketplace.json
 ```
 
-That entry installs the local plugin from `./plugins/oh-my-obsidian`. Do not
-reuse `.claude-plugin/marketplace.json` for Codex.
+When users add `hongdangmoo49/oh-my-obsidian` as a Codex marketplace source,
+Codex reads this marketplace and exposes the bundled `oh-my-obsidian` plugin.
+Do not reuse `.claude-plugin/marketplace.json` for Codex.
 
 Typical Codex start flow:
 
-1. open Codex plugin management or `/plugins`
-2. add the local `.agents` marketplace for this repo, or install the local plugin path
+1. run `codex plugin marketplace add hongdangmoo49/oh-my-obsidian`
+2. run `codex`, then open `/plugins` and install `oh-my-obsidian`
 3. ask Codex: `Set up an Obsidian vault for this project.`
 
-This same `.agents` entry is the supported sparse/local marketplace path when
-the repository is checked out locally for Codex use.
-
 The Codex plugin keeps the same product shape: guided setup, recall,
-session-save, vault management, and an opt-in hooks preview.
+session-save, vault management, and an opt-in hooks preview. In Codex, these
+flows are typically used through natural-language prompts or explicit skill
+invocation rather than Claude-style slash commands.
 
 ## Feature Matrix
 
@@ -152,6 +170,9 @@ session-save, vault management, and an opt-in hooks preview.
 
 Oh-my-obsidian acts as a bridge between the **AI (Claude Code)**, the **Knowledge Base (Obsidian)**, and the **Team (Git)**.
 
+In Codex, the same loop is driven through skill-guided prompts rather than the
+Claude command surface shown below.
+
 ```text
     [ Claude Code ] <---> [ oh-my-obsidian ] <---> [ Obsidian Vault ]
            |                                             |
@@ -161,8 +182,8 @@ Oh-my-obsidian acts as a bridge between the **AI (Claude Code)**, the **Knowledg
 | Phase | Action |
 | :--- | :--- |
 | **Initialize** | Socratic agents interview you to design a tailored vault structure |
-| **Work** | Claude retrieves context via `recall` to solve coding tasks |
-| **Document** | Claude records decisions via `session-save` directly into the vault |
+| **Work** | The agent retrieves context via `recall` to solve coding tasks |
+| **Document** | The agent records decisions via `session-save` directly into the vault |
 | **Evolve** | As the project grows, `refactor` audits and safely reorganizes folders |
 
 ---
@@ -170,6 +191,11 @@ Oh-my-obsidian acts as a bridge between the **AI (Claude Code)**, the **Knowledg
 ## Commands
 
 Use these commands directly inside your Claude Code session.
+
+In Codex, use the equivalent natural-language prompts or explicitly invoke the
+installed skill surface, such as `$oh-my-obsidian-setup`,
+`$oh-my-obsidian-recall`, `$oh-my-obsidian-session-save`, and
+`$oh-my-obsidian-vault-manager`.
 
 | Command | Role | Description |
 | :--- | :--- | :--- |
@@ -228,6 +254,9 @@ enablement, and auto-sync choices all require separate approval.
 2. **Obsidian Git Plugin Choices**: After the vault exists, setup can offer `safe`, `manual`, or `team-sync` Obsidian Git options. Download, enablement, and sync behavior are separate approvals, not defaults.
 3. **Local Script Generation and Environment Setup Guidance**: Setup generates onboarding scripts and can help users set `OBSIDIAN_VAULT`, but shell profile edits or Codex config-pointer creation are opt-in and approval-gated.
 
+For Codex follow-up skills, vault resolution checks `OBSIDIAN_VAULT` first and
+then the optional approved config pointer at `~/.oh-my-obsidian/config.json`.
+
 ## Permission Boundaries
 
 Both Claude Code and Codex flows require explicit approval before:
@@ -249,13 +278,15 @@ Codex-only approval boundary:
 
 ```
 oh-my-obsidian/
-├── .claude-plugin/plugin.json   # Plugin manifest
-├── commands/                    # User commands
-├── skills/                      # Auto-triggered skills
-├── agents/                      # Sub-agents
-├── hooks/                       # Session stop hooks
-├── scripts/                     # Installation scripts
-└── .mcp.json                    # MCP server config (optional)
+├── .claude-plugin/plugin.json   # Claude plugin manifest
+├── commands/                    # Claude command surface
+├── skills/                      # Claude/root skills
+├── agents/                      # Claude sub-agents
+├── hooks/                       # Claude session hooks
+├── scripts/                     # Shared/root installation scripts
+├── .mcp.json                    # MCP server config (optional)
+├── .agents/plugins/marketplace.json
+└── plugins/oh-my-obsidian/      # Codex plugin surface
 ```
 
 ---

@@ -12,7 +12,7 @@ Codex should use the repository marketplace file:
 .agents/plugins/marketplace.json
 ```
 
-That marketplace resolves this local plugin path:
+That marketplace resolves this plugin path inside the repository:
 
 ```text
 ./plugins/oh-my-obsidian
@@ -21,23 +21,28 @@ That marketplace resolves this local plugin path:
 Do not point Codex at `.claude-plugin/marketplace.json`. That file remains for
 Claude Code compatibility only.
 
-### `/plugins` Flow
+### Plugin Management Flow
 
-Open Codex plugin management, then either:
+Add the marketplace from GitHub first:
 
-1. add the local marketplace rooted at this repository, or
-2. install the local plugin directly from `./plugins/oh-my-obsidian`.
+```bash
+codex plugin marketplace add hongdangmoo49/oh-my-obsidian
+```
+
+Then open Codex, run `/plugins`, and install `oh-my-obsidian` from that
+marketplace entry.
 
 The documented Codex-native path for this repository is the `.agents` marketplace
 entry, not the legacy Claude marketplace entry.
 
-### Sparse / Local Marketplace Path
+### Local Development Path
 
-For a sparse checkout or other local Codex workflow, keep the `.agents`
-directory plus `plugins/oh-my-obsidian/` available in the working tree, then
-point Codex at the repository-local `.agents/plugins/marketplace.json`. The
-marketplace entry resolves the plugin by the local relative path
-`./plugins/oh-my-obsidian`.
+For local development, add the checked-out repository itself as the marketplace
+source:
+
+```bash
+codex plugin marketplace add /path/to/oh-my-obsidian
+```
 
 ## Start
 
@@ -45,6 +50,16 @@ Ask Codex:
 
 ```text
 Set up an Obsidian vault for this project.
+```
+
+Common follow-up prompts:
+
+```text
+What did we decide last time about the deployment notes?
+Save this session to the Obsidian vault.
+Show me the vault health check.
+Add a note to the vault for today's API decisions.
+$oh-my-obsidian-vault-manager Show me the vault health check.
 ```
 
 The setup skill performs:
@@ -60,6 +75,8 @@ The setup skill performs:
 ## Included Surfaces
 
 - `skills/`: setup, recall, session-save, and vault-manager skills for Codex.
+- `vault-manager`: supports list, add, organize-plan/apply, and health-check
+  flows for an attached vault.
 - `scripts/`: plugin-local helpers for setup, vault operations, Obsidian app
   preflight, Obsidian Git setup, and hook preview merge planning.
 - `templates/`: reserved for vault and onboarding templates.
@@ -106,3 +123,6 @@ Separate approval is required before:
 - git remote changes or push operations
 - file overwrites, moves, deletes, or reconcile actions
 - hook preview installation or `hooks.json` edits
+
+Follow-up skills resolve the vault through `OBSIDIAN_VAULT` first, then the
+optional approved pointer at `~/.oh-my-obsidian/config.json`.

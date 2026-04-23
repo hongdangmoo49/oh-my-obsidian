@@ -16,10 +16,23 @@ $ claude
 > /plugin install oh-my-obsidian@omob
 ```
 
+Codex companion flow는 다음처럼 시작합니다:
+```bash
+$ codex plugin marketplace add hongdangmoo49/oh-my-obsidian
+```
+그 다음 Codex를 열고 `/plugins`에서 `oh-my-obsidian`를 설치한 뒤 이렇게 요청합니다:
+```text
+Set up an Obsidian vault for this project.
+```
+
 ### 2. 소크라테스식 셋업 트리거
 설치가 완료되면, 지식베이스와 Obsidian을 연결하기 위해 초기화 마법사를 실행합니다.
 ```bash
 > /oh-my-obsidian:setup
+```
+Codex에서는 위 Claude slash command를 입력하지 말고, 대신 자연어로 이렇게 요청합니다:
+```text
+Set up an Obsidian vault for this project.
 ```
 
 ### 3. Preflight: 환경 점검 및 Obsidian 자동 설치
@@ -53,6 +66,11 @@ AI가 단순히 빈 폴더를 만드는 것이 아니라, 프로젝트의 맥락
 ```
 *(참고: 설정된 Hook(훅) 규칙에 따라 세션 종료 시 자동으로 발동되도록 커스텀할 수도 있습니다.)*
 
+Codex에서는 같은 흐름을 보통 다음과 같은 직접 프롬프트로 시작합니다:
+```text
+Save this session to the Obsidian vault.
+```
+
 ### 3. AI의 문맥 압축 및 문서 아카이빙
 플러그인은 사용자와 Claude가 오늘 하루 종일 나눴던 **대화 맥락과 코드 변경점**을 읽어냅니다.
 * **Claude:** "오늘 세션을 스캔했습니다. 기존 인증 구조를 JWT로 변경하셨고, `crypto` 라이브러리로 토큰을 해싱하는 중요한 아키텍처 결정이 있었습니다. 이에 대한 진행 상황 문서를 작성해 옵시디언 볼트에 저장할까요?"
@@ -60,11 +78,16 @@ AI가 단순히 빈 폴더를 만드는 것이 아니라, 프로젝트의 맥락
 * **Claude:** 
   1. `2024-04-23_Session_Summary_JWT_Auth.md` 파일을 볼트에 자동 생성.
   2. "도입 배경(Why)", "핵심 코드 로직(What)", "내일 이어할 미결 과제(Todo)" 형태로 깔끔하게 요약.
-  3. 로컬 볼트를 넘어 팀 전체가 알 수 있도록 Git Commit & Push까지 백그라운드에서 자동 수행!
+  3. Git 상태와 승인 조건이 안전할 때만 commit/push를 진행하고, 그렇지 않으면 무엇이 skip되었는지 분명히 알려줍니다.
 
 ### 4. 다음날 코딩 (Recall)
 다음날 사용자가 터미널을 열고 묻습니다.
 * **User:** 어제 작업하던 거 이어서 시작해. 
 * **Claude:** (자동으로 Vault를 스캔 후) "네, 어제 저장해주신 볼트 문서에 따라 JWT 토큰 발급 로직까지 완성되었군요. 오늘은 미결 과제로 남겨둔 'Refresh Token 갱신 로직'부터 이어서 작성을 시작하겠습니다!"
+
+Codex에서는 같은 recall 흐름을 다음처럼 시작할 수도 있습니다:
+```text
+What did we decide yesterday about JWT token issuance?
+```
 
 **더 이상 배경지식을 복사/붙여넣기 하거나 레포지토리 히스토리를 뒤질 필요가 없습니다. 무한한 맥락 제어가 시작됩니다.**

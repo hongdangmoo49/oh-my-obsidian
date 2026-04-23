@@ -2,7 +2,14 @@
 
 ## 1. Overview
 
-**oh-my-obsidian** is a Claude Code plugin that connects an Obsidian vault with Claude Code/Desktop, enabling teams to persist and recall past work, decisions, and troubleshooting context across sessions.
+**oh-my-obsidian** is a plugin workflow for Claude Code and Codex that connects
+an Obsidian vault to the agent environment, enabling teams to persist and
+recall past work, decisions, and troubleshooting context across sessions.
+
+This repository also ships a Codex plugin surface from `plugins/oh-my-obsidian/`
+using the marketplace file `.agents/plugins/marketplace.json`.
+In Codex, the guided setup, recall, session-save, and vault-manager flows are
+typically reached through natural-language prompts or explicit skill names.
 
 ### Core Value Proposition
 - "How did we solve that billing issue before?" → Auto-recall past documents
@@ -11,7 +18,7 @@
 
 ### Architecture
 ```
-Obsidian vault (git repo) + local file search + Claude Code plugin
+Obsidian vault (git repo) + local file search + Claude Code / Codex plugin
 (MCP server integration is optional — users can connect their own)
 ```
 
@@ -23,21 +30,35 @@ Obsidian vault (git repo) + local file search + Claude Code plugin
 1. Install oh-my-obsidian plugin
 2. Install Obsidian (if not installed)
 3. Create git repo for vault
-4. Run /oh-my-obsidian:setup
+4. Start guided setup
+   - Claude Code: run /oh-my-obsidian:setup
+   - Codex: ask "Set up an Obsidian vault for this project."
    → Interactive prompt:
-     - Product/project description
-     - Desired vault structure
-     - Git repo URL
+      - Product/project description
+      - Desired vault structure
+      - Git repo URL
 5. Plugin configures:
      - Vault structure
      - Skills (recall, session-save, obsidian-vault-manager)
      - Stop hook
      - OBSIDIAN_VAULT env var
 5.5 (Optional) Restore past session history:
-    - Lightweight: /oh-my-obsidian:setup includes optional history restore (Phase 3.5)
-    - Full: /oh-my-obsidian:restore-history for detailed transcript restoration
+    - Claude Code: `/oh-my-obsidian:setup` may include optional history restore (Phase 3.5)
+    - Claude Code: `/oh-my-obsidian:restore-history` handles detailed transcript restoration
+    - Codex: document the equivalent restore flow when that surface is published
 6. Team members clone repo → run install scripts → collaborate
 ```
+
+Codex implementation note:
+
+- Marketplace entry: `.agents/plugins/marketplace.json`
+- Codex plugin root: `plugins/oh-my-obsidian/`
+- Verified Codex setup flow starts with:
+  ```bash
+  codex plugin marketplace add hongdangmoo49/oh-my-obsidian
+  ```
+- Then users open `/plugins`, install `oh-my-obsidian`, and ask:
+  `Set up an Obsidian vault for this project.`
 
 ---
 
@@ -80,6 +101,19 @@ oh-my-obsidian/
 └── README.md                    # Plugin README
 ```
 
+Codex plugin structure in this repository:
+
+```text
+plugins/oh-my-obsidian/
+├── .codex-plugin/plugin.json
+├── README.md
+├── skills/
+├── scripts/
+├── hooks-preview/
+├── config-snippets/
+└── tests/
+```
+
 ---
 
 ## 4. Component Specifications
@@ -97,6 +131,10 @@ oh-my-obsidian/
 ```
 
 ### 4.2 Commands
+
+The command surface below is the Claude Code command surface. In Codex, users
+typically ask naturally or explicitly invoke an installed skill such as
+`$oh-my-obsidian-setup` or `$oh-my-obsidian-recall <intent>`.
 
 #### `/oh-my-obsidian:setup`
 Multi-round interactive setup wizard:
@@ -144,7 +182,7 @@ Manage vault: list, add, organize.
 
 #### `recall`
 - **Trigger**: "회상", "기억나", "이전에", "어떻게 했지", "recall", "remember"
-- **Behavior**: Claude automatically searches vault for relevant past context
+- **Behavior**: The agent automatically searches vault for relevant past context
 - **Tools**: Bash, Read, Glob, Grep (local search); MCP if user-configured
 
 #### `session-save`
@@ -167,7 +205,8 @@ Manage vault: list, add, organize.
 
 ### 4.5 MCP Configuration (`.mcp.json`)
 
-Empty by default — users configure their own MCP servers via `/oh-my-obsidian:setup` or manually.
+Empty by default — users configure their own MCP servers during setup or
+manually.
 
 ### 4.6 Agents
 
@@ -275,31 +314,34 @@ vault/
 ## 7. Team Collaboration Flow
 
 1. **Initial setup** (one person):
-   - Install plugin → run `/oh-my-obsidian:setup`
+   - Install plugin → start guided setup
+   - Claude Code: `/oh-my-obsidian:setup`
+   - Codex: `Set up an Obsidian vault for this project.`
    - Push vault to git repo
 2. **Team member onboarding**:
    - Clone vault repo
    - Run `scripts/team-setup/install.ps1` (or `.sh`)
-   - Restart Claude Code
+   - Restart Claude Code or Codex
 3. **Daily usage**:
    - Recall past context: "이전에 정기결제 이슈 어떻게 해결했지?"
    - Save sessions: "이 작업 기록해줘"
    - Organize docs: "회의록 정리해줘"
 4. **Restore history**:
-   - New team member: `/oh-my-obsidian:restore-history recent 10`
-   - Full project history: `/oh-my-obsidian:restore-history all`
+   - Claude Code today: `/oh-my-obsidian:restore-history recent 10`
+   - Claude Code full restore: `/oh-my-obsidian:restore-history all`
+   - Codex restore flow should be documented when that surface ships
 
 ---
 
 ## 8. Platform Support
 
-| Feature | Claude Code | Claude Desktop |
-|---------|------------|----------------|
-| Skills | Yes | No (manual) |
-| Commands | Yes | No |
-| Hooks | Yes | No |
-| MCP Server | Optional | Optional |
-| Recommended | **Yes** | Limited |
+| Feature | Claude Code | Codex | Claude Desktop |
+|---------|------------|-------|----------------|
+| Skills | Yes | Yes | No (manual) |
+| Commands | Yes | Natural language / skill invocation | No |
+| Hooks | Yes | Preview only | No |
+| MCP Server | Optional | Optional | Optional |
+| Recommended | **Yes** | **Yes** | Limited |
 
 ---
 

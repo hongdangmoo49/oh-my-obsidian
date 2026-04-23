@@ -79,21 +79,38 @@ AI 코딩 에이전트들은 영리하지만 기억력이 짧습니다. oh-my-ob
 
 ### Codex 빠른 시작
 
-Codex에서는 이 저장소의 다음 마켓플레이스 파일을 사용하세요:
+Codex는 이 저장소의 다음 marketplace file을 읽습니다:
 
 ```text
 .agents/plugins/marketplace.json
 ```
 
-Codex는 이 로컬 마켓플레이스 엔트리 또는 로컬 플러그인 경로
-`./plugins/oh-my-obsidian`를 통해 설치할 수 있습니다. `.agents/`와
-`plugins/oh-my-obsidian/`가 포함된 로컬 체크아웃이라면 이것이 문서화된
-sparse/local marketplace path입니다.
+GitHub에서 marketplace를 추가하세요:
+
+```bash
+codex plugin marketplace add hongdangmoo49/oh-my-obsidian
+```
+
+그 다음 Codex를 열고 plugin directory에서 `oh-my-obsidian`를 설치합니다:
+
+```text
+/plugins
+```
 
 그 다음 Codex에게 이렇게 요청합니다:
 
 ```text
 Set up an Obsidian vault for this project.
+```
+
+설정 이후에는 자연어로 요청하거나, 필요하면 특정 skill을 직접 불러서 계속 사용할 수 있습니다:
+
+```text
+What did we decide last time about the vault layout?
+Save this session to the Obsidian vault.
+Show me the vault health check.
+Add a note to the vault for today's API decisions.
+$oh-my-obsidian-recall Find our prior vault-layout decision.
 ```
 
 <details>
@@ -120,20 +137,20 @@ Codex에서는 다음 마켓플레이스 파일을 사용하세요:
 .agents/plugins/marketplace.json
 ```
 
-이 엔트리는 로컬 플러그인 `./plugins/oh-my-obsidian`를 설치합니다.
-Codex에서 `.claude-plugin/marketplace.json`을 재사용하면 안 됩니다.
+사용자가 `hongdangmoo49/oh-my-obsidian`를 Codex marketplace source로
+추가하면, Codex는 이 marketplace를 읽고 `oh-my-obsidian` plugin을
+노출합니다. Codex에서 `.claude-plugin/marketplace.json`을 재사용하면 안
+됩니다.
 
 일반적인 Codex 시작 흐름:
 
-1. Codex 플러그인 관리 화면 또는 `/plugins`를 연다
-2. 이 저장소의 `.agents` 마켓플레이스를 추가하거나 로컬 플러그인 경로를 설치한다
+1. `codex plugin marketplace add hongdangmoo49/oh-my-obsidian`를 실행한다
+2. `codex` 실행 후 `/plugins`를 열고 `oh-my-obsidian`를 설치한다
 3. Codex에게 `Set up an Obsidian vault for this project.` 라고 요청한다
 
-이 `.agents` 엔트리가 로컬 체크아웃 기준의 supported sparse/local
-marketplace path입니다.
-
 Codex 플러그인도 guided setup, recall, session-save, vault manager, opt-in
-hooks preview를 포함합니다.
+hooks preview를 포함합니다. Codex에서는 이 흐름들을 Claude식 slash
+command 대신 자연어 요청이나 특정 skill 직접 호출로 주로 사용합니다.
 
 ## 기능 매트릭스
 
@@ -152,6 +169,9 @@ hooks preview를 포함합니다.
 
 oh-my-obsidian은 **AI (Claude Code)** 와 **지식 베이스 엔진 (Obsidian)**, 그리고 **개발 팀 (Git)** 사이의 튼튼한 다리 역할을 수행합니다.
 
+Codex에서는 아래에 보이는 Claude command surface 대신 skill-guided
+prompt 흐름으로 같은 루프를 사용합니다.
+
 ```text
     [ Claude Code ] <---> [ oh-my-obsidian ] <---> [ Obsidian Vault (로컬 파일망) ]
            |                                             |
@@ -161,8 +181,8 @@ oh-my-obsidian은 **AI (Claude Code)** 와 **지식 베이스 엔진 (Obsidian)*
 | 동작 단계 | 상세 내역 |
 | :--- | :--- |
 | **초기화 (Initialize)** | 소크라테스식 마법사 에이전트가 여러분의 필요에 꼭 맞는 볼트 구조물을 모델링하고 맞춤 설계합니다. |
-| **작업 (Work)** | Claude가 코딩 관련 복잡한 태스크를 풀기 위해 `recall` 기능으로 과거 유사 태스크 데이터를 인출해옵니다. |
-| **문서화 (Document)** | Claude에게 현재 코딩 세션의 주요 의사 결정을 `session-save` 를 이용해 볼트에 알아서 정리하라고 지시합니다. |
+| **작업 (Work)** | 에이전트가 코딩 관련 복잡한 태스크를 풀기 위해 `recall` 기능으로 과거 유사 태스크 데이터를 인출해옵니다. |
+| **문서화 (Document)** | 에이전트가 현재 코딩 세션의 주요 의사 결정을 `session-save`로 볼트에 정리합니다. |
 | **진화 (Evolve)** | 문서가 복잡해지면 `refactor` 아키텍트가 무결성을 유지하며 덩치가 커진 병목 폴더를 이음새 없이 안전하게 쪼개줍니다. |
 
 ---
@@ -170,6 +190,12 @@ oh-my-obsidian은 **AI (Claude Code)** 와 **지식 베이스 엔진 (Obsidian)*
 ## 💻 명령어 (Commands)
 
 다음에 명시된 명령어들을 Claude Code 프롬프트에 직접 입력해 보세요.
+
+Codex에서는 이에 대응하는 자연어 프롬프트 또는 설치된 skill을 직접
+불러오는 방식으로
+`$oh-my-obsidian-setup`, `$oh-my-obsidian-recall`,
+`$oh-my-obsidian-session-save`, `$oh-my-obsidian-vault-manager`
+같은 skill을 사용할 수 있습니다.
 
 | 명령어 | 역할 | 설명 |
 | :--- | :--- | :--- |
@@ -224,6 +250,10 @@ cd scripts/team-setup
 2. **Obsidian Git 플러그인 선택지**: vault가 준비된 뒤 `safe`, `manual`, `team-sync` 중 하나를 제안할 수 있습니다. 다운로드, 활성화, sync 동작은 기본값이 아니라 각각 별도 승인 항목입니다.
 3. **로컬 스크립트 생성과 환경 설정 가이드**: 온보딩용 스크립트는 생성할 수 있지만, `OBSIDIAN_VAULT`를 위한 shell profile 수정이나 Codex config-pointer 생성은 opt-in이며 승인 기반입니다.
 
+Codex의 후속 skill들은 vault를 찾을 때 먼저 `OBSIDIAN_VAULT`를 확인하고,
+그 다음 승인된 optional config pointer
+`~/.oh-my-obsidian/config.json`을 사용합니다.
+
 ## 권한 경계
 
 Claude Code와 Codex 흐름 모두 다음 작업 전에는 명시적 승인이 필요합니다:
@@ -245,13 +275,15 @@ Codex 전용 승인 경계:
 
 ```
 oh-my-obsidian/
-├── .claude-plugin/plugin.json   # 해당 플러그인 전용 메니페스트 설정 리소스
-├── commands/                    # 사용자의 직접 타이핑 가능한 콘솔 환경 명령어 (setup, recall 등)
-├── skills/                      # 조건을 만족 시 자연어에서 파생되어 얹혀 동작하는 자동 스킬 트리
-├── agents/                      # 특수 검증 기능 서브에이전트 (vault-architect, auditor 등)
-├── hooks/                       # 세션을 끝맺음할 당시, 정보가 소실되지 않도록 막아주는 제어 흐름 훅
-├── scripts/                     # 팀원 환경 설치용 인스톨러 배포 스크립트 도구들 모음
-└── .mcp.json                    # 옵셔널 MCP 서버 도메인 연결 환경 구성 파일
+├── .claude-plugin/plugin.json   # Claude plugin manifest
+├── commands/                    # Claude command surface
+├── skills/                      # Claude/root skills
+├── agents/                      # Claude sub-agents
+├── hooks/                       # Claude session hooks
+├── scripts/                     # shared/root 설치용 스크립트
+├── .mcp.json                    # 옵셔널 MCP server config
+├── .agents/plugins/marketplace.json
+└── plugins/oh-my-obsidian/      # Codex plugin surface
 ```
 
 ---
