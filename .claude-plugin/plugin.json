@@ -1,7 +1,18 @@
 {
   "name": "oh-my-obsidian",
   "version": "0.1.0",
-  "description": "Connect Obsidian vault to Claude Code for persistent team memory — recall past decisions, auto-save sessions, organize knowledge",
+  "description": "Give your AI coding agent a permanent second brain. Connect Claude Code to an Obsidian vault to auto-record decisions, instantly recall project context, and orchestrate automated refactoring for your team's knowledge base.",
   "license": "MIT",
-  "keywords": ["obsidian", "vault", "memory", "recall", "team", "knowledge"]
+  "keywords": [
+    "obsidian",
+    "claude-code",
+    "second-brain",
+    "agentic-ai",
+    "memory",
+    "knowledge-base",
+    "automation",
+    "refactor",
+    "team-sync",
+    "developer-tools"
+  ]
 }
