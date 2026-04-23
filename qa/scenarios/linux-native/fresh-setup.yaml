@@ -1,0 +1,43 @@
+id: linux-native-fresh-setup
+title: Fresh Codex setup on a clean Linux VM
+platform: linux-native
+objective:
+  - Install the Codex plugin from the local .agents marketplace path
+  - Run guided setup to a valid setup-state
+  - Verify the managed vault tree and resolver state
+preconditions:
+  repo_root: "<repo-root>"
+  temp_home: "<temp-home>"
+  temp_workdir: "<temp-workdir>"
+  vault_path: "<temp-workdir>/vaults/demo-project"
+  codex_cli: required
+  obsidian_desktop: optional
+bootstrap:
+  - qa/scripts/reset-home.sh <temp-home>
+  - qa/scripts/make-bare-remote.sh <temp-workdir>
+install:
+  - HOME=<temp-home> codex plugin marketplace add <repo-root>
+  - In Codex, confirm that oh-my-obsidian resolves from .agents/plugins/marketplace.json
+conversation:
+  - Prompt: "Set up an Obsidian vault for this project."
+  - Provide project name: "Demo Project"
+  - Provide at least two knowledge domains: "API", "Infra"
+  - Approve dry-run review
+  - Approve apply
+  - Choose config pointer approval:
+      - yes -> expect setup-state.status == complete after apply
+      - no -> export OBSIDIAN_VAULT in the current shell before validation, or expect action_required_env
+  - Choose git init approval: yes
+  - Choose Obsidian Git: skip
+assertions:
+  - qa/scripts/assert-setup-state.sh <vault-path> <expected-status>
+  - test -d <vault-path>/Demo_Project
+  - test -d <vault-path>/작업기록/세션기록
+  - test -f <vault-path>/scripts/team-setup/install.sh
+  - If config pointer was denied and OBSIDIAN_VAULT was not exported, explicitly verify action_required_env rather than treating the run as complete
+artifacts_to_capture:
+  - qa/artifacts/fresh-setup-transcript.txt
+  - qa/artifacts/fresh-setup-setup-state.json
+public_repo_redaction:
+  - Do not save real usernames, tokens, or absolute workstation paths
+  - If you keep a transcript, scrub hostnames and account names first

@@ -1,0 +1,29 @@
+id: linux-native-session-save-ambiguous
+title: Session-save under ambiguous git state
+platform: linux-native
+objective:
+  - Verify that session-save writes a note
+  - Verify that ambiguous git state prevents auto-commit
+preconditions:
+  repo_root: "<repo-root>"
+  temp_home: "<temp-home>"
+  vault_path: "<prepared-vault-path>"
+  git_repo: clean baseline commit exists before ambiguity is introduced
+setup:
+  - Create or reuse a complete setup-state vault
+  - Create a staged delete or staged rename-away for the target dated note path
+  - Keep the repo otherwise disposable
+conversation:
+  - Prompt: "Save this session to Obsidian."
+  - Topic: "Release Plan"
+  - Detail: "Updated release plan from QA scenario"
+assertions:
+  - qa/scripts/assert-setup-state.sh <vault-path> complete
+  - git -C <vault-path> status --porcelain=v1
+  - Verify the new note exists with a collision suffix when the original path is occupied in git
+  - Verify no commit was created by the helper
+artifacts_to_capture:
+  - qa/artifacts/session-save-ambiguous-git-status.txt
+  - qa/artifacts/session-save-ambiguous-note-path.txt
+public_repo_redaction:
+  - Never commit captured notes or transcripts back into the repository

@@ -1,0 +1,24 @@
+id: windows-native-preflight
+title: Windows native preflight and install gating
+platform: windows-native
+objective:
+  - Verify native Windows preflight output
+  - Verify automatic install is never treated as unconditional
+preconditions:
+  repo_root: "<repo-root>"
+  temp_home: "<temp-home>"
+  codex_cli: optional
+commands:
+  - node plugins/oh-my-obsidian/scripts/obsidian-app-preflight.mjs check
+manual_checks:
+  - Confirm the JSON contract is returned
+  - If Obsidian is missing, confirm install is presented as a choice, not a default action
+  - Confirm hook preview remains unsupported on Windows
+assertions:
+  - platform == windows
+  - recommendation.canAutoInstall is conditional, not assumed
+  - no Linux or container guidance is shown for native Windows
+artifacts_to_capture:
+  - qa/artifacts/windows-preflight.json
+public_repo_redaction:
+  - Remove machine name, local account name, and any private install paths before sharing

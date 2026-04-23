@@ -1,0 +1,27 @@
+id: linux-native-hook-preview
+title: Hook preview plan and apply
+platform: linux-native
+objective:
+  - Verify hook preview merge planning
+  - Verify apply preserves existing Stop hooks and blocks invalid hooks.json
+preconditions:
+  repo_root: "<repo-root>"
+  temp_home: "<temp-home>"
+  repo_scope: "<repo-root>"
+setup:
+  - Option A: no existing hooks.json
+  - Option B: existing valid Stop hook
+  - Option C: invalid hooks.json to verify block behavior
+commands:
+  - node plugins/oh-my-obsidian/scripts/hook-preview.mjs plan --scope repo --repo-root <repo-root>
+  - node plugins/oh-my-obsidian/scripts/hook-preview.mjs apply --scope repo --repo-root <repo-root>
+assertions:
+  - qa/scripts/assert-hook-merge.sh <repo-root>/.codex/hooks.json <installed-hook-path>
+  - Invalid hooks.json must fail without overwrite
+  - Hook script must emit JSON only and no-op without valid setup-state
+artifacts_to_capture:
+  - qa/artifacts/hook-preview-plan.json
+  - qa/artifacts/hook-preview-hooks-before.json
+  - qa/artifacts/hook-preview-hooks-after.json
+public_repo_redaction:
+  - Do not capture real home hook paths from a personal workstation
