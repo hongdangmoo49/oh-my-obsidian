@@ -8,21 +8,24 @@ This command registers the `SessionEnd` lifecycle hook in the user's Claude Code
 
 ## Your Task
 
-Execute the following Bash script to safely inject the hook into `~/.claude/settings.json`.
+Execute the following Node.js code securely using your Bash tool (e.g., by writing to a temporary `inject-hook.js` file, running `node inject-hook.js`, and then deleting the file). This method avoids reliance on `jq` and ensures robust execution across Windows, Mac, and Linux:
 
-```bash
-CONFIG_FILE=~/.claude/settings.json
-mkdir -p "$(dirname "$CONFIG_FILE")"
-[ -f "$CONFIG_FILE" ] || echo "{}" > "$CONFIG_FILE"
-
-# Add SessionEnd hook using jq
-jq --arg cmd "claude -p '/oh-my-obsidian:session-save'" '
-  .hooks.SessionEnd = (
-    (.hooks.SessionEnd // []) |
-    map(select(.hooks[0].command != $cmd)) +
-    [{ "matcher": "", "hooks": [{ "type": "command", "command": $cmd }] }]
-  )
-' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+```javascript
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const file = path.join(os.homedir(), ".claude", "settings.json");
+let data = {};
+if (fs.existsSync(file)) {
+  try { data = JSON.parse(fs.readFileSync(file, "utf8")); } catch(e){}
+}
+if (!data.hooks) data.hooks = {};
+if (!data.hooks.SessionEnd) data.hooks.SessionEnd = [];
+const cmd = "claude -p '/oh-my-obsidian:session-save'";
+data.hooks.SessionEnd = data.hooks.SessionEnd.filter(h => !(h.hooks && h.hooks[0] && h.hooks[0].command === cmd));
+data.hooks.SessionEnd.push({ matcher: "", hooks: [{ type: "command", command: cmd }] });
+fs.mkdirSync(path.dirname(file), { recursive: true });
+fs.writeFileSync(file, JSON.stringify(data, null, 2));
 ```
 
 After executing the script successfully, print the following Korean success message:
