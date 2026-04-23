@@ -17,6 +17,10 @@
 </p>
 
 <p align="center">
+  <a href="README.md">English</a> | <a href="README.ko.md">한국어</a>
+</p>
+
+<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
   <img src="https://img.shields.io/badge/Claude_Code-Plugin-purple" alt="Claude Code">
 </p>
@@ -50,8 +54,15 @@ Most AI coding agents start every session with a blank slate.
 
 ## Quick Start
 
-**Install** — Install the plugin directly in your Claude Code session:
+```bash
+# 1. Add our custom marketplace
+/plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
 
+# 2. Install the plugin
+/plugin install oh-my-obsidian@omob
+```
+
+**Install via Official Marketplace** — (Pending Approval) If installed from the official Claude registry:
 ```bash
 /plugin install oh-my-obsidian
 ```
@@ -132,6 +143,37 @@ The setup command automatically generates cross-platform installation scripts in
 cd scripts/team-setup
 ./install.sh     # Mac/Linux
 .\install.ps1    # Windows
+```
+
+---
+
+## 🔧 Prerequisites
+
+Items that users must **manually** prepare to run the plugin normally:
+
+- **Node.js 18 or higher** must be installed on your system.
+- **Git** must be installed on your system.
+- You need one **empty local folder (empty Git repository)** where the plugin will save and synchronize files (e.g., `mkdir my-vault && cd my-vault && git init`).
+
+## ⚙️ Under the Hood
+
+For user convenience, this plugin automatically performs the following tasks during the initial setup (`/oh-my-obsidian:setup`), and may use file download/execution permissions on your local PC. **All installation and configuration tasks will prompt you for consent before proceeding.**
+
+1. **Obsidian Desktop App Synchronization/Guide**: If Obsidian is not installed on your PC, it assists in or automates the installation by running OS-specific installation scripts (brew, winget, etc.) based on your operating system (Windows/Mac).
+2. **Obsidian Git Plugin Auto-configuration**: To ensure smooth memo synchronization among team members, it automatically creates the `.obsidian/plugins/obsidian-git` folder in your vault and downloads the latest release of the Git plugin to set it up.
+3. **Local Script Generation & Environment Variable Registration**: Generates `.ps1` or `.sh` scripts required for local repository setup during team onboarding, and assists in setting the `OBSIDIAN_VAULT` environment variable.
+
+## Plugin Structure
+
+```
+oh-my-obsidian/
+├── .claude-plugin/plugin.json   # Plugin manifest
+├── commands/                    # User commands
+├── skills/                      # Auto-triggered skills
+├── agents/                      # Sub-agents
+├── hooks/                       # Session stop hooks
+├── scripts/                     # Installation scripts
+└── .mcp.json                    # MCP server config (optional)
 ```
 
 ---
