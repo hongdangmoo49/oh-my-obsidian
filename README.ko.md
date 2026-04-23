@@ -61,7 +61,7 @@ AI 코딩 에이전트들은 영리하지만 기억력이 짧습니다. oh-my-ob
 /plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
 
 # 2. 플러그인 설치
-/plugin install oh-my-obsidian@obsidian-hub
+/plugin install oh-my-obsidian@omob
 ```
 
 **공식 마켓플레이스로 설치하기** — (공식 심사 통과 이후) 통합 마켓플레이스를 통해 쉽게 설치할 수 있습니다:

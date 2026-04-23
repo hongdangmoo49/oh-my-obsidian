@@ -61,7 +61,7 @@ Most AI coding agents start every session with a blank slate.
 /plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
 
 # 2. Install the plugin
-/plugin install oh-my-obsidian@obsidian-hub
+/plugin install oh-my-obsidian@omob
 ```
 
 **Install via Official Marketplace** — (Pending Approval) If installed from the official Claude registry:
