@@ -54,8 +54,6 @@ Most AI coding agents start every session with a blank slate.
 
 ## Quick Start
 
-**Install via Custom Marketplace** — Install directly from our GitHub repository to get the latest version immediately:
-
 ```bash
 # 1. Add our custom marketplace
 /plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian

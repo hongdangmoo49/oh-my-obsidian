@@ -54,8 +54,6 @@ AI 코딩 에이전트들은 영리하지만 기억력이 짧습니다. oh-my-ob
 
 ## ⚡ 빠른 시작 (Quick Start)
 
-**커스텀 마켓플레이스로 설치하기** — 공식 심사 대기 없이, 깃허브 저장소를 통해 즉시 최신 버전을 설치할 수 있습니다:
-
 ```bash
 # 1. 커스텀 마켓플레이스를 사용자 환경에 추가
 /plugin marketplace add https://github.com/hongdangmoo49/oh-my-obsidian
