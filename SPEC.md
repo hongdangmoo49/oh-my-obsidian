@@ -33,6 +33,9 @@ Obsidian vault (git repo) + local file search + Claude Code plugin
      - Skills (recall, session-save, obsidian-vault-manager)
      - Stop hook
      - OBSIDIAN_VAULT env var
+5.5 (Optional) Restore past session history:
+    - Lightweight: /oh-my-obsidian:setup includes optional history restore (Phase 3.5)
+    - Full: /oh-my-obsidian:restore-history for detailed transcript restoration
 6. Team members clone repo → run install scripts → collaborate
 ```
 
@@ -48,13 +51,16 @@ oh-my-obsidian/
 │   ├── setup.md                 # Interactive setup wizard
 │   ├── refactor.md              # Vault refactoring orchestrator
 │   ├── recall.md                # Recall past documents
+│   ├── restore-history.md       # Session history restoration
 │   ├── session-save.md          # Save session to vault
 │   ├── enable-auto-save.md      # Register SessionEnd auto-save hook
 │   └── vault.md                 # Vault management
 ├── agents/
 │   ├── vault-architect.md       # Agent for vault structure design
 │   ├── vault-auditor.md         # Agent to audit pain points
-│   └── migration-verifier.md    # Agent to validate safe movements
+│   ├── migration-verifier.md    # Agent to validate safe movements
+│   ├── socratic-interviewer.md  # Agent for Socratic interview
+│   └── transcript-summarizer.md # Agent for transcript analysis
 ├── skills/
 │   ├── recall/
 │   │   └── SKILL.md             # Auto-recall skill
@@ -103,7 +109,8 @@ Multi-round interactive setup wizard:
    - Q6: Git repo URL (or 'new')
 2. **Construction Phase** — build vault with 3 mandatory layers
 3. **Generation Phase** — create README, team-setup scripts, env var, git init
-4. **Success message** with generated vault tree
+4. **Phase 3.5: History Restore** (optional) — lightweight restore from history.jsonl, non-blocking
+5. **Success message** with generated vault tree
 
 #### `/oh-my-obsidian:recall`
 Search and recall past documents from vault via local file search.
@@ -118,6 +125,17 @@ Multi-phase automated vault refactoring orchestrated across 3 subagents:
 
 #### `/oh-my-obsidian:session-save`
 Save current session context to vault.
+
+#### `/oh-my-obsidian:restore-history`
+Full session restoration from Claude Code transcripts into the Obsidian vault.
+- **argument-hint**: `[recent N | from YYYY-MM-DD to YYYY-MM-DD | all]`
+- **allowed-tools**: Bash, Read, Write, Glob, AskUserQuestion, Agent
+- **Phases**:
+  1. **Preflight** — verify vault, check progress file, select scope
+  2. **Discovery** — scan ~/.claude/projects/{hash}/ for transcripts, cross-ref history.jsonl
+  3. **Batch Processing** — 2 sessions / 300KB per batch via transcript-summarizer agent
+  4. **Finalization** — git commit, cleanup progress file, summary
+- Progress tracking via `.restore-progress.json` enables safe resume after interruption.
 
 #### `/oh-my-obsidian:vault`
 Manage vault: list, add, organize.
@@ -151,7 +169,34 @@ Manage vault: list, add, organize.
 
 Empty by default — users configure their own MCP servers via `/oh-my-obsidian:setup` or manually.
 
-### 4.6 Environment Variables
+### 4.6 Agents
+
+#### `vault-architect`
+- **Tools**: Read, Glob, Grep, Bash, Write, Edit
+- **Model**: sonnet
+- **Role**: Designs Obsidian vault folder structures based on project interview results
+
+#### `vault-auditor`
+- **Model**: sonnet
+- **Role**: Audits current vault structure to identify pain points
+
+#### `migration-verifier`
+- **Model**: sonnet
+- **Role**: Validates vault migration plans to prevent data loss or conflicts
+
+#### `socratic-interviewer`
+- **Tools**: Read, Glob, Grep
+- **Model**: sonnet
+- **Role**: Conducts Socratic interviews to gather vault setup requirements through focused questions
+
+#### `transcript-summarizer`
+- **Tools**: Read, Glob, Grep
+- **Model**: sonnet
+- **Role**: Reads raw JSONL transcript data and produces structured session summaries
+- **Output**: JSON with per-session topic, category, summary, decisions, errors, files, tools
+- **Categories**: 세션기록 (default), 의사결정 (architecture/design), 트러블슈팅 (debugging)
+
+### 4.7 Environment Variables
 - `OBSIDIAN_VAULT`: Absolute path to the Obsidian vault directory
 
 ---
@@ -240,6 +285,9 @@ vault/
    - Recall past context: "이전에 정기결제 이슈 어떻게 해결했지?"
    - Save sessions: "이 작업 기록해줘"
    - Organize docs: "회의록 정리해줘"
+4. **Restore history**:
+   - New team member: `/oh-my-obsidian:restore-history recent 10`
+   - Full project history: `/oh-my-obsidian:restore-history all`
 
 ---
 
@@ -264,3 +312,4 @@ vault/
 5. Install scripts (PowerShell + Bash)
 6. Agent (vault-architect)
 7. Documentation
+8. restore-history command + transcript-summarizer agent
