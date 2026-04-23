@@ -27,6 +27,15 @@ sequenceDiagram
     Architect->>LocalFS: 로컬 팀 설치 스크립트(.sh, .ps1) 생성
     Architect->>Git: git init 및 초기 커밋(Commit)
     LocalFS-->>Claude: 구축 완료
+
+    note over Claude, LocalFS: [Phase 3.5: 선택적 기록 복원]
+    Claude->>Developer: "기존 Claude Code 사용 기록을 볼트에 복원할까요?"
+    Developer->>Claude: 복원 동의
+    Claude->>LocalFS: ~/.claude/history.jsonl 읽기 (경량)
+    note over Claude: 현재 프로젝트 프롬프트 필터링, sessionId별 그룹핑
+    Claude->>LocalFS: 세션 기록 파일 일괄 생성 (작업기록/세션기록/)
+    Claude-->>Developer: "N개 세션 기록이 볼트에 복원되었습니다."
+
     Claude-->>Developer: 셋업 성공 로그 및 가이드라인 출력
 ```
 
@@ -61,4 +70,51 @@ sequenceDiagram
     
     note over Claude: 이전 파일들을 통해 어제의 사고 과정 완벽히 복구
     Claude-->>Developer: "네, 남은 과제인 Refresh Token 로직부터 시작하겠습니다!"
+```
+
+<br/>
+
+## 📜 시나리오 3: 과거 세션 기록 복원 (History Restore Workflow)
+
+이미 Claude Code를 오래 사용해 온 사용자가 과거의 모든 세션을 한 번에 볼트에 구조화하여 저장하는 마이그레이션 워크플로우입니다.
+
+```mermaid
+sequenceDiagram
+    actor Developer as User (Developer)
+    participant Claude as Claude Code
+    participant Summarizer as Transcript-Summarizer (Agent)
+    participant ClaudeData as ~/.claude/projects/
+    participant LocalFS as Local Obsidian Vault
+    participant Git as Git Repo
+
+    Developer->>Claude: /oh-my-obsidian:restore-history 호출
+    note over Claude: [Phase 0: Preflight]
+    Claude->>Claude: OBSIDIAN_VAULT 확인, 이전 복원 진행 여부 체크
+    Claude->>Developer: 복원 범위 선택 (최근 N개 / 기간 / 전체)
+    Developer->>Claude: "최근 10개 세션" 선택
+
+    note over Claude: [Phase 1: 세션 탐색]
+    Claude->>ClaudeData: CWD → 프로젝트 hash 도출 (경로 → C--Users-Admin-...)
+    Claude->>ClaudeData: ~/.claude/projects/{hash}/*.jsonl 목록 조회
+    Claude->>ClaudeData: ~/.claude/history.jsonl 교차 참조 (타임스탬프/프롬프트)
+    Claude-->>Developer: "10개 세션 발견. 처리 시작할까요?"
+    Developer->>Claude: 확인
+
+    note over Claude, Summarizer: [Phase 2: 배치 처리 루프]
+
+    loop 배치당 최대 2파일 / 300KB
+        Claude->>ClaudeData: 다음 배치 transcript 파일 읽기
+        Claude->>Summarizer: 세션 트랜스크립트 전달
+        note over Summarizer: 사용자 요청, 결정사항, 에러, 파일 변경 추출
+        Summarizer-->>Claude: 구조화된 세션 요약 JSON 반환
+        note over Claude: 카테고리 자동 분류 (세션기록/의사결정/트러블슈팅)
+        Claude->>LocalFS: YYYY-MM-DD_{slug}.md 파일 저장
+        Claude->>LocalFS: .restore-progress.json 업데이트 (재개용)
+        Claude-->>Developer: "진행: 3/10 세션 처리 완료"
+    end
+
+    note over Claude: [Phase 3: 마무리]
+    Claude->>Git: 복원된 문서 전체 커밋
+    Claude->>LocalFS: .restore-progress.json 삭제
+    Claude-->>Developer: "과거 세션 복원 완료! 세션기록: 6개, 의사결정: 2개, 트러블슈팅: 2개"
 ```

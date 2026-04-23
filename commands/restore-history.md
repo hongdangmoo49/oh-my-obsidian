@@ -195,7 +195,8 @@ restoredFrom: transcript
 {if empty: omit this section}
 ```
 
-5. Run: `git -C "$OBSIDIAN_VAULT" add "작업기록/{category}/YYYY-MM-DD_{slug}.md"`
+5. If vault is a git repository, run: `git -C "$OBSIDIAN_VAULT" add "작업기록/{category}/YYYY-MM-DD_{slug}.md"`
+   If not a git repo, skip the git add step — files are still saved to disk.
 
 #### Step D: Update Progress File
 
@@ -229,12 +230,18 @@ Continue to next batch until all sessions are processed.
 
 ### 3.1 Git Commit
 
-If any files were generated:
+Check if vault is a git repository: `git -C "$OBSIDIAN_VAULT" rev-parse --is-inside-work-tree 2>/dev/null`
+
+If git repo AND any files were generated:
 ```bash
 cd "$OBSIDIAN_VAULT"
 git add "작업기록/"
 git commit -m "restore: N개 과거 세션 기록 복원"
 ```
+
+If not a git repo:
+- Files are already saved to disk. No git commit needed.
+- Print: "N개 문서가 볼트에 저장되었습니다. (Git 미사용 — 나중에 git init으로 관리할 수 있습니다)"
 
 If git working tree is dirty (uncommitted changes from another source):
 - Warn the user and ask whether to commit alongside existing changes

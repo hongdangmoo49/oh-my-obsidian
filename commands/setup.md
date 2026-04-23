@@ -329,13 +329,23 @@ Obsidian auto-populates config on first open.
 
 ### 3.6 Git init/commit
 
-If new repo:
+Ask the user whether to initialize git for the vault via AskUserQuestion:
+- header: "Git 초기화"
+- options:
+  - label: "Git 초기화"
+    description: "볼트를 git 저장소로 관리합니다. 팀 동기화에 권장됩니다."
+  - label: "건너뛰기"
+    description: "Git 없이 로컬에서만 사용합니다. 나중에 git init으로 설정할 수 있습니다."
+
+If user selects "Git 초기화":
 ```bash
 cd "$VAULT"
 git init -b main
 git add .
 git commit -m "init: vault created by oh-my-obsidian"
 ```
+
+If user skips, set a flag `GIT_ENABLED=false` for subsequent phases to check.
 
 ### 3.7 Configure Claude Lifecycle Hook (SessionEnd)
 
@@ -447,14 +457,16 @@ Save to: `$OBSIDIAN_VAULT/작업기록/세션기록/YYYY-MM-DD_{slug}.md`
 - Truncate to 60 characters max
 - Example: "사용자 인증 시스템 구현" → "사용자-인증-시스템-구현"
 
-### 3.5.4 Git Commit
+### 3.5.4 Git Commit (if git enabled)
 
-If any files were generated:
+If git was initialized in Phase 3.6 AND any files were generated:
 ```bash
 cd "$VAULT"
 git add "작업기록/세션기록/"
 git commit -m "restore: history.jsonl에서 기존 사용 기록 복원 (N개 세션)"
 ```
+
+If git was skipped in Phase 3.6: files are saved but no git commit. Print: "N개 세션 기록이 볼트에 저장되었습니다. (Git 미사용)"
 
 If git commit fails (e.g., dirty working tree):
 - Print: "Git 커밋에 실패했습니다. 나중에 수동으로 커밋할 수 있습니다."
@@ -467,7 +479,10 @@ Print: "복원할 의미 있는 세션 기록이 없습니다. Phase 4로 계속
 
 ---
 
-## Phase 4: Obsidian Git Plugin Setup
+## Phase 4: Obsidian Git Plugin Setup (if git enabled)
+
+If git was skipped in Phase 3.6, skip this entire phase and proceed to Phase 5.
+Obsidian Git plugin requires a git repository to function.
 
 After the vault exists and Git setup is complete, offer Obsidian Git installation as the final vault-level setup stage.
 
