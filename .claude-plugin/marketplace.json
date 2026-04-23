@@ -1,4 +1,5 @@
 {
+    "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
     "name": "omob",
     "owner": {
         "name": "hongdangmoo49",
@@ -7,9 +8,29 @@
     "plugins": [
         {
             "name": "oh-my-obsidian",
-            "source": "../",
+            "source": "./",
             "description": "Give your AI coding agent a permanent second brain. Connect Claude to an Obsidian vault to auto-record decisions and recall context.",
-            "version": "0.1.0"
+            "version": "0.1.0",
+            "author": {
+                "name": "hongdangmoo49",
+                "email": "ssh0611@gmail.com"
+            },
+            "category": "productivity",
+            "homepage": "https://github.com/hongdangmoo49/oh-my-obsidian",
+            "repository": "https://github.com/hongdangmoo49/oh-my-obsidian",
+            "license": "MIT",
+            "keywords": [
+                "obsidian",
+                "second-brain",
+                "claude-code",
+                "agentic-ai",
+                "memory"
+            ],
+            "tags": [
+                "knowledge-management",
+                "automation",
+                "refactor"
+            ]
         }
     ]
 }
