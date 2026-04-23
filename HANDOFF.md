@@ -1,53 +1,55 @@
 # Handoff Document
 
+[English](HANDOFF.md) | [한국어](HANDOFF.ko.md)
+
 > Last Updated: 2026-04-23
-> Session: 초기 문서화 및 컨텍스트 세팅
+> Session: Initial documentation and context setup
 
 ---
 
 ## Goal
-**oh-my-obsidian** 플러그인의 AI 협업 품질을 올리고 개발 온보딩을 돕기 위한 기반 문서 작업 진행 (`docs/add-project-docs` 브랜치).
+Establish base documentation to improve AI collaboration quality and assist in developer onboarding for the **oh-my-obsidian** plugin (Branch: `docs/add-project-docs`).
 
 ---
 
 ## Current Progress
 
-### ✅ 완료된 작업
-1. 프로젝트 기본 폴더 탐색 및 `SPEC.md`, `README.md` 내용 파악 완료
-2. 문서화용 Git 브랜치 생성 완료 (`docs/add-project-docs`)
-3. AI 개발 가이드를 위한 `project-context.md` 작성 완료
-    - 디렉토리 네이밍, Anti-patterns, 환경 변수(`OBSIDIAN_VAULT`) 규칙 등 명시
-4. 인수인계를 위한 `HANDOFF.md` 작성 완료 (현재 파일)
+### ✅ Completed Work
+1. Explored the base project folder and understood the contents of `SPEC.md` and `README.md`.
+2. Created a Git branch for documentation (`docs/add-project-docs`).
+3. Completed `project-context.md` for the AI development guide.
+    - Specified directory naming, anti-patterns, environment variable (`OBSIDIAN_VAULT`) rules, etc.
+4. Completed `HANDOFF.md` for handovers (this file).
 
 ---
 
 ## Next Steps
 
-### 곧바로 이어서 할 작업 (Phase 1)
-다음에 명시된 플러그인 핵심 구성요소 중 누락된 파일들의 목업/초안을 스펙에 맞춰 구현하기:
+### Immediate Next Tasks (Phase 1)
+Implement mockups/drafts for the following missing core plugin components according to the spec:
 
-1. **Setup Wizard** (`commands/setup.md` 등)
-   - 프로젝트 정체성 묻기 및 볼트 레이어 생성 로직
-2. **핵심 스킬 프롬프트 파일**
-   - `skills/recall/SKILL.md` (과거 정보 회상 로직)
-   - `skills/session-save/SKILL.md` (작업 기록 저장 로직)
-   - `skills/obsidian-vault-manager/SKILL.md` (문서 정리 로직)
-3. **Hook 스크립트 작성**
-   - `hooks/stop-hook.sh` (세션 종료 시 저장 권고)
+1. **Setup Wizard** (`commands/setup.md` etc.)
+   - Logic for asking project identity and creating vault layers.
+2. **Core Skill Prompt Files**
+   - `skills/recall/SKILL.md` (Logic for recalling past information)
+   - `skills/session-save/SKILL.md` (Logic for saving work records)
+   - `skills/obsidian-vault-manager/SKILL.md` (Logic for organizing documents)
+3. **Hook Scripts**
+   - `hooks/stop-hook.sh` (Recommend saving on session stop)
 
 ---
 
 ## Important Files
 
-### 분석에 유용한 스펙 문서
-- `SPEC.md` : 플러그인 전반의 아키텍처와 디렉토리 트리 구조가 담긴 핵심 스펙.
-- `README.md` : 플러그인 사용자 설명서 및 설치 스크립트 실행법.
+### Useful Specs for Analysis
+- `SPEC.md`: Core specification containing the overall architecture and directory tree structure.
+- `README.md`: User manual and installation script instructions.
 
-### 이번 세션에 생성된 문서
-- `project-context.md` : AI와의 성공적인 코딩 협업을 위한 룰북.
+### Documents Created This Session
+- `project-context.md`: AI coding collaboration rulebook.
 
 ---
 
 ## Notes
-- 시스템은 주로 **로컬 파일 탐색**을 활용하도록 프롬프트를 맞춰야 함.
-- 현재 `oh-my-obsidian`은 Node.js 기반 코딩보다는, `.claude-plugin` 시스템이 이해할 수 있는 **마크다운 프롬프트 아키텍처(`commands/`, `skills/`) 설계**가 핵심.
+- The system must primarily rely on **local file search** through its prompts.
+- Currently, **oh-my-obsidian** relies heavily on designing a **markdown prompt architecture (`commands/`, `skills/`)** understood by the `.claude-plugin` system, rather than Node.js-based coding.
