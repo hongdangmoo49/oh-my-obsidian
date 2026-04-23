@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -18,7 +18,11 @@ async function makeFixture() {
 function runGitSetup(args, env = {}) {
   const result = spawnSync(process.execPath, [scriptPath, ...args], {
     cwd: process.cwd(),
-    env: { ...process.env, ...env },
+    env: {
+      ...process.env,
+      OH_MY_OBSIDIAN_TEST_PLATFORM: "linux",
+      ...env,
+    },
     encoding: "utf8",
   });
   return {
@@ -74,6 +78,33 @@ async function seedSetupState(vaultPath, updatedAt = "2020-01-01T00:00:00.000Z")
     )}\n`,
     "utf8"
   );
+}
+
+async function createFakeBrokenMacGitTooling(root) {
+  const binDir = join(root, "fake-bin");
+  const gitPath = join(binDir, "git");
+  const xcodeSelectPath = join(binDir, "xcode-select");
+  const systemGitPath = join(binDir, "system-git");
+  await mkdir(binDir, { recursive: true });
+  await writeFile(
+    gitPath,
+    '#!/bin/sh\nif [ "$1" = "--version" ]; then\n  echo "git version 2.41.0"\n  exit 0\nfi\nexit 0\n',
+    "utf8"
+  );
+  await writeFile(
+    xcodeSelectPath,
+    '#!/bin/sh\nif [ "$1" = "-p" ]; then\n  echo "/Library/Developer/CommandLineTools"\n  exit 0\nfi\nexit 1\n',
+    "utf8"
+  );
+  await writeFile(
+    systemGitPath,
+    '#!/bin/sh\necho "xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun" >&2\nexit 1\n',
+    "utf8"
+  );
+  await chmod(gitPath, 0o755);
+  await chmod(xcodeSelectPath, 0o755);
+  await chmod(systemGitPath, 0o755);
+  return { binDir, systemGitPath };
 }
 
 test("apply requires an existing valid setup-state", async () => {
@@ -385,6 +416,34 @@ test("apply blocks .obsidian symlink escape without writing plugin files", async
     assert.match(run.output.issues.join("\n"), /write target escapes vault/);
     assert.equal(run.output.plugin.files.manifest, false);
     assert.equal(run.output.plugin.files.data, false);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("validate reports broken macOS git tooling explicitly", async () => {
+  const fixture = await makeFixture();
+  try {
+    const vaultPath = join(fixture.root, "vault");
+    const pluginDir = join(vaultPath, ".obsidian", "plugins", "obsidian-git");
+    const { binDir, systemGitPath } = await createFakeBrokenMacGitTooling(fixture.root);
+    await mkdir(pluginDir, { recursive: true });
+    await seedSetupState(vaultPath);
+    await writeFile(join(pluginDir, "manifest.json"), '{"id":"obsidian-git","version":"9.9.9"}\n', "utf8");
+    await writeFile(join(pluginDir, "main.js"), 'console.log("fixture");\n', "utf8");
+    await writeFile(join(pluginDir, "styles.css"), '.fixture {}\n', "utf8");
+    await writeFile(join(pluginDir, "data.json"), '{"autoSaveInterval":0}\n', "utf8");
+    await writeFile(join(vaultPath, ".obsidian", "community-plugins.json"), '["obsidian-git"]\n', "utf8");
+
+    const run = runGitSetup(["validate", vaultPath], {
+      PATH: `${binDir}:${process.env.PATH}`,
+      OH_MY_OBSIDIAN_SYSTEM_GIT_PATH: systemGitPath,
+      OH_MY_OBSIDIAN_TEST_PLATFORM: "darwin",
+    });
+    assert.equal(run.result.status, 1);
+    assert.equal(run.output.git.status, "broken-path");
+    assert.match(run.output.issues.join("\n"), /Command Line Tools path is broken/);
+    assert.equal(run.output.git.fixCommand, "xcode-select --install");
   } finally {
     await fixture.cleanup();
   }

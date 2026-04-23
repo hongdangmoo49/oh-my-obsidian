@@ -11,6 +11,17 @@ const preflightJson = JSON.stringify({
   status: "installed",
   obsidian: { installed: true, path: "/Applications/Obsidian.app", version: "1.0.0" },
 });
+const brokenGitPreflightJson = JSON.stringify({
+  schema: "oh-my-obsidian/obsidian-app-preflight/v1",
+  status: "installed",
+  platform: "macos",
+  obsidian: { installed: true, path: "/Applications/Obsidian.app", version: "1.0.0" },
+  git: {
+    status: "broken-path",
+    issue: "macOS Command Line Tools path is broken; git-related setup cannot run reliably",
+    fixCommand: "xcode-select --install",
+  },
+});
 
 async function makeFixture() {
   const root = await mkdtemp(join(tmpdir(), "omob-setup-test-"));
@@ -29,6 +40,7 @@ function runSetup(home, args, env = {}) {
     env: {
       ...process.env,
       HOME: home,
+      OH_MY_OBSIDIAN_TEST_PLATFORM: "linux",
       ...env,
     },
     encoding: "utf8",
@@ -232,6 +244,36 @@ test("apply requires preflight result", async () => {
   }
 });
 
+test("apply blocks git init when preflight reports broken macOS git tooling", async () => {
+  const fixture = await makeFixture();
+  try {
+    const vaultPath = join(fixture.root, "vault");
+    const run = runSetup(fixture.home, [
+      "apply",
+      "--home",
+      fixture.home,
+      "--vault",
+      vaultPath,
+      "--project-name",
+      "Broken Git",
+      "--domain",
+      "API",
+      "--domain",
+      "Infra",
+      "--preflight-json",
+      brokenGitPreflightJson,
+      "--git",
+      "init",
+    ]);
+    assert.equal(run.result.status, 1);
+    assert.equal(run.output.status, "failed");
+    assert.match(run.output.issues.join("\n"), /Command Line Tools path is broken/);
+    assert.match(run.output.issues.join("\n"), /xcode-select --install/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("apply blocks on existing unmanaged file before writing setup-state", async () => {
   const fixture = await makeFixture();
   try {
@@ -421,23 +463,27 @@ test("git init skips commit when unrelated staged changes exist", async () => {
     await writeFile(join(vaultPath, "unrelated.txt"), "user work\n", "utf8");
     spawnSync("git", ["-C", vaultPath, "add", "unrelated.txt"], { encoding: "utf8" });
 
-    const run = runSetup(fixture.home, [
-      "apply",
-      "--home",
+    const run = runSetup(
       fixture.home,
-      "--vault",
-      vaultPath,
-      "--project-name",
-      "Git Safety",
-      "--domain",
-      "API",
-      "--domain",
-      "Infra",
-      "--preflight-json",
-      preflightJson,
-      "--git",
-      "init",
-    ]);
+      [
+        "apply",
+        "--home",
+        fixture.home,
+        "--vault",
+        vaultPath,
+        "--project-name",
+        "Git Safety",
+        "--domain",
+        "API",
+        "--domain",
+        "Infra",
+        "--preflight-json",
+        preflightJson,
+        "--git",
+        "init",
+      ],
+      { OH_MY_OBSIDIAN_TEST_PLATFORM: "linux" }
+    );
     assert.equal(run.result.status, 0);
     assert.equal(run.output.git.committed, false);
     assert.match(run.output.git.issues.join("\n"), /unrelated git paths/);

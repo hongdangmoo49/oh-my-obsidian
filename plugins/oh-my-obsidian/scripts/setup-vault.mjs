@@ -138,6 +138,15 @@ async function applySetup() {
   const input = await normalizeSetupInput({ requirePreflight: true });
   const plan = buildPlan(input);
   const vaultRoot = plan.vaultPath;
+  const gitSetupIssue = requestedGitSetupIssue(plan);
+  if (gitSetupIssue) {
+    return {
+      schema: SETUP_STATE_SCHEMA,
+      action: "apply",
+      status: "failed",
+      issues: [gitSetupIssue],
+    };
+  }
   const precheck = await inspectVaultBeforeBootstrap(plan, "apply");
   if (precheck.issues.length > 0) {
     return {
@@ -756,6 +765,31 @@ function ensurePreflightCompleted(preflight) {
   }
 }
 
+function requestedGitSetupIssue(plan) {
+  if (plan.gitMode !== "init") return "";
+
+  const preflightGit = plan.preflight?.git;
+  if (preflightGit?.status && preflightGit.status !== "usable") {
+    return formatGitIssue(preflightGit);
+  }
+
+  const runtimeGit = detectGitState();
+  if (runtimeGit.status !== "usable") {
+    return formatGitIssue(runtimeGit);
+  }
+
+  return "";
+}
+
+function formatGitIssue(gitState) {
+  const issue = String(gitState?.issue || "").trim();
+  const fixCommand = String(gitState?.fixCommand || "").trim();
+  if (issue && fixCommand) return `${issue}. Fix it first: ${fixCommand}`;
+  if (issue) return issue;
+  if (fixCommand) return `git-related setup cannot run reliably. Fix it first: ${fixCommand}`;
+  return "git-related setup cannot run reliably";
+}
+
 async function inspectVaultBeforeBootstrap(plan, mode) {
   const issues = [];
   const vaultExists = await pathExists(plan.vaultPath);
@@ -984,6 +1018,9 @@ function envNextSteps(vaultPath) {
 }
 
 function commandExists(command) {
+  if (command === "git") {
+    return detectGitState().status === "usable";
+  }
   return spawnSync(command, ["--version"], { stdio: "ignore" }).status === 0;
 }
 
@@ -994,6 +1031,55 @@ function run(command, commandArgs) {
     stdout: result.stdout || "",
     stderr: result.stderr || "",
   };
+}
+
+function detectGitState() {
+  const versionResult = run("git", ["--version"]);
+  const state = {
+    status: versionResult.status === 0 ? "usable" : "missing",
+    issue: versionResult.status === 0 ? "" : "git is not available",
+    fixCommand: "",
+  };
+
+  if (runtimePlatform() !== "darwin") {
+    return state;
+  }
+
+  const xcodeSelectResult = run("xcode-select", ["-p"]);
+  const developerToolsPath = xcodeSelectResult.status === 0 ? xcodeSelectResult.stdout.trim() : "";
+  const systemGitResult = run(systemGitPath(), ["--version"]);
+  const systemGitOutput = `${systemGitResult.stderr}${systemGitResult.stdout}`.trim();
+  if (systemGitResult.status !== 0 && /invalid active developer path|xcrun/i.test(systemGitOutput)) {
+    return {
+      status: "broken-path",
+      issue: "macOS Command Line Tools path is broken; git-related setup cannot run reliably",
+      fixCommand: "xcode-select --install",
+      developerToolsPath,
+    };
+  }
+
+  if (versionResult.status !== 0) {
+    return state;
+  }
+
+  if (systemGitResult.status !== 0) {
+    return {
+      status: "broken-path",
+      issue: "macOS system git is unusable; fix Command Line Tools before git-related setup",
+      fixCommand: "xcode-select --install",
+      developerToolsPath,
+    };
+  }
+
+  return state;
+}
+
+function systemGitPath() {
+  return process.env.OH_MY_OBSIDIAN_SYSTEM_GIT_PATH || "/usr/bin/git";
+}
+
+function runtimePlatform() {
+  return String(process.env.OH_MY_OBSIDIAN_TEST_PLATFORM || process.platform).toLowerCase();
 }
 
 function printJson(value) {

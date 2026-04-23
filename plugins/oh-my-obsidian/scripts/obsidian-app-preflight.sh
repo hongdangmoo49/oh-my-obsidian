@@ -24,6 +24,87 @@ json_bool() {
   fi
 }
 
+command_version_text() {
+  local command="$1"
+  shift
+  "$command" "$@" 2>/dev/null || true
+}
+
+macos_system_git_path() {
+  printf '%s' "${OH_MY_OBSIDIAN_SYSTEM_GIT_PATH:-/usr/bin/git}"
+}
+
+git_status_json() {
+  local platform="$1"
+  local git_path git_version_text git_version git_available status issue fix_command developer_tools_path system_git_path system_git_version_text system_git_version system_git_usable
+  git_path="$(command -v git || true)"
+  git_version_text=""
+  git_version=""
+  git_available=false
+  if [ -n "$git_path" ]; then
+    git_version_text="$(command_version_text git --version)"
+    if [ -n "$git_version_text" ]; then
+      git_available=true
+      git_version="${git_version_text#git version }"
+    fi
+  fi
+
+  status="missing"
+  issue="git is not available"
+  fix_command=""
+  developer_tools_path=""
+  system_git_path=""
+  system_git_version=""
+  system_git_usable=false
+
+  if [ "$git_available" = "true" ]; then
+    status="usable"
+    issue=""
+  fi
+
+  if [ "$platform" = "macos" ]; then
+    developer_tools_path="$(xcode-select -p 2>/dev/null || true)"
+    system_git_path="$(macos_system_git_path)"
+    system_git_version_text="$(command_version_text "$system_git_path" --version)"
+    if [ -n "$system_git_version_text" ]; then
+      system_git_usable=true
+      system_git_version="${system_git_version_text#git version }"
+      if [ "$git_available" = "false" ]; then
+        git_available=true
+        git_path="$system_git_path"
+        git_version="$system_git_version"
+        status="usable"
+        issue=""
+      fi
+    fi
+
+    if [ "$system_git_usable" = "false" ] && [ -n "$developer_tools_path" ] && [ ! -x "$developer_tools_path/usr/bin/xcrun" ]; then
+      status="broken-path"
+      issue="macOS Command Line Tools path is broken; git-related setup cannot run reliably"
+      fix_command="xcode-select --install"
+    elif [ "$git_available" = "true" ] && [ "$system_git_usable" = "false" ]; then
+      status="broken-path"
+      issue="macOS system git is unusable; fix Command Line Tools before git-related setup"
+      fix_command="xcode-select --install"
+    fi
+  fi
+
+  cat <<JSON
+  "git": {
+    "status": "$(json_escape "$status")",
+    "availableOnPath": $(json_bool "$git_available"),
+    "path": "$(json_escape "$git_path")",
+    "version": "$(json_escape "$git_version")",
+    "systemGitUsable": $(json_bool "$system_git_usable"),
+    "systemGitPath": "$(json_escape "$system_git_path")",
+    "systemGitVersion": "$(json_escape "$system_git_version")",
+    "developerToolsPath": "$(json_escape "$developer_tools_path")",
+    "issue": "$(json_escape "$issue")",
+    "fixCommand": "$(json_escape "$fix_command")"
+  },
+JSON
+}
+
 detect_context() {
   if [ -f "/.dockerenv" ]; then
     printf 'container'
@@ -153,6 +234,7 @@ windows_host_check() {
     "bundledCliAvailable": false,
     "bundledCliPath": ""
   },
+$(git_status_json "windows")
   "packageManagers": {
     "winget": {
       "available": $(json_bool "$winget_available"),
@@ -253,6 +335,7 @@ macos_check() {
     "bundledCliAvailable": $(json_bool "$bundled_cli_available"),
     "bundledCliPath": "$(json_escape "$bundled_cli_path")"
   },
+$(git_status_json "macos")
   "packageManagers": {
     "homebrew": {
       "available": $(json_bool "$brew_available"),
@@ -470,6 +553,7 @@ linux_check() {
     "bundledCliAvailable": false,
     "bundledCliPath": ""
   },
+$(git_status_json "linux")
   "packageManagers": {
     "apt": { "available": $(json_bool "$apt_available") },
     "snap": { "available": $(json_bool "$snap_available") },
@@ -578,6 +662,7 @@ unsupported_platform_check() {
     "bundledCliAvailable": false,
     "bundledCliPath": ""
   },
+$(git_status_json "unsupported")
   "packageManagers": {
   },
   "recommendation": {

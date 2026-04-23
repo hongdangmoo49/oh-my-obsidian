@@ -44,11 +44,47 @@ function Test-WingetObsidian {
     }
 }
 
+function Get-GitInfo {
+    $gitPath = Get-CommandPath @("git")
+    $versionText = ""
+    $version = ""
+    $status = "missing"
+    $issue = "git is not available"
+
+    if ($gitPath) {
+        try {
+            $versionText = (& $gitPath --version 2>$null | Select-Object -First 1).Trim()
+        } catch {
+            $versionText = ""
+        }
+
+        if ($versionText) {
+            $status = "usable"
+            $issue = ""
+            $version = ($versionText -replace '^git version\s+', '')
+        }
+    }
+
+    return [ordered]@{
+        status = $status
+        availableOnPath = [bool]$gitPath
+        path = $gitPath
+        version = $version
+        systemGitUsable = [bool]$gitPath
+        systemGitPath = $gitPath
+        systemGitVersion = $version
+        developerToolsPath = ""
+        issue = $issue
+        fixCommand = ""
+    }
+}
+
 function Invoke-Check {
     $wingetPath = Get-CommandPath @("winget")
     $cliPath = Get-CommandPath @("obsidian", "Obsidian.com")
     $protocolRegistered = Test-ObsidianProtocol
     $installedByWinget = Test-WingetObsidian
+    $gitInfo = Get-GitInfo
     $installed = [bool]($protocolRegistered -or $installedByWinget -or $cliPath)
 
     $canAutoInstall = [bool]$wingetPath
@@ -76,6 +112,7 @@ function Invoke-Check {
             bundledCliAvailable = $false
             bundledCliPath = ""
         }
+        git = $gitInfo
         packageManagers = [ordered]@{
             winget = [ordered]@{
                 available = [bool]$wingetPath

@@ -44,6 +44,9 @@ separate explicit approval.
    - If Obsidian is installed, summarize path/version when available.
    - If it is missing and auto-install is available, show method and command,
      then ask before running install.
+   - If preflight reports `git.status != "usable"`, explain the issue before
+     any git-related setup. On macOS broken developer tools paths, show
+     `git.fixCommand` when present.
    - If running in a container, never install a desktop app. Ask whether to
      continue and install Obsidian on the desktop host later.
    - In WSL, only use the Windows host check/install path after approval.
@@ -74,6 +77,7 @@ separate explicit approval.
    - Run `setup-vault.mjs apply --preflight-json "<saved-json-or-file>"`.
    - Add `--create-config-pointer` only if the user approved that pointer.
    - Add `--git init` only if the user approved git initialization.
+   - Do not add `--git init` if preflight reported `git.status != "usable"`.
    - If the result is `action_required_env`, show exact environment steps and do
      not call the setup complete.
 
@@ -84,6 +88,8 @@ separate explicit approval.
    - For `safe`, apply plugin files only without enablement.
    - For `manual`, require approval before enabling the community plugin.
    - For `team-sync`, require approval and verify git remote/upstream first.
+   - Do not offer automatic `team-sync` while preflight reports
+     `git.status != "usable"`.
    - If team sync is blocked, do not add remotes or push automatically. Show
      commands or offer safe/manual fallback.
 

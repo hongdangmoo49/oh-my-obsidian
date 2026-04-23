@@ -280,9 +280,9 @@ async function buildState(action, vaultPath, extraIssues = []) {
   if (!vaultExists) {
     issues.push("vault path does not exist");
   }
-  const gitAvailable = commandExists("git");
-  const gitVersionText = gitAvailable ? run("git", ["--version"]).stdout.trim() : "";
-  const gitVersion = gitVersionText.replace(/^git version\s+/, "");
+  const gitState = detectGitState();
+  const gitAvailable = gitState.status === "usable";
+  const gitVersion = gitState.version || "";
   const gitMeetsMinimum = gitAvailable ? compareGitVersion(gitVersion, "2.29.0") >= 0 : false;
   const isGitRepo =
     vaultExists && gitAvailable
@@ -323,7 +323,7 @@ async function buildState(action, vaultPath, extraIssues = []) {
     data !== null;
 
   if (action === "validate") {
-    if (!gitAvailable) issues.push("git is not available");
+    if (!gitAvailable) issues.push(gitState.issue || "git is not available");
     if (gitAvailable && !gitMeetsMinimum) issues.push("git version is below 2.29");
     if (!installed) issues.push("obsidian-git is not installed");
   }
@@ -346,12 +346,16 @@ async function buildState(action, vaultPath, extraIssues = []) {
     },
     git: {
       available: gitAvailable,
+      status: gitState.status,
       version: gitVersion,
       meetsMinimumVersion: gitMeetsMinimum,
       remoteConfigured,
       branch,
       upstreamConfigured,
       upstream: upstreamConfigured ? upstreamResult.stdout.trim() : "",
+      issue: gitState.issue || "",
+      fixCommand: gitState.fixCommand || "",
+      developerToolsPath: gitState.developerToolsPath || "",
     },
     plugin: {
       id: PLUGIN_ID,
@@ -502,7 +506,64 @@ function run(command, commandArgs) {
 }
 
 function commandExists(command) {
+  if (command === "git") {
+    return detectGitState().status === "usable";
+  }
   return spawnSync(command, ["--version"], { stdio: "ignore" }).status === 0;
+}
+
+function detectGitState() {
+  const versionResult = run("git", ["--version"]);
+  const state = {
+    status: versionResult.status === 0 ? "usable" : "missing",
+    version: versionResult.status === 0 ? versionResult.stdout.trim().replace(/^git version\s+/, "") : "",
+    issue: versionResult.status === 0 ? "" : "git is not available",
+    fixCommand: "",
+    developerToolsPath: "",
+  };
+
+  if (runtimePlatform() !== "darwin") {
+    return state;
+  }
+
+  const xcodeSelectResult = run("xcode-select", ["-p"]);
+  if (xcodeSelectResult.status === 0) {
+    state.developerToolsPath = xcodeSelectResult.stdout.trim();
+  }
+
+  const systemGitResult = run(systemGitPath(), ["--version"]);
+  const systemGitOutput = `${systemGitResult.stderr}${systemGitResult.stdout}`.trim();
+  if (systemGitResult.status !== 0 && /invalid active developer path|xcrun/i.test(systemGitOutput)) {
+    return {
+      ...state,
+      status: "broken-path",
+      issue: "macOS Command Line Tools path is broken; git-related setup cannot run reliably",
+      fixCommand: "xcode-select --install",
+    };
+  }
+
+  if (state.status !== "usable") {
+    return state;
+  }
+
+  if (systemGitResult.status !== 0) {
+    return {
+      ...state,
+      status: "broken-path",
+      issue: "macOS system git is unusable; fix Command Line Tools before git-related setup",
+      fixCommand: "xcode-select --install",
+    };
+  }
+
+  return state;
+}
+
+function systemGitPath() {
+  return process.env.OH_MY_OBSIDIAN_SYSTEM_GIT_PATH || "/usr/bin/git";
+}
+
+function runtimePlatform() {
+  return String(process.env.OH_MY_OBSIDIAN_TEST_PLATFORM || process.platform).toLowerCase();
 }
 
 function compareGitVersion(actual, minimum) {
