@@ -43,12 +43,63 @@ Only add `--create-config-pointer`, `--git init`, Obsidian Git `apply`, package
 manager installs, shell profile edits, remote changes, or push commands after
 separate explicit approval.
 
+## Bundled References
+
+Resolve bundled references relative to the directory that contains this
+`SKILL.md` before searching anywhere else.
+
+- For interview strategy, read
+  [`./references/interviewer.md`](references/interviewer.md).
+- For vault structure planning, read
+  [`./references/vault-architect.md`](references/vault-architect.md).
+- If a reference is not found on the first attempt, derive its absolute path
+  from the current `SKILL.md` location and retry there before searching the
+  plugin root, repository root, installed cache root, or current working
+  directory.
+
+## Interactive Question Mode
+
+When the setup flow needs a user decision, approval, or missing project detail,
+imitate Claude Ask mode or Codex Plan mode as closely as Codex skills allow.
+
+- Keep one question or one decision per turn.
+- Present exactly four numbered choices whenever a branch or approval is needed.
+- Options `1`, `2`, and `3` should be concrete choices for the current step.
+- Option `1` should be the recommended or default path when one exists.
+- Option `4` must always be `직접 입력` and allow any free-form answer.
+- Accept `1`, `2`, `3`, `4`, `4: ...`, or the exact option label as valid
+  replies.
+- If the user asks a side question or gives an ambiguous answer, answer
+  briefly, then restate the same four choices before proceeding.
+- Do not ask the user to respond with an empty message or implicit confirmation.
+
+Use this exact interaction shape:
+
+```text
+<짧은 현재 상황 요약>
+
+다음 중 하나로 답해주세요.
+1. <권장 선택지>
+2. <대안 1>
+3. <대안 2 또는 이번 단계 건너뛰기/중단>
+4. 직접 입력
+```
+
+Guidance by question type:
+
+- For install/approval questions, option `3` should usually mean `지금은
+  건너뛰기` or `여기서 중단`.
+- For interview questions, options `1` to `3` should be plausible common
+  answers, and option `4` should capture custom project details.
+- If the decision is effectively binary, still keep four choices by using:
+  recommended path, safe alternative, skip for now, direct input.
+
 ## Setup Flow
 
 1. Run Obsidian app preflight.
    - If Obsidian is installed, summarize path/version when available.
    - If it is missing and auto-install is available, show method and command,
-     then ask before running install.
+     then ask before running install with the four-choice interaction mode.
    - If preflight reports `git.status != "usable"`, explain the issue before
      any git-related setup. On macOS broken developer tools paths, show
      `git.fixCommand` when present.
@@ -63,11 +114,15 @@ separate explicit approval.
    - Ask one focused Korean or English question at a time.
    - Gather project name, project purpose, existing/greenfield status, tech
      stack, team context, workflow, and at least two knowledge domains.
-   - Use `references/interviewer.md` for question strategy.
+   - Read [`./references/interviewer.md`](references/interviewer.md) for
+     question strategy.
+   - Even during the interview, present three plausible choices plus `4. 직접
+     입력` whenever possible instead of using only open-ended prose.
    - If subagents are unavailable or unnecessary, continue as a single agent.
 
 3. Propose the vault structure.
-   - Use `references/vault-architect.md`.
+   - Read [`./references/vault-architect.md`](references/vault-architect.md)
+     before proposing the vault structure.
    - Include a service layer under a project/service folder, the required
      `작업기록` layer, and `scripts/team-setup`.
    - Show rationale, vault path, and exact managed artifact list.
