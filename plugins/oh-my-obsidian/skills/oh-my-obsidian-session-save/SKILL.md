@@ -1,3 +1,8 @@
+---
+name: oh-my-obsidian-session-save
+description: Use this skill when the user explicitly wants to save, record, or summarize the current session into the Obsidian vault.
+---
+
 # Oh My Obsidian Session Save
 
 Use this skill when the user explicitly wants to save, record, or summarize the

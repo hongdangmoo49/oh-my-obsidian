@@ -1,3 +1,8 @@
+---
+name: oh-my-obsidian-setup
+description: Use this skill when the user wants to initialize oh-my-obsidian, create or attach an Obsidian vault, configure persistent vault resolution, or prepare Obsidian Git integration.
+---
+
 # Oh My Obsidian Setup
 
 Use this skill when the user wants to initialize oh-my-obsidian, create an

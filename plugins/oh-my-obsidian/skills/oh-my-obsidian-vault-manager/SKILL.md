@@ -1,3 +1,8 @@
+---
+name: oh-my-obsidian-vault-manager
+description: Use this skill when the user wants to inspect the vault structure, add a new document, organize loose markdown files, or run a vault health check.
+---
+
 # Oh My Obsidian Vault Manager
 
 Use this skill when the user wants to inspect the vault structure, add a new

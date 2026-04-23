@@ -1,3 +1,8 @@
+---
+name: oh-my-obsidian-recall
+description: Use this skill when the user asks about previous decisions, earlier fixes, past session notes, troubleshooting history, or knowledge that should already exist in the Obsidian vault.
+---
+
 # Oh My Obsidian Recall
 
 Use this skill when the user asks about previous decisions, earlier fixes, past
