@@ -46,11 +46,14 @@ oh-my-obsidian/
 │   └── plugin.json              # Plugin manifest
 ├── commands/
 │   ├── setup.md                 # Interactive setup wizard
+│   ├── refactor.md              # Vault refactoring orchestrator
 │   ├── recall.md                # Recall past documents
 │   ├── session-save.md          # Save session to vault
 │   └── vault.md                 # Vault management
 ├── agents/
-│   └── vault-architect.md       # Agent for vault structure design
+│   ├── vault-architect.md       # Agent for vault structure design
+│   ├── vault-auditor.md         # Agent to audit pain points
+│   └── migration-verifier.md    # Agent to validate safe movements
 ├── skills/
 │   ├── recall/
 │   │   └── SKILL.md             # Auto-recall skill
@@ -104,6 +107,13 @@ Multi-round interactive setup wizard:
 #### `/oh-my-obsidian:recall`
 Search and recall past documents from vault via local file search.
 If user has configured an MCP server with search capability, use it.
+
+#### `/oh-my-obsidian:refactor`
+Multi-phase automated vault refactoring orchestrated across 3 subagents:
+1. **Vault Audit** (`vault-auditor`): Interviews the user about pain points based on the current folder tree.
+2. **Proposal** (`vault-architect`): Generates a target tree, new directories, and specific `mv` operations.
+3. **Verification** (`migration-verifier`): Validates logic to prevent nested folder conflicts or data loss.
+4. **Execution**: Safely executes directory creation and file movements, then commits to Git.
 
 #### `/oh-my-obsidian:session-save`
 Save current session context to vault.

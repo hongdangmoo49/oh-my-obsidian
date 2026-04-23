@@ -26,9 +26,9 @@
 | 역할 | 위치 포맷 | 예시 |
 |------|--------|---------|
 | Plugin Manifest | `.claude-plugin/plugin.json` | - |
-| 사용자 명령어 | `commands/{name}.md` | `commands/setup.md` |
+| 사용자 명령어 | `commands/{name}.md` | `commands/setup.md`, `commands/refactor.md` |
 | 자동 활성 스킬 | `skills/{name}/SKILL.md` | `skills/recall/SKILL.md` |
-| 서브에이전트 | `agents/{name}.md` | `agents/vault-architect.md` |
+| 서브에이전트 | `agents/{name}.md` | `agents/vault-architect.md`, `agents/migration-verifier.md` |
 | 훅(Hook) | `hooks/hooks.json`, `hooks/{name}.sh` | `hooks/stop-hook.sh` |
 | 설치 스크립트 | `scripts/` 내부 | `scripts/install.sh` |
 

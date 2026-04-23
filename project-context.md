@@ -26,9 +26,9 @@ File paths for this plugin are strictly managed.
 | Role | Path Format | Example |
 |------|--------|---------|
 | Plugin Manifest | `.claude-plugin/plugin.json` | - |
-| User Commands | `commands/{name}.md` | `commands/setup.md` |
+| User Commands | `commands/{name}.md` | `commands/setup.md`, `commands/refactor.md` |
 | Auto-active Skills | `skills/{name}/SKILL.md` | `skills/recall/SKILL.md` |
-| Sub-agents | `agents/{name}.md` | `agents/vault-architect.md` |
+| Sub-agents | `agents/{name}.md` | `agents/vault-architect.md`, `agents/vault-auditor.md` |
 | Hooks | `hooks/hooks.json`, `hooks/{name}.sh` | `hooks/stop-hook.sh` |
 | Install Scripts | Inside `scripts/` | `scripts/install.sh` |
 
