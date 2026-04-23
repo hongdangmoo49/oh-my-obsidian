@@ -27,6 +27,52 @@ run_json_test() {
   fi
 }
 
+run_broken_macos_preflight() {
+  local tmp
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/bin"
+
+  cat > "$tmp/bin/uname" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = "-s" ]; then
+  printf 'Darwin\n'
+elif [ "${1:-}" = "-m" ]; then
+  printf 'arm64\n'
+else
+  printf 'Darwin\n'
+fi
+EOF
+
+  cat > "$tmp/bin/git" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+  printf 'git version 2.41.0\n'
+  exit 0
+fi
+exit 0
+EOF
+
+  cat > "$tmp/bin/xcode-select" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = "-p" ]; then
+  printf '/Library/Developer/CommandLineTools\n'
+  exit 0
+fi
+exit 1
+EOF
+
+  cat > "$tmp/bin/system-git" <<'EOF'
+#!/usr/bin/env bash
+printf 'xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun\n' >&2
+exit 1
+EOF
+
+  chmod +x "$tmp/bin/uname" "$tmp/bin/git" "$tmp/bin/xcode-select" "$tmp/bin/system-git"
+  PATH="$tmp/bin:$PATH" OH_MY_OBSIDIAN_SYSTEM_GIT_PATH="$tmp/bin/system-git" \
+    bash scripts/obsidian-app-preflight.sh check
+  rm -rf "$tmp"
+}
+
 cd "$ROOT_DIR"
 
 bash -n scripts/obsidian-app-preflight.sh
@@ -44,6 +90,9 @@ common_json_contract='
   and (.platform | type == "string")
   and (.context | type == "string")
   and (.obsidian.installed | type == "boolean")
+  and (.git.status | type == "string")
+  and (.git.availableOnPath | type == "boolean")
+  and (.git.issue | type == "string")
   and (.recommendation.canAutoInstall | type == "boolean")
   and (.recommendation.installMethod | type == "string")
   and (.recommendation.manualUrl == "https://obsidian.md/download")
@@ -53,6 +102,11 @@ run_json_test \
   "plugin bin preflight가 공통 JSON 계약을 반환한다" \
   'PATH="$ROOT_DIR/bin:$PATH" CLAUDE_PLUGIN_ROOT="$ROOT_DIR" obsidian-app-preflight check' \
   "$common_json_contract"
+
+run_json_test \
+  "macOS preflight는 broken developer path를 git 상태로 노출한다" \
+  'run_broken_macos_preflight' \
+  "$common_json_contract and .platform == \"macos\" and .git.status == \"broken-path\" and .git.fixCommand == \"xcode-select --install\""
 
 if command -v powershell.exe >/dev/null 2>&1; then
   ps_script="$(wslpath -w "$ROOT_DIR/scripts/obsidian-app-preflight.ps1" 2>/dev/null || true)"
@@ -84,4 +138,15 @@ if grep -q 'Obsidian app preflight' commands/setup.md \
   pass "setup command는 vault 인터뷰 전에 preflight를 요구한다"
 else
   fail "setup command는 vault 인터뷰 전에 preflight를 요구한다"
+fi
+
+if grep -q 'git.fixCommand' commands/setup.md \
+  && grep -q 'continue setup without git initialization' commands/setup.md \
+  && grep -q 'fix the git issue first and rerun preflight' commands/setup.md \
+  && grep -q 'do not offer automatic `team-sync` until the git issue is fixed' commands/setup.md \
+  && grep -q 'pending until the user runs `git.fixCommand`' commands/setup.md \
+  && grep -q 'obsidian-app-preflight check' commands/setup.md; then
+  pass "setup command는 git preflight 문제에 대해 재시도 또는 비-git 진행 흐름을 명시한다"
+else
+  fail "setup command는 git preflight 문제에 대해 재시도 또는 비-git 진행 흐름을 명시한다"
 fi
