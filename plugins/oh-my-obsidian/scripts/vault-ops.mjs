@@ -133,7 +133,7 @@ async function recall() {
     }
     if (score === 0) continue;
     const fileStat = await stat(file);
-    const relPath = relative(vault.vaultPath, file);
+    const relPath = relative(vault.vaultPath, file).replace(/\\/g, "/");
     results.push({
       path: relPath,
       category: classifyPath(relPath),
@@ -170,7 +170,10 @@ async function sessionSave() {
   const title = topic;
 
   const autoRelated = await searchRelatedDocs(vault.vaultPath, topic, args.tags);
-  const allRelatedDocs = uniqueValues([...args.relatedDocs, ...autoRelated]);
+  const allRelatedDocs = uniqueValues([
+    ...args.relatedDocs.map((d) => d.replace(/\\/g, "/")),
+    ...autoRelated,
+  ]);
 
   const noteBody = renderSessionNote({
     title,
@@ -303,7 +306,7 @@ async function buildOrganizeSuggestions(vaultPath) {
   const files = await collectMarkdownFiles(vaultPath);
   const suggestions = [];
   for (const file of files) {
-    const rel = relative(vaultPath, file);
+    const rel = relative(vaultPath, file).replace(/\\/g, "/");
     if (rel === "README.md") continue;
     if (rel.startsWith("작업기록/") || rel.startsWith(".obsidian/") || rel.startsWith(".git/") || rel.startsWith(".oh-my-obsidian/")) {
       continue;
@@ -436,10 +439,11 @@ function extractExcerpt(content, firstHit) {
 }
 
 function classifyPath(relativePath) {
-  if (relativePath.startsWith("작업기록/세션기록")) return "세션기록";
-  if (relativePath.startsWith("작업기록/의사결정")) return "의사결정";
-  if (relativePath.startsWith("작업기록/트러블슈팅")) return "트러블슈팅";
-  if (relativePath.startsWith("작업기록/회의록")) return "회의록";
+  const normalized = relativePath.replace(/\\/g, "/");
+  if (normalized.startsWith("작업기록/세션기록")) return "세션기록";
+  if (normalized.startsWith("작업기록/의사결정")) return "의사결정";
+  if (normalized.startsWith("작업기록/트러블슈팅")) return "트러블슈팅";
+  if (normalized.startsWith("작업기록/회의록")) return "회의록";
   return "서비스";
 }
 

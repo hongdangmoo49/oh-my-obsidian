@@ -1,0 +1,6 @@
+* text=auto
+*.sh text eol=lf
+*.mjs text eol=lf
+*.base text eol=lf
+*.md text
+*.json text
