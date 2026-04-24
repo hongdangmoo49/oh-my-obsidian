@@ -3,7 +3,7 @@ import { access, mkdir, readFile, realpath, rename, stat, writeFile } from "node
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from "node:path";
 
-export const PLUGIN_VERSION = "0.1.0";
+export const PLUGIN_VERSION = "0.2.0";
 export const SETUP_STATE_SCHEMA = "oh-my-obsidian/setup-state/v1";
 export const CODEX_CONFIG_SCHEMA = "oh-my-obsidian/codex-config/v1";
 export const CODEX_CONFIG_CREATED_BY = "oh-my-obsidian-codex-setup";
