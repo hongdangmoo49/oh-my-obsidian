@@ -27,6 +27,9 @@ node scripts/vault-ops.mjs recall --query "<user query>"
 ## Expected Flow
 
 1. Run the helper with the user’s query.
+   The helper now searches the session catalog first (`session-catalog.json`) for fast
+   in-memory matching, then expands to full documents only for matches. If no catalog
+   exists or no matches are found, it falls back to full vault walk.
    - **Type-Aware Search**: If the query includes a type hint (e.g., ‘이전 결정’, ‘past decision’,
      ‘트러블슈팅’), use grep pattern `type:decision` or `type:troubleshooting` for more precise matching.
      Type mapping: 세션기록→session-log, 의사결정→decision, 트러블슈팅→troubleshooting, 회의록→meeting-notes
