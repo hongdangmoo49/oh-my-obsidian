@@ -248,6 +248,23 @@ export function slugifyAscii(input, fallback = "note") {
   return slug || fallback;
 }
 
+export const CATEGORY_TYPE_MAP = {
+  "세션기록": "session-log",
+  "의사결정": "decision",
+  "트러블슈팅": "troubleshooting",
+  "회의록": "meeting-notes",
+  "서비스": "knowledge",
+};
+
+export function typeFromCategory(category) {
+  return CATEGORY_TYPE_MAP[category] || "session-log";
+}
+
+export function basenameWithoutExtension(filepath) {
+  const base = String(filepath).split(/[\\/]/).pop() || "";
+  return base.replace(/\.md$/i, "");
+}
+
 export function uniqueValues(values) {
   const seen = new Set();
   const result = [];

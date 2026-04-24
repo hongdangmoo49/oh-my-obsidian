@@ -1,0 +1,23 @@
+filters:
+  and:
+    - type == "meeting-notes"
+properties:
+  topic:
+    displayName: 주제
+  date:
+    displayName: 날짜
+  participants:
+    displayName: 참석자
+  services:
+    displayName: 서비스
+views:
+  - type: table
+    name: 최신순
+    filters:
+      not:
+        - file.name == "_template"
+    order:
+      - topic
+      - date
+      - participants
+      - services

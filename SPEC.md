@@ -187,8 +187,8 @@ Manage vault: list, add, organize.
 
 #### `session-save`
 - **Trigger**: "기록해", "저장해", "save", "기록"
-- **Behavior**: Saves current session summary to vault 작업기록/
-- **Tools**: Write, Bash (for git operations)
+- **Behavior**: Saves current session summary to vault 작업기록/ with structured frontmatter (type, services, related_docs, status) and auto-generated wikilinks to related documents
+- **Tools**: Write, Bash (for git operations), Read, Glob (for related-doc discovery)
 
 #### `obsidian-vault-manager`
 - **Trigger**: "vault", "볼트", "문서 정리", "분류", "organize"
@@ -287,6 +287,17 @@ vault/
 │   ├── 의사결정/
 │   ├── 트러블슈팅/
 │   └── 회의록/
+├── _templates/              # Document templates
+│   └── 작업기록/
+│       ├── 세션기록.md
+│       ├── 의사결정.md
+│       ├── 트러블슈팅.md
+│       └── 회의록.md
+├── _bases/                  # Obsidian Bases views
+│   ├── session-logs.base
+│   ├── decisions.base
+│   ├── troubleshooting.base
+│   └── meeting-notes.base
 ├── scripts/                 # scripts 레이어
 │   └── team-setup/
 │       ├── install.ps1
@@ -295,6 +306,45 @@ vault/
 ├── .obsidian/               # Obsidian config
 └── README.md                # Project overview
 ```
+
+### Layer 4: _templates/ and _bases/ — structural enforcement
+```
+_templates/
+├── 작업기록/
+│   ├── 세션기록.md      # type: session-log template
+│   ├── 의사결정.md      # type: decision template
+│   ├── 트러블슈팅.md    # type: troubleshooting template
+│   └── 회의록.md        # type: meeting-notes template
+_bases/
+├── session-logs.base     # auto-aggregation for session-log
+├── decisions.base        # auto-aggregation for decision
+├── troubleshooting.base  # auto-aggregation for troubleshooting
+└── meeting-notes.base    # auto-aggregation for meeting-notes
+```
+
+Templates enforce frontmatter structure. Bases views auto-aggregate by `type` field.
+
+### Document Frontmatter Schema
+
+Every generated document includes these frontmatter fields:
+
+```yaml
+---
+type: session-log | decision | troubleshooting | meeting-notes | knowledge
+date: ISO-8601 timestamp
+topic: string
+category: 세션기록 | 의사결정 | 트러블슈팅 | 회의록
+participants: [string]
+services: [string]
+tags: [string]
+related_docs: [string]    # vault-relative paths to linked documents
+status: done | decided | resolved | in-progress
+---
+```
+
+The `type` field is the primary classifier for Obsidian Bases auto-aggregation.
+The `related_docs` array stores vault-relative paths to related documents.
+The body section `## 관련 문서` renders these as `[[wikilink]]` for Obsidian graph view.
 
 ---
 

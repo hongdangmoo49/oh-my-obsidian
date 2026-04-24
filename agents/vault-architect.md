@@ -24,8 +24,9 @@ When designing or reorganizing a vault, you:
 
 - **Category granularity**: Start broad, split when a category exceeds 50 documents
 - **Naming convention**: `YYYY-MM-DD_descriptive-slug.md` for dated documents
-- **Frontmatter**: Always include date, topic, category, tags
+- **Frontmatter**: Always include type, date, topic, category, tags, services, related_docs, status
 - **Templates**: Provide templates for common document types
+- **Cross-references**: Use [[wikilinks]] to connect related documents in a "관련 문서" section
 - **Git-friendly**: All content should be plain markdown, no binary files
 
 ## Korean-First Design

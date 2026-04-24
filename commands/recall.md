@@ -17,18 +17,24 @@ Search the Obsidian vault for relevant past context matching the user's query: {
 1. **MCP Semantic Search (if available)**
    If the user has configured an MCP server with recall/semantic search capability, use it.
 
-2. **Local Search**
+2. **Type-Aware Search**
+   If the query includes a type hint (e.g., '이전 결정', 'past decision', '트러블슈팅'),
+   use grep pattern `type:decision` or `type:troubleshooting` for more precise matching.
+   Type mapping: 세션기록→session-log, 의사결정→decision, 트러블슈팅→troubleshooting, 회의록→meeting-notes
+
+3. **Local Search**
    Search the vault directly using grep/glob:
    - Search filenames matching keywords
    - Search file contents with grep
    - Check all categories: 작업기록, 의사결정, 트러블슈팅, 회의록, 외부자료, 가이드
 
-3. **Return Results**
+4. **Return Results**
    For each match found, provide:
    - File path (relative to vault)
    - Relevant excerpt
    - Date (from file modification time or frontmatter)
    - Category
+   - Type (from frontmatter `type` field)
 
 ### Output Format
 
@@ -37,7 +43,7 @@ Search the Obsidian vault for relevant past context matching the user's query: {
 
 관련 문서 N개 발견:
 
-1. [카테고리] 파일명 (날짜)
+1. [카테고리] 파일명 (날짜) type: {type}
    > 관련 내용 발췌
 
 2. ...

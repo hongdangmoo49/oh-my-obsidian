@@ -430,3 +430,131 @@ test("vault health-check surfaces failed setup status", async () => {
     await fixture.cleanup();
   }
 });
+
+test("session-save includes type field in frontmatter", async () => {
+  const fixture = await makeFixture();
+  try {
+    const run = runVaultOps(fixture.vaultPath, [
+      "session-save",
+      "--topic",
+      "Type Test",
+      "--detail",
+      "Testing type field.",
+    ]);
+    assert.equal(run.result.status, 0);
+    assert.equal(run.output.type, "session-log");
+    const notePath = join(fixture.vaultPath, run.output.relativePath);
+    const note = await readFile(notePath, "utf8");
+    assert.match(note, /^type: session-log$/m);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("session-save includes services and related_docs when provided", async () => {
+  const fixture = await makeFixture();
+  try {
+    const run = runVaultOps(fixture.vaultPath, [
+      "session-save",
+      "--topic",
+      "Service Test",
+      "--detail",
+      "Testing services.",
+      "--service",
+      "editor",
+      "--service",
+      "api",
+      "--related-doc",
+      "작업기록/의사결정/2026-04-24_arch-decision.md",
+    ]);
+    assert.equal(run.result.status, 0);
+    const notePath = join(fixture.vaultPath, run.output.relativePath);
+    const note = await readFile(notePath, "utf8");
+    assert.match(note, /^services: \[editor, api\]$/m);
+    assert.match(note, /^related_docs: \[작업기록\/의사결정\/2026-04-24_arch-decision\.md\]$/m);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("session-save generates wikilinks in 관련 문서 section", async () => {
+  const fixture = await makeFixture();
+  try {
+    const run = runVaultOps(fixture.vaultPath, [
+      "session-save",
+      "--topic",
+      "Wiki Test",
+      "--detail",
+      "Testing wikilinks.",
+      "--related-doc",
+      "작업기록/의사결정/2026-04-24_arch-decision.md",
+    ]);
+    assert.equal(run.result.status, 0);
+    const notePath = join(fixture.vaultPath, run.output.relativePath);
+    const note = await readFile(notePath, "utf8");
+    assert.match(note, /\[\[2026-04-24_arch-decision\]\]/);
+    assert.match(note, /## 관련 문서/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("session-save auto-discovers related documents", async () => {
+  const fixture = await makeFixture();
+  try {
+    await writeFile(
+      join(fixture.vaultPath, "작업기록", "세션기록", "2026-04-20_oauth-setup.md"),
+      "# OAuth Setup\nDetails about OAuth token flow implementation\n",
+      "utf8"
+    );
+    const run = runVaultOps(fixture.vaultPath, [
+      "session-save",
+      "--topic",
+      "OAuth token refresh",
+      "--detail",
+      "Adding token refresh logic.",
+    ]);
+    assert.equal(run.result.status, 0);
+    const notePath = join(fixture.vaultPath, run.output.relativePath);
+    const note = await readFile(notePath, "utf8");
+    assert.match(note, /\[\[2026-04-20_oauth-setup\]\]/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("recall returns type field when present in frontmatter", async () => {
+  const fixture = await makeFixture();
+  try {
+    await writeFile(
+      join(fixture.vaultPath, "작업기록", "의사결정", "2026-04-20_use-react.md"),
+      "---\ntype: decision\ndate: 2026-04-20\n---\n# Use React\nDecision to use React\n",
+      "utf8"
+    );
+    const run = runVaultOps(fixture.vaultPath, ["recall", "--query", "React"]);
+    assert.equal(run.result.status, 0);
+    const found = run.output.results.find((r) => r.path.includes("use-react"));
+    assert.ok(found, "should find the decision note");
+    assert.equal(found.type, "decision");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("recall works with old notes that lack type field", async () => {
+  const fixture = await makeFixture();
+  try {
+    await writeFile(
+      join(fixture.vaultPath, "작업기록", "세션기록", "2026-04-19_old-note.md"),
+      "---\ndate: 2026-04-19\n---\n# Old Note\nLegacy note without type field\n",
+      "utf8"
+    );
+    const run = runVaultOps(fixture.vaultPath, ["recall", "--query", "Legacy"]);
+    assert.equal(run.result.status, 0);
+    const found = run.output.results.find((r) => r.path.includes("old-note"));
+    assert.ok(found, "should find old-format note");
+    assert.equal(found.type, null);
+  } finally {
+    await fixture.cleanup();
+  }
+});

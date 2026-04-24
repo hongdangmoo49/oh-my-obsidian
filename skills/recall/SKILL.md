@@ -31,6 +31,9 @@ or any knowledge that should exist in the team's Obsidian vault.
 2. **Search Strategy**
    - **MCP Semantic Search**: If the user has configured an MCP server with recall/search capability,
      use it for semantic search.
+   - **Type-Aware Search**: If the query includes a type hint (e.g., '이전 결정', 'past decision',
+     '트러블슈팅'), use grep pattern `type:decision` or `type:troubleshooting` for more precise matching.
+     Type mapping: 세션기록→session-log, 의사결정→decision, 트러블슈팅→troubleshooting, 회의록→meeting-notes
    - **Local Search**: Search vault directly:
      ```
      grep -ril "keyword1\|keyword2" "$OBSIDIAN_VAULT" --include="*.md"
@@ -50,10 +53,10 @@ or any knowledge that should exist in the team's Obsidian vault.
    ```
    📋 회상 결과
 
-   [의사결정] YYYY-MM-DD — 제목
+   [의사결정] YYYY-MM-DD — 제목 (type: decision)
    > 관련 내용 발췌...
 
-   [트러블슈팅] YYYY-MM-DD — 제목
+   [트러블슈팅] YYYY-MM-DD — 제목 (type: troubleshooting)
    > 관련 내용 발췌...
    ```
 

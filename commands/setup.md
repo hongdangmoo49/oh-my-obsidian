@@ -289,6 +289,10 @@ mkdir -p "$VAULT/작업기록/의사결정"
 mkdir -p "$VAULT/작업기록/트러블슈팅"
 mkdir -p "$VAULT/작업기록/회의록"
 
+# 템플릿 & 베이스
+mkdir -p "$VAULT/_templates/작업기록"
+mkdir -p "$VAULT/_bases"
+
 # scripts
 mkdir -p "$VAULT/scripts/team-setup"
 ```
@@ -438,12 +442,14 @@ Template for each session:
 
 ```markdown
 ---
+type: session-log
 date: {first timestamp in session, formatted YYYY-MM-DD HH:mm}
 topic: {first substantive user prompt, truncated to 60 chars}
 category: 세션기록
 participants: Claude + User
 sessionId: {sessionId}
 restoredFrom: history.jsonl
+related_docs: []
 ---
 
 # {topic}
