@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, AskUserQuestion, Agent
 ## Context
 - Current directory: !`node -e "console.log(process.cwd())"`
 - Obsidian app preflight: !`obsidian-app-preflight check`
-- OBSIDIAN_VAULT env: !`node -e "console.log(process.env.OBSIDIAN_VAULT||process.env.TOOLDI_VAULT||'not set')"`
+- OBSIDIAN_VAULT env: !`node -e "console.log(process.env.OBSIDIAN_VAULT||'not set')"`
 - Plugin root: `${CLAUDE_PLUGIN_ROOT}`
 
 ## Your Task
