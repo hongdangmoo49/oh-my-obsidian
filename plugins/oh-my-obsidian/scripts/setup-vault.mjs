@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   CODEX_CONFIG_CREATED_BY,
   CODEX_CONFIG_SCHEMA,
@@ -272,6 +273,9 @@ function buildPlan(input) {
     "작업기록/의사결정",
     "작업기록/트러블슈팅",
     "작업기록/회의록",
+    "_templates",
+    "_templates/작업기록",
+    "_bases",
     "scripts",
     "scripts/team-setup",
     ".obsidian",
@@ -280,6 +284,14 @@ function buildPlan(input) {
   const fileArtifacts = [
     artifact(".oh-my-obsidian/setup-state.json", "config", "setup-state"),
     artifact("README.md", "file", "vault-readme"),
+    artifact("_templates/작업기록/세션기록.md", "file", "template-session-log"),
+    artifact("_templates/작업기록/의사결정.md", "file", "template-decision"),
+    artifact("_templates/작업기록/트러블슈팅.md", "file", "template-troubleshooting"),
+    artifact("_templates/작업기록/회의록.md", "file", "template-meeting-notes"),
+    artifact("_bases/session-logs.base", "file", "base-session-logs"),
+    artifact("_bases/decisions.base", "file", "base-decisions"),
+    artifact("_bases/troubleshooting.base", "file", "base-troubleshooting"),
+    artifact("_bases/meeting-notes.base", "file", "base-meeting-notes"),
     artifact("scripts/team-setup/install.sh", "file", "team-install-sh"),
     artifact("scripts/team-setup/install.ps1", "file", "team-install-ps1"),
     artifact("scripts/team-setup/README.md", "file", "team-install-readme"),
@@ -355,7 +367,7 @@ async function applyArtifact(vaultRoot, state, artifactToApply, plan) {
     return await markArtifactApplied(state, vaultRoot, artifactToApply.relativePath, "");
   }
 
-  const content = renderArtifact(artifactToApply.template, plan);
+  const content = await renderArtifact(artifactToApply.template, plan);
   await createManagedFile(vaultRoot, artifactToApply.relativePath, content);
   return await markArtifactApplied(state, vaultRoot, artifactToApply.relativePath, contentHash(content));
 }
@@ -409,7 +421,28 @@ async function writeState(vaultRoot, state) {
   });
 }
 
-function renderArtifact(template, plan) {
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const TEMPLATES_DIR = join(__dirname, "..", "templates");
+
+async function readTemplateFile(templateName) {
+  const templatePath = join(TEMPLATES_DIR, templateName);
+  if (await pathExists(templatePath)) {
+    return await readFile(templatePath, "utf8");
+  }
+  throw new Error(`template not found: ${templateName}`);
+}
+
+async function renderArtifact(template, plan) {
+  if (template.startsWith("template-")) {
+    const templateName = template.replace("template-", "") + ".md";
+    return await readTemplateFile(templateName);
+  }
+
+  if (template.startsWith("base-")) {
+    const baseName = template.replace("base-", "") + ".base";
+    return await readTemplateFile(join("bases", baseName));
+  }
+
   if (template === "vault-readme") {
     return `# ${plan.projectName} - Knowledge Vault
 
@@ -452,7 +485,7 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$VAULT_DIR/작업기록/세션기록" "$VAULT_DIR/작업기록/의사결정" "$VAULT_DIR/작업기록/트러블슈팅" "$VAULT_DIR/작업기록/회의록"
+mkdir -p "$VAULT_DIR/작업기록/세션기록" "$VAULT_DIR/작업기록/의사결정" "$VAULT_DIR/작업기록/트러블슈팅" "$VAULT_DIR/작업기록/회의록" "$VAULT_DIR/_templates/작업기록" "$VAULT_DIR/_bases"
 
 if ! grep -q "$MARKER_START" "$PROFILE_FILE" 2>/dev/null; then
   {
@@ -480,7 +513,9 @@ $Dirs = @(
     "작업기록\\세션기록",
     "작업기록\\의사결정",
     "작업기록\\트러블슈팅",
-    "작업기록\\회의록"
+    "작업기록\\회의록",
+    "_templates\\작업기록",
+    "_bases"
 )
 
 foreach ($Dir in $Dirs) {
@@ -523,7 +558,7 @@ function treeDiagram(plan) {
     const branch = index === plan.knowledgeDomains.length - 1 ? "    └──" : "    ├──";
     return `${branch} ${domain}/`;
   });
-  return ["```text", `${plan.projectName}/`, `├── ${plan.serviceRoot}/`, ...domainLines, "├── 작업기록/", "│   ├── 세션기록/", "│   ├── 의사결정/", "│   ├── 트러블슈팅/", "│   └── 회의록/", "├── scripts/team-setup/", "├── .obsidian/", "└── README.md", "```"].join("\n");
+  return ["```text", `${plan.projectName}/`, `├── ${plan.serviceRoot}/`, ...domainLines, "├── 작업기록/", "│   ├── 세션기록/", "│   ├── 의사결정/", "│   ├── 트러블슈팅/", "│   └── 회의록/", "├── _templates/", "│   └── 작업기록/", "├── _bases/", "├── scripts/team-setup/", "├── .obsidian/", "└── README.md", "```"].join("\n");
 }
 
 async function maybeInitializeGit(vaultRoot, state) {
@@ -856,7 +891,7 @@ async function existingArtifactState(vaultRoot, entry, plan) {
     };
   }
 
-  const expected = entry.template === "setup-state" ? "" : renderArtifact(entry.template, plan);
+  const expected = entry.template === "setup-state" ? "" : await renderArtifact(entry.template, plan);
   const hash = await fileContentHash(target).catch(() => "");
   if (expected && hash !== contentHash(expected)) {
     return {

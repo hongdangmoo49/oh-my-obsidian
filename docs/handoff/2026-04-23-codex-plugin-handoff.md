@@ -267,7 +267,7 @@ git status --short
 Expected: only intentional Codex implementation files and docs are changed.
 
 ```bash
-rg 'CLAUDE_PLUGIN_ROOT|TOOLDI_VAULT|AskUserQuestion|allowed-tools|argument-hint|Agent\\(' plugins/oh-my-obsidian .agents/plugins
+rg 'CLAUDE_PLUGIN_ROOT|AskUserQuestion|allowed-tools|argument-hint|Agent\\(' plugins/oh-my-obsidian .agents/plugins
 ```
 
 Expected: no matches.

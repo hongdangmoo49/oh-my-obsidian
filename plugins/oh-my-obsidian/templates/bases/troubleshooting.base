@@ -1,0 +1,39 @@
+filters:
+  and:
+    - type == "troubleshooting"
+formulas:
+  status_icon: if(status == "resolved", "✅", if(status == "investigating", "🔍", "⚠️"))
+properties:
+  topic:
+    displayName: 주제
+  date:
+    displayName: 날짜
+  services:
+    displayName: 서비스
+  status:
+    displayName: 상태
+views:
+  - type: table
+    name: 상태별
+    filters:
+      not:
+        - file.name == "_template"
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - formula.status_icon
+      - topic
+      - date
+      - services
+  - type: table
+    name: 미해결만
+    filters:
+      and:
+        - status != "resolved"
+        - file.name != "_template"
+    order:
+      - formula.status_icon
+      - topic
+      - date
+      - services

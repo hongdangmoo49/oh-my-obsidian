@@ -1,0 +1,41 @@
+filters:
+  and:
+    - type == "session-log"
+formulas:
+  status_icon: if(status == "done", "✅", if(status == "in-progress", "⏳", "❌"))
+properties:
+  topic:
+    displayName: 주제
+  date:
+    displayName: 날짜
+  services:
+    displayName: 서비스
+  tags:
+    displayName: 태그
+  status:
+    displayName: 상태
+views:
+  - type: table
+    name: 최신순
+    filters:
+      not:
+        - file.name == "_template"
+    order:
+      - formula.status_icon
+      - topic
+      - date
+      - services
+      - tags
+  - type: table
+    name: 서비스별
+    filters:
+      not:
+        - file.name == "_template"
+    groupBy:
+      property: services
+      direction: ASC
+    order:
+      - formula.status_icon
+      - topic
+      - date
+      - status

@@ -37,6 +37,9 @@ Optional repeated flags:
 - `--file "<path>"`
 - `--participant "<name>"`
 - `--tag "<tag>"`
+- `--type "<type>"` — auto-derived from category if omitted (session-log|decision|troubleshooting|meeting-notes)
+- `--service "<service>"` — repeated, names of affected services
+- `--related-doc "<path>"` — repeated, vault-relative path to auto-discover as wikilink
 
 ## Expected Flow
 
@@ -46,7 +49,7 @@ Optional repeated flags:
    - `의사결정`
    - `트러블슈팅`
    - `회의록`
-3. Run the helper.
+3. Run the helper. If related documents are discovered in the vault, pass them as `--related-doc` flags.
 4. Tell the user where the note was written and whether git commit was skipped
    or completed.
 5. If the helper returns setup guidance instead of writing, stop and route the

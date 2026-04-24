@@ -3,7 +3,7 @@ import { access, mkdir, readFile, realpath, rename, stat, writeFile } from "node
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from "node:path";
 
-export const PLUGIN_VERSION = "0.1.0";
+export const PLUGIN_VERSION = "0.2.0";
 export const SETUP_STATE_SCHEMA = "oh-my-obsidian/setup-state/v1";
 export const CODEX_CONFIG_SCHEMA = "oh-my-obsidian/codex-config/v1";
 export const CODEX_CONFIG_CREATED_BY = "oh-my-obsidian-codex-setup";
@@ -246,6 +246,23 @@ export function slugifyAscii(input, fallback = "note") {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
   return slug || fallback;
+}
+
+export const CATEGORY_TYPE_MAP = {
+  "세션기록": "session-log",
+  "의사결정": "decision",
+  "트러블슈팅": "troubleshooting",
+  "회의록": "meeting-notes",
+  "서비스": "knowledge",
+};
+
+export function typeFromCategory(category) {
+  return CATEGORY_TYPE_MAP[category] || "session-log";
+}
+
+export function basenameWithoutExtension(filepath) {
+  const base = String(filepath).split(/[\\/]/).pop() || "";
+  return base.replace(/\.md$/i, "");
 }
 
 export function uniqueValues(values) {

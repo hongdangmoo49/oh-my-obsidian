@@ -33,14 +33,21 @@ Also activate when the stop hook prompts and the user agrees to save.
    - Action items or next steps
 
 3. **Auto-Categorize**
-   Determine the best category:
-   - **작업기록/세션기록**: General work logs, coding sessions
-   - **작업기록/의사결정**: Architectural choices, design decisions
-   - **작업기록/트러블슈팅**: Bug fixes, error resolution
-   - **작업기록/회의록**: Meeting summaries (if multiple participants mentioned)
+   Determine the best category and derive the `type` field:
+   - **작업기록/세션기록** → `type: session-log`: General work logs, coding sessions
+   - **작업기록/의사결정** → `type: decision`: Architectural choices, design decisions
+   - **작업기록/트러블슈팅** → `type: troubleshooting`: Bug fixes, error resolution
+   - **작업기록/회의록** → `type: meeting-notes`: Meeting summaries (if multiple participants mentioned)
    - **서비스 레이어**: Technical knowledge docs (API specs, schemas, etc.)
 
-4. **Generate Document**
+4. **Discover Related Documents**
+   Before writing the note, search the vault for related documents using grep/glob.
+   Add any found documents as wikilinks in the 관련 문서 section.
+   ```bash
+   grep -ril "keyword1\|keyword2" "$OBSIDIAN_VAULT" --include="*.md"
+   ```
+
+5. **Generate Document**
    Create at: `$OBSIDIAN_VAULT/작업기록/{세션기록|의사결정|트러블슈팅}/YYYY-MM-DD_{slug}.md`
 
    Template:
@@ -49,6 +56,10 @@ Also activate when the stop hook prompts and the user agrees to save.
    date: YYYY-MM-DDTHH:mm
    topic: {inferred topic}
    category: {auto-detected category}
+   type: {session-log|decision|troubleshooting|meeting-notes}
+   services: [{affected services}]
+   related_docs: [{auto-discovered wikilinks}]
+   status: done
    tags: [auto-generated tags]
    ---
 
@@ -69,15 +80,29 @@ Also activate when the stop hook prompts and the user agrees to save.
 
    ## 다음 단계
    - [ ] {action item}
+
+   ## 관련 문서
+   - [[{discovered-doc}]] -- (auto-discovered)
    ```
 
-5. **Git Commit**
+6. **Git Commit**
    ```bash
    cd "$OBSIDIAN_VAULT"
    git add "{category}/YYYY-MM-DD_{slug}.md"
    git commit -m "docs: {category} — {topic}"
    ```
 
-6. **Confirm**
+7. **Confirm**
    Print: "✅ 저장 완료: {category}/{filename}"
    If the user said "session-save skip", exit silently without saving.
+
+   Helper command with structural relationship flags:
+   ```bash
+   node scripts/vault-ops.mjs session-save \
+     --topic "<topic>" \
+     --detail "<summary>" \
+     --category "세션기록" \
+     --type "session-log" \
+     --service "<service>" \
+     --related-doc "<vault-relative-path>"
+   ```

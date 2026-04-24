@@ -3,12 +3,14 @@ import { spawnSync } from "node:child_process";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import {
+  basenameWithoutExtension,
   contentHash,
   normalizeVaultRelativePath,
   pathExists,
   resolveVault,
   sanitizePathSegment,
   slugifyAscii,
+  typeFromCategory,
   uniqueValues,
   validatePlannedVaultTarget,
 } from "./vault-core.mjs";
@@ -64,12 +66,15 @@ function parseArgs(argv) {
     bodyFile: "",
     commitMessage: "",
     planToken: "",
+    type: "",
     moves: [],
     files: [],
     participants: [],
     decisions: [],
     nextSteps: [],
     tags: [],
+    relatedDocs: [],
+    services: [],
   };
 
   const startIndex = argv[0] === "vault" ? 2 : 1;
@@ -86,12 +91,15 @@ function parseArgs(argv) {
     else if (arg === "--body-file") parsed.bodyFile = argv[++index] || "";
     else if (arg === "--commit-message") parsed.commitMessage = argv[++index] || "";
     else if (arg === "--plan-token") parsed.planToken = argv[++index] || "";
+    else if (arg === "--type") parsed.type = argv[++index] || "";
     else if (arg === "--move") parsed.moves.push(argv[++index] || "");
     else if (arg === "--file") parsed.files.push(argv[++index] || "");
     else if (arg === "--participant") parsed.participants.push(argv[++index] || "");
     else if (arg === "--decision") parsed.decisions.push(argv[++index] || "");
     else if (arg === "--next-step") parsed.nextSteps.push(argv[++index] || "");
     else if (arg === "--tag") parsed.tags.push(argv[++index] || "");
+    else if (arg === "--related-doc") parsed.relatedDocs.push(argv[++index] || "");
+    else if (arg === "--service") parsed.services.push(argv[++index] || "");
     else throw new Error(`unknown argument: ${arg}`);
   }
 
@@ -125,9 +133,11 @@ async function recall() {
     }
     if (score === 0) continue;
     const fileStat = await stat(file);
+    const relPath = relative(vault.vaultPath, file).replace(/\\/g, "/");
     results.push({
-      path: relative(vault.vaultPath, file),
-      category: classifyPath(relative(vault.vaultPath, file)),
+      path: relPath,
+      category: classifyPath(relPath),
+      type: extractTypeFromFrontmatter(content),
       excerpt: extractExcerpt(content, firstHit),
       score,
       modifiedAt: fileStat.mtime.toISOString(),
@@ -155,18 +165,29 @@ async function sessionSave() {
   const topic = String(args.topic || "").trim();
   if (!topic) throw new Error("--topic is required");
   const categoryName = mapWorkCategory(args.category || "세션기록");
+  const noteType = args.type || typeFromCategory(categoryName);
   const details = await resolveTextInput(args.detail, args.detailFile);
   const title = topic;
+
+  const autoRelated = await searchRelatedDocs(vault.vaultPath, topic, args.tags);
+  const allRelatedDocs = uniqueValues([
+    ...args.relatedDocs.map((d) => d.replace(/\\/g, "/")),
+    ...autoRelated,
+  ]);
+
   const noteBody = renderSessionNote({
     title,
     topic,
     category: categoryName,
+    type: noteType,
     details,
     decisions: uniqueValues(args.decisions),
     nextSteps: uniqueValues(args.nextSteps),
     files: uniqueValues(args.files),
     participants: uniqueValues(args.participants),
     tags: uniqueValues(args.tags),
+    services: uniqueValues(args.services),
+    relatedDocs: allRelatedDocs,
   });
   const preExistingGit = inspectGitRepository(vault.vaultPath);
   const reserved = await reserveDatedMarkdownTarget(
@@ -189,6 +210,8 @@ async function sessionSave() {
     status: "ok",
     action: "session-save",
     topic,
+    type: noteType,
+    relatedDocs: allRelatedDocs,
     relativePath: reserved.relativePath,
     git,
   };
@@ -229,11 +252,15 @@ async function addDocument(vault) {
 
   const relativeDir = normalizeAddTarget(vault.setupState, args.relativeDir, args.category);
   assertNotReservedMetadataPath(relativeDir);
+  const pathCategory = classifyPath(relativeDir);
   const noteBody = renderGenericNote({
     title,
     body,
     tags: uniqueValues(args.tags),
-    category: classifyPath(relativeDir),
+    category: pathCategory,
+    type: args.type || typeFromCategory(pathCategory),
+    services: uniqueValues(args.services),
+    relatedDocs: uniqueValues(args.relatedDocs),
   });
   const preExistingGit = inspectGitRepository(vault.vaultPath);
   const reserved = await reserveDatedMarkdownTarget(
@@ -279,7 +306,7 @@ async function buildOrganizeSuggestions(vaultPath) {
   const files = await collectMarkdownFiles(vaultPath);
   const suggestions = [];
   for (const file of files) {
-    const rel = relative(vaultPath, file);
+    const rel = relative(vaultPath, file).replace(/\\/g, "/");
     if (rel === "README.md") continue;
     if (rel.startsWith("작업기록/") || rel.startsWith(".obsidian/") || rel.startsWith(".git/") || rel.startsWith(".oh-my-obsidian/")) {
       continue;
@@ -412,23 +439,71 @@ function extractExcerpt(content, firstHit) {
 }
 
 function classifyPath(relativePath) {
-  if (relativePath.startsWith("작업기록/세션기록")) return "세션기록";
-  if (relativePath.startsWith("작업기록/의사결정")) return "의사결정";
-  if (relativePath.startsWith("작업기록/트러블슈팅")) return "트러블슈팅";
-  if (relativePath.startsWith("작업기록/회의록")) return "회의록";
+  const normalized = relativePath.replace(/\\/g, "/");
+  if (normalized.startsWith("작업기록/세션기록")) return "세션기록";
+  if (normalized.startsWith("작업기록/의사결정")) return "의사결정";
+  if (normalized.startsWith("작업기록/트러블슈팅")) return "트러블슈팅";
+  if (normalized.startsWith("작업기록/회의록")) return "회의록";
   return "서비스";
 }
 
-function renderSessionNote({ title, topic, category, details, decisions, nextSteps, files, participants, tags }) {
+function extractTypeFromFrontmatter(content) {
+  const match = content.match(/^---\r?\n[\s\S]*?^type:\s*(.+)$/m);
+  return match ? match[1].trim() : null;
+}
+
+async function searchRelatedDocs(vaultPath, topic, tagInput, maxResults = 5) {
+  const keywords = uniqueValues(
+    [...topic.split(/\s+/), ...(Array.isArray(tagInput) ? tagInput : [])]
+      .map((s) => String(s || "").trim().toLowerCase())
+      .filter((k) => k.length >= 2)
+  ).slice(0, 6);
+
+  if (keywords.length === 0) return [];
+
+  const files = await collectMarkdownFiles(vaultPath);
+  const scored = [];
+
+  for (const file of files) {
+    const content = await readFile(file, "utf8");
+    const lower = content.toLowerCase();
+    const base = basename(file).toLowerCase();
+    let score = 0;
+    for (const kw of keywords) {
+      if (base.includes(kw)) score += 5;
+      if (lower.includes(kw)) score += 3;
+    }
+    if (score > 0) {
+      scored.push({
+        relativePath: relative(vaultPath, file).replace(/\\/g, "/"),
+        score,
+      });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, maxResults).map((r) => r.relativePath);
+}
+
+function renderSessionNote({ title, topic, category, type, details, decisions, nextSteps, files, participants, tags, services, relatedDocs }) {
   const timestamp = new Date().toISOString();
   const participantText = participants.length > 0 ? participants.join(", ") : "Codex, User";
   const tagText = tags.length > 0 ? tags.join(", ") : "";
+  const serviceText = services.length > 0 ? services.join(", ") : "";
+  const relatedDocText = relatedDocs.length > 0 ? relatedDocs.join(", ") : "";
+  const relatedWikiLinks = relatedDocs.length > 0
+    ? relatedDocs.map((doc) => `- [[${basenameWithoutExtension(doc)}]]`).join("\n")
+    : "- None";
   return `---
+type: ${type}
 date: ${timestamp}
 topic: ${topic}
 category: ${category}
 participants: [${participantText}]
+services: [${serviceText}]
 tags: [${tagText}]
+related_docs: [${relatedDocText}]
+status: done
 ---
 
 # ${title}
@@ -448,22 +523,38 @@ ${files.length > 0 ? files.map((item) => `- \`${item}\``).join("\n") : "- None r
 ## Next Steps
 
 ${nextSteps.length > 0 ? nextSteps.map((item) => `- [ ] ${item}`).join("\n") : "- [ ] None recorded"}
+
+## 관련 문서
+
+${relatedWikiLinks}
 `;
 }
 
-function renderGenericNote({ title, body, tags, category }) {
+function renderGenericNote({ title, body, tags, category, type, services, relatedDocs }) {
   const timestamp = new Date().toISOString();
   const tagText = tags.length > 0 ? tags.join(", ") : "";
+  const serviceText = services.length > 0 ? services.join(", ") : "";
+  const relatedDocText = relatedDocs.length > 0 ? relatedDocs.join(", ") : "";
+  const relatedWikiLinks = relatedDocs.length > 0
+    ? relatedDocs.map((doc) => `- [[${basenameWithoutExtension(doc)}]]`).join("\n")
+    : "- None";
   return `---
+type: ${type}
 date: ${timestamp}
 topic: ${title}
 category: ${category}
+services: [${serviceText}]
 tags: [${tagText}]
+related_docs: [${relatedDocText}]
 ---
 
 # ${title}
 
 ${body}
+
+## 관련 문서
+
+${relatedWikiLinks}
 `;
 }
 

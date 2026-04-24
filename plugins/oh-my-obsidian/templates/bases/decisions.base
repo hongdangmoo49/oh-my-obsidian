@@ -1,0 +1,41 @@
+filters:
+  and:
+    - type == "decision"
+formulas:
+  status_icon: if(status == "decided", "✅", if(status == "superseded", "🔄", "📝"))
+properties:
+  topic:
+    displayName: 주제
+  date:
+    displayName: 날짜
+  services:
+    displayName: 서비스
+  decision_tag:
+    displayName: 성격
+  status:
+    displayName: 상태
+views:
+  - type: table
+    name: 최신순
+    filters:
+      not:
+        - file.name == "_template"
+    order:
+      - formula.status_icon
+      - topic
+      - date
+      - services
+      - decision_tag
+  - type: table
+    name: 상태별
+    filters:
+      not:
+        - file.name == "_template"
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - formula.status_icon
+      - topic
+      - date
+      - decision_tag

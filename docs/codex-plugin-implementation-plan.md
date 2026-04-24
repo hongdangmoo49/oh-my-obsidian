@@ -37,7 +37,7 @@ a parallel plugin surface, not by rewriting the Claude surface.
 - Treat the guided setup skill as Codex v1's core feature. A plugin that only
   ports recall/session-save/vault-manager is not enough.
 - Port helper scripts into the Codex plugin. Do not depend on root scripts,
-  `PATH` shims, `bin/`, `CLAUDE_PLUGIN_ROOT`, or `TOOLDI_VAULT`.
+  `PATH` shims, `bin/`, `CLAUDE_PLUGIN_ROOT`.
 - Hooks are preview-only and opt-in. Do not add hooks to the Codex plugin
   manifest.
 
@@ -204,7 +204,6 @@ plugins/oh-my-obsidian/skills/oh-my-obsidian-setup/references/
   fallback.
 - Port helper scripts into `plugins/oh-my-obsidian/scripts/`.
   - No `CLAUDE_PLUGIN_ROOT`.
-  - No `TOOLDI_VAULT`.
   - No `PATH`/`bin` dependency.
   - Use `import.meta.url` or script-relative paths.
 - Preflight safety:
@@ -344,7 +343,6 @@ plugins/oh-my-obsidian/config-snippets/hooks.json
 - Forbidden pattern validation in `plugins/oh-my-obsidian` and
   `.agents/plugins`:
   - `CLAUDE_PLUGIN_ROOT`
-  - `TOOLDI_VAULT`
   - `AskUserQuestion`
   - `${CLAUDE_PLUGIN_ROOT}`
   - `allowed-tools`

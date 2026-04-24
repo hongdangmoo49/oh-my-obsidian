@@ -205,7 +205,7 @@ Argument syntax should use Claude Code's official `$ARGUMENTS` style when comman
 Required vault handoff after interview:
 
 ```text
-$TOOLDI_VAULT/.oh-my-obsidian/setup-state.json
+$OBSIDIAN_VAULT/.oh-my-obsidian/setup-state.json
 ```
 
 Obsidian app install state should not be stored as a large interview payload. If needed, store a compact result:
@@ -239,21 +239,21 @@ Stage 0 may append a compact preflight result to the setup state file after the 
 After vault creation, Stage 3 owns these files:
 
 ```text
-$TOOLDI_VAULT/.obsidian/community-plugins.json
-$TOOLDI_VAULT/.obsidian/plugins/obsidian-git/manifest.json
-$TOOLDI_VAULT/.obsidian/plugins/obsidian-git/main.js
-$TOOLDI_VAULT/.obsidian/plugins/obsidian-git/styles.css
-$TOOLDI_VAULT/.obsidian/plugins/obsidian-git/data.json
+$OBSIDIAN_VAULT/.obsidian/community-plugins.json
+$OBSIDIAN_VAULT/.obsidian/plugins/obsidian-git/manifest.json
+$OBSIDIAN_VAULT/.obsidian/plugins/obsidian-git/main.js
+$OBSIDIAN_VAULT/.obsidian/plugins/obsidian-git/styles.css
+$OBSIDIAN_VAULT/.obsidian/plugins/obsidian-git/data.json
 ```
 
 Obsidian Git setup must be implemented as a Claude plugin helper, not as ad hoc command text:
 
 ```bash
-obsidian-git-setup check "$TOOLDI_VAULT"
-obsidian-git-setup apply "$TOOLDI_VAULT" --preset safe
-obsidian-git-setup apply "$TOOLDI_VAULT" --preset manual --enable
-obsidian-git-setup apply "$TOOLDI_VAULT" --preset team-sync --interval 10 --enable
-obsidian-git-setup validate "$TOOLDI_VAULT"
+obsidian-git-setup check "$OBSIDIAN_VAULT"
+obsidian-git-setup apply "$OBSIDIAN_VAULT" --preset safe
+obsidian-git-setup apply "$OBSIDIAN_VAULT" --preset manual --enable
+obsidian-git-setup apply "$OBSIDIAN_VAULT" --preset team-sync --interval 10 --enable
+obsidian-git-setup validate "$OBSIDIAN_VAULT"
 ```
 
 Default mode is `safe`: install plugin files and write non-automatic settings, but do not add `obsidian-git` to `community-plugins.json`.
@@ -396,7 +396,7 @@ Current provider support:
 | OQ-001 | Should Stage 0 block setup if Obsidian is missing, or allow "install later" by default? | Product decision. |
 | OQ-002 | Should Linux Snap be offered on Ubuntu as a visible option despite Obsidian Git sandbox concerns? | Product/engineering decision. |
 | OQ-003 | Should the plugin try to open the generated vault automatically after setup? | Product decision; depends on OS/context. |
-| OQ-004 | Should `TOOLDI_VAULT` replace all current `OBSIDIAN_VAULT` references? | Engineering cleanup decision. |
+| OQ-004 | ~~Should `TOOLDI_VAULT` replace all current `OBSIDIAN_VAULT` references?~~ Resolved: removed all `TOOLDI_VAULT` references, using `OBSIDIAN_VAULT` exclusively. | Engineering cleanup decision. |
 
 ## 16. Risks / Design Debt
 
@@ -406,7 +406,7 @@ Current provider support:
 | RD-002 | Linux packaging is fragmented; one command cannot be correct for every distro. | Medium |
 | RD-003 | Snap/Flatpak sandboxing can interfere with Git or filesystem access needed by Obsidian Git. | Medium |
 | RD-004 | Current repo command files use `{{ARGUMENTS}}`, while Claude Code docs use `$ARGUMENTS`. | Medium |
-| RD-005 | Current repo uses both `TOOLDI_VAULT` and `OBSIDIAN_VAULT` in different files. | Medium |
+| RD-005 | ~~Current repo uses both `TOOLDI_VAULT` and `OBSIDIAN_VAULT` in different files.~~ Resolved: `TOOLDI_VAULT` removed. | Medium |
 
 ## 17. Implementation Trace
 
