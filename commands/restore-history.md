@@ -1,5 +1,5 @@
 ---
-description: "과거 Claude Code 세션 기록을 vault에 구조화된 문서로 복원"
+description: "과거 Claude Code / Codex 세션 기록을 vault에 구조화된 문서로 복원"
 argument-hint: "[recent N | from YYYY-MM-DD to YYYY-MM-DD | all]"
 allowed-tools: Bash, Read, Write, Glob, AskUserQuestion, Agent
 ---
@@ -7,13 +7,14 @@ allowed-tools: Bash, Read, Write, Glob, AskUserQuestion, Agent
 ## Context
 - OBSIDIAN_VAULT: !`echo "${OBSIDIAN_VAULT:-not set}"`
 - Current directory: !`node -e "console.log(process.cwd())"`
-- Available projects: !`ls ~/.claude/projects/ 2>/dev/null | head -20`
+- Available projects (Claude Code): !`ls ~/.claude/projects/ 2>/dev/null | head -20`
+- Codex sessions dir: !`node -e "const h=process.env.CODEX_HOME||require('path').join(require('os').homedir(),'.codex');const s=require('path').join(h,'sessions');require('fs').existsSync(s)?console.log(s):console.log('not found')"`
 - Restore progress: !`cat "$OBSIDIAN_VAULT/작업기록/.restore-progress.json" 2>/dev/null || echo "none"`
 
 ## Your Task
 
 You are the oh-my-obsidian history restore orchestrator.
-Restore past Claude Code session transcripts into the Obsidian vault as structured documents.
+Restore past AI coding tool (Claude Code and/or Codex) session transcripts into the Obsidian vault as structured documents.
 
 **CRITICAL UX RULES**:
 - NEVER ask "press enter to skip/confirm" — empty messages cannot be sent in Claude Code.
@@ -35,7 +36,25 @@ Read `$OBSIDIAN_VAULT/작업기록/.restore-progress.json` if it exists.
 If found and status is "in_progress":
 - Note the existing scope and processed count for the resume option.
 
-### 0.3 Scope Selection
+### 0.3 AI Tool Detection
+
+Automatically detect which AI coding tool session data is available:
+
+1. **Claude Code**: Check if `~/.claude/projects/` exists and contains project directories.
+2. **Codex**: Check if the Codex sessions directory exists:
+   - If `$CODEX_HOME` is set: `$CODEX_HOME/sessions/`
+   - Else platform default:
+     - macOS / Linux / WSL: `~/.codex/sessions/`
+     - Windows native: `%USERPROFILE%\.codex\sessions\`
+
+Set detection flags: `HAS_CLAUDE_DATA`, `HAS_CODEX_DATA`.
+
+If both are found, inform the user that both will be processed.
+If neither is found:
+- Print: "Claude Code 또는 Codex 세션 데이터를 찾을 수 없습니다."
+- STOP.
+
+### 0.4 Scope Selection
 
 Ask the user via AskUserQuestion:
 
@@ -64,7 +83,9 @@ If user selects "기간 지정" → ask for from/to dates via AskUserQuestion.
 
 ## Phase 1: Session Discovery
 
-### 1.1 Derive Project Hash
+### 1.1 Claude Code Session Discovery (if HAS_CLAUDE_DATA)
+
+#### 1.1.1 Derive Project Hash
 
 Convert the current working directory to the Claude Code project hash:
 1. Replace all `\` with `/` (normalize to forward slashes)
@@ -73,7 +94,7 @@ Convert the current working directory to the Claude Code project hash:
 
 If user selected "전체 프로젝트", skip filtering and scan all project directories.
 
-### 1.2 List Transcript Files
+#### 1.1.2 List Transcript Files
 
 For a specific project:
 ```bash
@@ -86,7 +107,7 @@ For all projects:
 find ~/.claude/projects/ -maxdepth 2 -name "*.jsonl" -not -path "*/subagents/*" 2>/dev/null
 ```
 
-### 1.3 Cross-Reference with History
+#### 1.1.3 Cross-Reference with History
 
 Read `~/.claude/history.jsonl` (lightweight, safe to read in full).
 If the file does not exist, proceed without metadata (use file modification times only).
@@ -95,19 +116,56 @@ Group entries by sessionId to get:
 - Timestamps for each session
 - User prompt previews
 
-### 1.4 Filter by Scope
+### 1.2 Codex Session Discovery (if HAS_CODEX_DATA)
 
-Apply the user's scope selection:
+#### 1.2.1 Resolve Codex Sessions Root
+
+Determine the Codex sessions directory with platform-aware logic:
+
+1. If `$CODEX_HOME` environment variable is set: `$CODEX_HOME/sessions/`
+2. Else use platform default:
+   - macOS / Linux / WSL: `~/.codex/sessions/`
+   - Windows native: `%USERPROFILE%\.codex\sessions\`
+
+#### 1.2.2 List Rollout Files
+
+Recursively scan the sessions root for `rollout-*.jsonl` files:
+```bash
+find "$CODEX_SESSIONS_ROOT" -name "rollout-*.jsonl" -type f 2>/dev/null
+```
+
+On Windows:
+```powershell
+Get-ChildItem -Path "$CODEX_SESSIONS_ROOT" -Recurse -Filter "rollout-*.jsonl" | Select-Object FullName, Length, LastWriteTime
+```
+
+The directory structure follows: `sessions/YYYY/MM/DD/rollout-YYYY-MM-DDTHH-MM-SS-*.jsonl`
+
+#### 1.2.3 Extract Session Metadata
+
+For each rollout file, read the first few lines to extract:
+- CWD / working directory from metadata (`cwd`, `metadata.cwd`, `context.cwd`, `working_directory` fields)
+- First user message (for topic inference and preview)
+- Timestamp from the filename pattern
+
+**Codex project filtering**: Unlike Claude Code which uses a path-to-hash directory scheme, Codex stores all sessions in a flat date-based hierarchy. To filter by current project:
+- Parse each rollout file's metadata for CWD information
+- Compare against the current working directory (normalize path separators and drive letter casing)
+- If no CWD metadata is found, include the session by default (conservative approach)
+
+### 1.3 Filter by Scope
+
+Apply the user's scope selection to the combined Claude Code + Codex session list:
 - **Recent N**: sort by timestamp descending, take top N
 - **Date range**: filter by timestamp within [from, to]
-- **Current project**: already filtered by hash
+- **Current project**: already filtered by hash (Claude) or CWD (Codex)
 - **All**: no filter
 
 Skip files smaller than 1KB (trivially short sessions with no useful content).
 
-### 1.5 Confirm with User
+### 1.4 Confirm with User
 
-Present summary: "N개의 세션을 발견했습니다 (총 SIZE). 처리를 시작할까요?"
+Present summary: "N개의 세션을 발견했습니다 (Claude Code: X개, Codex: Y개, 총 SIZE). 처리를 시작할까요?"
 
 ---
 
@@ -136,6 +194,9 @@ Agent(
 
   SESSION METADATA:
   {JSON with sessionId, timestamps, user prompts for this batch}
+
+  SOURCE FORMAT:
+  {"claude-code" or "codex" — determines how to parse the transcript lines}
 
   TRANSCRIPT CONTENT:
   {raw transcript content from the batch}
@@ -258,10 +319,12 @@ Update status to "completed" first, then delete.
 과거 세션 복원 완료!
 
 처리된 세션: N개
+  - Claude Code: A개
+  - Codex: B개
 생성된 문서:
-- 세션기록: X개
-- 의사결정: Y개
-- 트러블슈팅: Z개
+  - 세션기록: X개
+  - 의사결정: Y개
+  - 트러블슈팅: Z개
 건너뛴 세션: W개 (내용 없음)
 ```
 

@@ -45,7 +45,8 @@ Obsidian vault (git repo) + local file search + Claude Code / Codex plugin
 5.5 (Optional) Restore past session history:
     - Claude Code: `/oh-my-obsidian:setup` may include optional history restore (Phase 3.5)
     - Claude Code: `/oh-my-obsidian:restore-history` handles detailed transcript restoration
-    - Codex: document the equivalent restore flow when that surface is published
+    - Codex: `$oh-my-obsidian-restore-history` skill or setup step 8 handles Codex rollout restoration
+    - Both tools are supported: Claude history.jsonl + Codex rollout JSONL
 6. Team members clone repo → run install scripts → collaborate
 ```
 
@@ -108,7 +109,14 @@ plugins/oh-my-obsidian/
 ├── .codex-plugin/plugin.json
 ├── README.md
 ├── skills/
+│   ├── oh-my-obsidian-setup/
+│   ├── oh-my-obsidian-recall/
+│   ├── oh-my-obsidian-session-save/
+│   ├── oh-my-obsidian-vault-manager/
+│   └── oh-my-obsidian-restore-history/
 ├── scripts/
+│   ├── codex-history.mjs
+│   └── ...
 ├── hooks-preview/
 ├── config-snippets/
 └── tests/
@@ -165,12 +173,19 @@ Multi-phase automated vault refactoring orchestrated across 3 subagents:
 Save current session context to vault.
 
 #### `/oh-my-obsidian:restore-history`
-Full session restoration from Claude Code transcripts into the Obsidian vault.
+Full session restoration from Claude Code and/or Codex transcripts into the Obsidian vault.
 - **argument-hint**: `[recent N | from YYYY-MM-DD to YYYY-MM-DD | all]`
 - **allowed-tools**: Bash, Read, Write, Glob, AskUserQuestion, Agent
+- **Supported sources**:
+  - Claude Code: `~/.claude/projects/{hash}/*.jsonl` + `~/.claude/history.jsonl`
+  - Codex: `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` (default: `~/.codex/sessions/`)
+- **Platform paths for Codex**:
+  - macOS / Linux / WSL: `~/.codex/sessions/`
+  - Windows native: `%USERPROFILE%\.codex\sessions\`
+  - Override: `$CODEX_HOME/sessions/`
 - **Phases**:
-  1. **Preflight** — verify vault, check progress file, select scope
-  2. **Discovery** — scan ~/.claude/projects/{hash}/ for transcripts, cross-ref history.jsonl
+  1. **Preflight** — verify vault, check progress file, detect AI tools, select scope
+  2. **Discovery** — scan Claude Code projects + Codex sessions, cross-ref history
   3. **Batch Processing** — 2 sessions / 300KB per batch via transcript-summarizer agent
   4. **Finalization** — git commit, cleanup progress file, summary
 - Progress tracking via `.restore-progress.json` enables safe resume after interruption.
@@ -329,7 +344,8 @@ vault/
 4. **Restore history**:
    - Claude Code today: `/oh-my-obsidian:restore-history recent 10`
    - Claude Code full restore: `/oh-my-obsidian:restore-history all`
-   - Codex restore flow should be documented when that surface ships
+   - Codex: `$oh-my-obsidian-restore-history` skill with scope selection
+   - Codex setup: step 8 in the setup flow offers automatic restoration
 
 ---
 

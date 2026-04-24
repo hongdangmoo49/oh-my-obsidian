@@ -159,6 +159,25 @@ Guidance by question type:
    - Report project name, vault path, resolver source, setup-state status,
      Obsidian Git status, and remaining manual actions.
 
+8. Optional History Restore (non-blocking).
+   - After validation, check if Codex session data exists by running:
+     `node scripts/codex-history.mjs scan --cwd "<current-working-dir>"`
+   - If sessions are found, offer restore using the four-choice interaction mode:
+     ```text
+     Codex 세션 기록 N개를 발견했습니다. 볼트에 복원할까요?
+
+     다음 중 하나로 답해주세요.
+     1. 네, 복원해주세요 (권장)
+     2. 나중에 $oh-my-obsidian-restore-history로 복원
+     3. 건너뛰기
+     4. 직접 입력
+     ```
+   - If user approves, run:
+     `node scripts/codex-history.mjs restore --vault "<vault-path>" --cwd "<current-working-dir>"`
+   - Report the result (number restored, number skipped, git commit status).
+   - If any error occurs, print a warning and continue to the success message.
+   - This entire step is non-blocking: failures do not affect setup status.
+
 ## Re-Run Behavior
 
 - If setup state is missing and the vault already exists, offer

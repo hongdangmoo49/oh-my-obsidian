@@ -118,3 +118,50 @@ sequenceDiagram
     Claude->>LocalFS: .restore-progress.json 삭제
     Claude-->>Developer: "과거 세션 복원 완료! 세션기록: 6개, 의사결정: 2개, 트러블슈팅: 2개"
 ```
+
+<br/>
+
+## 🔄 시나리오 4: Codex 세션 기록 복원 (Codex History Restore Workflow)
+
+Codex CLI 사용자가 과거 세션을 한 번에 볼트에 구조화하여 저장하는 복원 워크플로우입니다.
+Claude Code의 시나리오 3과 동일한 목표이지만, Codex 고유의 세션 파일 구조에 맞춘 처리 흐름입니다.
+
+```mermaid
+sequenceDiagram
+    actor Developer as User (Developer)
+    participant Codex as Codex CLI
+    participant Helper as codex-history.mjs
+    participant CodexData as ~/.codex/sessions/
+    participant LocalFS as Local Obsidian Vault
+    participant Git as Git Repo
+
+    Developer->>Codex: "$oh-my-obsidian-restore-history" 스킬 호출
+    note over Codex: [Phase 0: Preflight]
+    Codex->>Codex: OBSIDIAN_VAULT 확인
+
+    note over Codex, Helper: [AI 도구 감지]
+    Codex->>Helper: codex-history.mjs scan 실행
+    Helper->>CodexData: $CODEX_HOME/sessions/ 탐색
+    note over Helper: 플랫폼별 경로 자동 감지<br/>(macOS/Linux: ~/.codex/sessions/<br/>Windows: %USERPROFILE%\.codex\sessions\)
+    Helper->>CodexData: rollout-*.jsonl 파일 수집
+    note over Helper: 파일명에서 날짜 추출, CWD 메타데이터로 프로젝트 필터링
+    Helper-->>Codex: 세션 목록 반환 (N개, 총 SIZE)
+
+    Codex->>Developer: 복원 범위 선택 (최근 N / 기간 / 전체)
+    Developer->>Codex: "최근 10개 세션" 선택
+
+    note over Codex, Helper: [Phase 1: 복원 처리]
+    Codex->>Helper: codex-history.mjs restore --vault ... --recent 10 실행
+
+    loop 각 rollout 파일
+        Helper->>CodexData: rollout JSONL 파일 읽기
+        note over Helper: JSONL 라인별 파싱<br/>(user message, tool_call, plan 등)
+        note over Helper: 사용자 메시지 추출, 도구 사용 내역 수집
+        Helper->>LocalFS: YYYY-MM-DD_{slug}.md 저장
+    end
+
+    Helper->>Git: 복원된 문서 커밋
+    Helper-->>Codex: 복원 결과 반환
+
+    Codex-->>Developer: "10개 Codex 세션 기록이 볼트에 복원되었습니다."
+```

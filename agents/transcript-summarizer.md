@@ -36,18 +36,48 @@ You receive transcript content and session metadata as input, and you produce st
 
 ## Input Format
 
-You receive two types of input:
+You receive three types of input:
 
-1. **SESSION METADATA** — metadata from history.jsonl:
+1. **SESSION METADATA** — metadata from history.jsonl (Claude Code) or extracted from rollout filenames (Codex):
    - sessionId, timestamps, user prompt previews
 
-2. **TRANSCRIPT CONTENT** — raw JSONL lines, one JSON object per line.
-   Each line may have these types:
+2. **SOURCE FORMAT** — specifies which AI tool generated the transcript:
+   - `"claude-code"` — Claude Code transcript format
+   - `"codex"` — Codex CLI rollout format
+
+3. **TRANSCRIPT CONTENT** — raw JSONL lines, one JSON object per line.
+
+### Claude Code Format
+
+Each line may have these types:
    - `type: "human"` — User messages with `message.content` containing text
    - `type: "assistant"` — Assistant responses with `message.content` array
    - `type: "tool_use"` — Tool invocations with tool name and input
    - `type: "tool_result"` — Tool execution results
    - Lines with no `type` field or metadata-only types should be ignored
+
+### Codex CLI Format
+
+Each line is an independent JSON object. Handle defensively — unknown formats should be silently skipped to ensure forward compatibility as the Codex schema evolves.
+
+Known line structures:
+   - `{ "type": "message", "role": "user", "content": [{"type": "input_text", "text": "..."}] }` — User message (array content)
+   - `{ "type": "message", "role": "user", "content": "..." }` — User message (string content)
+   - `{ "role": "user", "content": [...] }` — User message (no explicit type field)
+   - `{ "type": "message", "role": "assistant", "content": [...] }` — Assistant response
+   - `{ "role": "assistant", "content": [...] }` — Assistant response (no explicit type)
+   - `{ "type": "tool_call", "tool": "...", ... }` — Tool invocation
+   - `{ "type": "function_call", "name": "...", ... }` — Legacy function call format
+   - `{ "tool_calls": [{"function": {"name": "...", "arguments": "..."}, ...}] }` — Tool calls array
+   - `{ "type": "execution_result", "tool": "...", "output": "..." }` — Tool execution result
+   - `{ "type": "plan", "id": "...", "text": "..." }` — Agent plan step
+
+**Content extraction rules for Codex**:
+- If `content` is a string, use it directly
+- If `content` is an array, iterate and extract:
+  - `part.text` if present
+  - `part.type === "input_text"` → use `part.text`
+- If the line has `tool_calls` array, extract tool names from `tc.function.name` or `tc.tool` or `tc.name`
 
 ## RESPONSE FORMAT
 
