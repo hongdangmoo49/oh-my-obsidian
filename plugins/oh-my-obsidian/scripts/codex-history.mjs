@@ -352,6 +352,7 @@ async function updateCatalogWithRestoredSessions(vaultPath, sessionFileMap) {
   }
 
   catalog.updatedAt = nowIso();
+  catalog.stats = catalog.stats || {};
   catalog.stats.documentedSessions = (catalog.sessions || []).filter((s) => s.documentGenerated).length;
 
   try {
