@@ -253,7 +253,10 @@ export function parseRolloutFile(rawContent, meta, options = {}) {
     if (obj.tool_calls && Array.isArray(obj.tool_calls)) {
       for (const tc of obj.tool_calls) {
         const name = tc.function?.name || tc.tool || tc.name || "";
-        if (name) toolsUsed.add(name);
+        if (name) {
+          toolsUsed.add(name);
+          currentToolName = name;
+        }
       }
     }
 
