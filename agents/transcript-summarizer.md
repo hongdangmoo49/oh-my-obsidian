@@ -34,7 +34,34 @@ You receive transcript content and session metadata as input, and you produce st
 - You CANNOT use: Write, Edit, Bash
 - Only use tools when you need to understand what a referenced file contains to produce a better summary
 
-## Input Format
+## Input Formats
+
+You receive one of two input formats:
+
+### Format A: Pre-Extracted Data (preferred)
+
+The orchestrator has already performed mechanical extraction via a Node.js script.
+You receive a JSON array of pre-extracted session objects containing:
+- `firstUserMessage`, `lastUserMessage` (truncated) — for topic inference
+- `toolsUsed` — list of tool names used
+- `filesModified` — list of file paths modified
+- `filesRead` — list of file paths read
+- `errorSignals` — heuristic error patterns detected in tool results
+- `errorSignalCount` — number of error signals
+- `userMessageCount`, `assistantTurnCount` — conversation metrics
+- `isEmptySession` — whether the session has substantive content
+
+Your job is ONLY the judgment tasks:
+1. Determine `topic` from `firstUserMessage`
+2. Write 1-2 sentence `summary`
+3. Categorize based on `errorSignals` and `toolsUsed` patterns
+4. Extract `keyDecisions` (if any are implied by the conversation flow)
+5. Describe `errorsEncountered` from `errorSignals`
+
+DO NOT re-parse any raw JSONL. Trust the pre-extracted data.
+Pass through `filesModified` and `toolsUsed` as-is.
+
+### Format B: Raw JSONL (legacy)
 
 You receive three types of input:
 

@@ -81,127 +81,125 @@ If user selects "기간 지정" → ask for from/to dates via AskUserQuestion.
 
 ---
 
-## Phase 1: Session Discovery
+## Phase 1: Session Discovery & Catalog Build
 
-### 1.1 Claude Code Session Discovery (if HAS_CLAUDE_DATA)
+### 1.1 Derive Scope Arguments
 
-#### 1.1.1 Derive Project Hash
+Based on the user's scope selection, prepare CLI arguments:
+- Recent N: `--recent N`
+- Date range: `--from YYYY-MM-DD --to YYYY-MM-DD`
+- Current project: `--cwd <current directory>`
+- All: (no filter flags)
 
-Convert the current working directory to the Claude Code project hash:
-1. Replace all `\` with `/` (normalize to forward slashes)
-2. Replace all `/` and `:` with `-`
-- Example: `C:\Users\Admin\workspace\foo` → `C:/Users/Admin/workspace/foo` → `C--Users-Admin-workspace-foo`
+### 1.2 Build Session Catalog (NEW — zero LLM tokens)
 
-If user selected "전체 프로젝트", skip filtering and scan all project directories.
+Run the pre-extraction script to build the session catalog:
 
-#### 1.1.2 List Transcript Files
-
-For a specific project:
 ```bash
-ls -lh ~/.claude/projects/{hash}/*.jsonl 2>/dev/null
-```
-Note: exclude files inside `subagents/` subdirectories.
-
-For all projects:
-```bash
-find ~/.claude/projects/ -maxdepth 2 -name "*.jsonl" -not -path "*/subagents/*" 2>/dev/null
+node "${PLUGIN_ROOT}/plugins/oh-my-obsidian/scripts/transcript-preextract.mjs" scan \
+  --vault "$OBSIDIAN_VAULT" \
+  --source both \
+  [--recent N] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--cwd "$CURRENT_DIR"]
 ```
 
-#### 1.1.3 Cross-Reference with History
+This creates/updates `$OBSIDIAN_VAULT/.oh-my-obsidian/session-catalog.json` with
+pre-extracted metadata for ALL discovered sessions — without any LLM processing.
 
-Read `~/.claude/history.jsonl` (lightweight, safe to read in full).
-If the file does not exist, proceed without metadata (use file modification times only).
+Parse the JSON output. Key fields:
+- `totalSessions` — total sessions discovered
+- `claudeCodeSessions` — Claude Code session count
+- `codexSessions` — Codex session count
+- `emptySessions` — sessions with no substantive content
+- `documentedSessions` — sessions that already have vault documents
 
-Group entries by sessionId to get:
-- Timestamps for each session
-- User prompt previews
+If no sessions found (`totalSessions === 0`):
+- Print: "복원할 세션이 없습니다."
+- STOP.
 
-### 1.2 Codex Session Discovery (if HAS_CODEX_DATA)
+### 1.3 Browse Catalog & Select Sessions (NEW)
 
-#### 1.2.1 Resolve Codex Sessions Root
-
-Determine the Codex sessions directory with platform-aware logic:
-
-1. If `$CODEX_HOME` environment variable is set: `$CODEX_HOME/sessions/`
-2. Else use platform default:
-   - macOS / Linux / WSL: `~/.codex/sessions/`
-   - Windows native: `%USERPROFILE%\.codex\sessions\`
-
-#### 1.2.2 List Rollout Files
-
-Recursively scan the sessions root for `rollout-*.jsonl` files:
-```bash
-find "$CODEX_SESSIONS_ROOT" -name "rollout-*.jsonl" -type f 2>/dev/null
+Present the catalog summary to the user:
+```
+N개 세션 발견 (Claude Code: A개, Codex: B개).
+빈 세션: C개, 이미 문서 있는 세션: D개.
 ```
 
-On Windows:
-```powershell
-Get-ChildItem -Path "$CODEX_SESSIONS_ROOT" -Recurse -Filter "rollout-*.jsonl" | Select-Object FullName, Length, LastWriteTime
+Ask via AskUserQuestion:
+
+```json
+{
+  "questions": [{
+    "question": "카탈로그에서 문서를 생성할 세션을 선택하세요.",
+    "header": "세션 선택",
+    "multiSelect": false,
+    "options": [
+      {"label": "전체 생성", "description": "모든 N개 세션에 대해 문서를 생성합니다"},
+      {"label": "문서 미생성 세션만", "description": "아직 문서가 없는 세션만 생성합니다"},
+      {"label": "카탈로그만 유지", "description": "문서 생성 없이 카탈로그만 유지합니다"},
+      {"label": "세션별 선택", "description": "카탈로그를 보여주고 개별 세션을 선택합니다"}
+    ]
+  }]
+}
 ```
 
-The directory structure follows: `sessions/YYYY/MM/DD/rollout-YYYY-MM-DDTHH-MM-SS-*.jsonl`
+If "카탈로그만 유지" → skip to Phase 3 (finalization).
+If "세션별 선택" → read the catalog, show session list with dates and firstUserMessage,
+  then ask the user to specify which session numbers to process.
 
-#### 1.2.3 Extract Session Metadata
-
-For each rollout file, read the first few lines to extract:
-- CWD / working directory from metadata (`cwd`, `metadata.cwd`, `context.cwd`, `working_directory` fields)
-- First user message (for topic inference and preview)
-- Timestamp from the filename pattern
-
-**Codex project filtering**: Unlike Claude Code which uses a path-to-hash directory scheme, Codex stores all sessions in a flat date-based hierarchy. To filter by current project:
-- Parse each rollout file's metadata for CWD information
-- Compare against the current working directory (normalize path separators and drive letter casing)
-- If no CWD metadata is found, include the session by default (conservative approach)
-
-### 1.3 Filter by Scope
-
-Apply the user's scope selection to the combined Claude Code + Codex session list:
-- **Recent N**: sort by timestamp descending, take top N
-- **Date range**: filter by timestamp within [from, to]
-- **Current project**: already filtered by hash (Claude) or CWD (Codex)
-- **All**: no filter
-
-Skip files smaller than 1KB (trivially short sessions with no useful content).
+Record the selection as `SELECTED_SESSIONS`.
 
 ### 1.4 Confirm with User
 
-Present summary: "N개의 세션을 발견했습니다 (Claude Code: X개, Codex: Y개, 총 SIZE). 처리를 시작할까요?"
+Present summary: "N개의 세션에서 문서를 생성합니다. 처리를 시작할까요?"
 
 ---
 
 ## Phase 2: Batch Processing Loop
 
 **HARD LIMITS:**
-- Maximum 2 transcript files per batch
-- Maximum 300KB total per batch (Korean text has high token density)
-- If a single file exceeds 300KB, process it alone in one batch
+- Maximum 10 sessions per batch (pre-extracted data is compact, ~3-5KB each)
+- Maximum 50KB total pre-extracted data per batch
 
 ### For each batch:
 
-#### Step A: Read Transcript Files
+#### Step A: Read Pre-Extracted Data from Catalog
 
-Use the Read tool to read the next batch of transcript files.
-If a file is too large to read in one pass, read the first 300KB only and note truncation.
+Read `$OBSIDIAN_VAULT/.oh-my-obsidian/session-catalog.json` and extract the
+pre-extracted session data for the sessions in the current batch.
 
-#### Step B: Spawn Summarizer Subagent
+The pre-extracted data contains:
+- `firstUserMessage`, `lastUserMessage` — for topic inference
+- `toolsUsed` — tool names used in the session
+- `filesModified` — file paths modified
+- `errorSignals` — detected error patterns
+- `userMessageCount`, `assistantTurnCount`
+- `isEmptySession` — whether the session has substantive content
+
+No need to read raw JSONL files — all needed data is in the catalog.
+
+#### Step B: Spawn Summarizer Subagent (REDUCED INPUT)
 
 ```
 Agent(
-  description="세션 트랜스크립트 요약",
+  description="세션 사전 추출 데이터 요약",
   prompt="""
   You are the transcript-summarizer agent.
   Read your agent definition at ${CLAUDE_PLUGIN_ROOT}/agents/transcript-summarizer.md first.
 
-  SESSION METADATA:
-  {JSON with sessionId, timestamps, user prompts for this batch}
+  IMPORTANT: You are receiving PRE-EXTRACTED data (Format A), not raw JSONL.
+  The mechanical parsing has already been done by a Node.js script.
+  Focus ONLY on judgment tasks: topic, summary, categorization, decisions.
 
-  SOURCE FORMAT:
-  {"claude-code" or "codex" — determines how to parse the transcript lines}
-
-  TRANSCRIPT CONTENT:
-  {raw transcript content from the batch}
+  PRE-EXTRACTED SESSION DATA:
+  {JSON array of pre-extracted session objects from catalog, ~3-5KB each}
 
   For EACH session, generate a summary in the JSON format specified in your agent definition.
+  Use the pre-extracted data to inform your judgments:
+  - firstUserMessage → determine the topic
+  - errorSignals + toolsUsed → categorization (트러블슈팅 > 의사결정 > 세션기록)
+  - errorSignals → errorsEncountered
+  - filesModified → pass through as-is
+  - toolsUsed → pass through as-is
   Return ONLY the JSON object with sessions array.
   """,
   subagent_type="general-purpose"
@@ -228,7 +226,7 @@ topic: {topic}
 category: {category}
 participants: Claude + User
 sessionId: {sessionId}
-restoredFrom: transcript
+restoredFrom: pre-extracted
 ---
 
 # {topic}
@@ -257,9 +255,16 @@ restoredFrom: transcript
 ```
 
 5. If vault is a git repository, run: `git -C "$OBSIDIAN_VAULT" add "작업기록/{category}/YYYY-MM-DD_{slug}.md"`
-   If not a git repo, skip the git add step — files are still saved to disk.
+   If not a git repo, skip the git add step.
 
-#### Step D: Update Progress File
+#### Step D: Update Catalog
+
+For each generated document, update the session entry in `session-catalog.json`:
+- Set `documentGenerated: true`
+- Set `documentPath: "작업기록/{category}/YYYY-MM-DD_{slug}.md"`
+- Set `topic` and `category` from the LLM response
+
+#### Step E: Update Progress File
 
 Write to `$OBSIDIAN_VAULT/작업기록/.restore-progress.json`:
 
@@ -273,17 +278,18 @@ Write to `$OBSIDIAN_VAULT/작업기록/.restore-progress.json`:
   "processedSessions": ["sessionId1", "sessionId2"],
   "skippedSessions": [{"id": "sessionId", "reason": "empty"}],
   "generatedFiles": ["relative/path/to/file.md"],
+  "catalogBuilt": true,
   "status": "in_progress"
 }
 ```
 
-#### Step E: Report Progress
+#### Step F: Report Progress
 
 Print: "진행: X/N 세션 처리 완료 (세션기록: A, 의사결정: B, 트러블슈팅: C)"
 
-#### Step F: Loop
+#### Step G: Loop
 
-Continue to next batch until all sessions are processed.
+Continue to next batch until all selected sessions are processed.
 
 ---
 
@@ -296,7 +302,7 @@ Check if vault is a git repository: `git -C "$OBSIDIAN_VAULT" rev-parse --is-ins
 If git repo AND any files were generated:
 ```bash
 cd "$OBSIDIAN_VAULT"
-git add "작업기록/"
+git add "작업기록/" ".oh-my-obsidian/session-catalog.json"
 git commit -m "restore: N개 과거 세션 기록 복원"
 ```
 
@@ -326,10 +332,17 @@ Update status to "completed" first, then delete.
   - 의사결정: Y개
   - 트러블슈팅: Z개
 건너뛴 세션: W개 (내용 없음)
+카탈로그: session-catalog.json 업데이트됨
 ```
 
 If no sessions were found or all were empty:
 ```
 복원할 세션이 없습니다.
 지정한 범위에 처리 가능한 세션이 없습니다.
+```
+
+If user selected "카탈로그만 유지":
+```
+카탈로그가 생성되었습니다: N개 세션 메타데이터
+나중에 restore-history를 다시 실행하여 개별 세션의 문서를 생성할 수 있습니다.
 ```

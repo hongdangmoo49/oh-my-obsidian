@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promi
 import { basename, dirname, join, relative } from "node:path";
 import {
   basenameWithoutExtension,
+  catalogPath,
   contentHash,
   normalizeVaultRelativePath,
   pathExists,
@@ -113,6 +114,31 @@ async function recall() {
   if (!vault.ok) return vault;
 
   const keywords = uniqueValues(query.split(/\s+/).map((part) => part.trim().toLowerCase())).slice(0, 8);
+
+  // --- Step 1: Catalog search (fast path) ---
+  const catalog = await loadSessionCatalog(vault.vaultPath);
+  if (catalog) {
+    const catalogResults = scoreCatalogEntries(catalog.sessions || [], keywords);
+    if (catalogResults.length > 0) {
+      const expandedResults = await expandCatalogMatches(vault.vaultPath, catalogResults, keywords);
+      if (expandedResults.length > 0) {
+        expandedResults.sort((left, right) => {
+          if (right.score !== left.score) return right.score - left.score;
+          return (right.modifiedAt || "").localeCompare(left.modifiedAt || "");
+        });
+        return {
+          status: "ok",
+          action: "recall",
+          query,
+          source: "catalog",
+          results: expandedResults.slice(0, 10),
+          guidance: [],
+        };
+      }
+    }
+  }
+
+  // --- Step 2: Full vault walk (fallback) ---
   const files = await collectMarkdownFiles(vault.vaultPath);
   const results = [];
 
@@ -153,6 +179,7 @@ async function recall() {
     status: "ok",
     action: "recall",
     query,
+    source: "vault-walk",
     results: results.slice(0, 10),
     guidance: results.length === 0 ? ["Run the setup skill if the vault is empty or not configured."] : [],
   };
@@ -423,6 +450,110 @@ async function collectMarkdownFiles(rootDir) {
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Catalog helpers
+// ---------------------------------------------------------------------------
+
+async function loadSessionCatalog(vaultPath) {
+  const catPath = catalogPath(vaultPath);
+  if (!(await pathExists(catPath))) return null;
+  try {
+    return JSON.parse(await readFile(catPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function scoreCatalogEntries(sessions, keywords) {
+  const results = [];
+  for (const entry of sessions) {
+    if (entry.isEmptySession) continue;
+    let score = 0;
+
+    const topic = (entry.topic || "").toLowerCase();
+    const firstMsg = (entry.firstUserMessage || "").toLowerCase();
+    const files = (entry.filesModified || []).join(" ").toLowerCase();
+    const tools = (entry.toolsUsed || []).join(" ").toLowerCase();
+
+    for (const kw of keywords) {
+      if (!kw) continue;
+      if (topic.includes(kw)) score += 5;
+      if (firstMsg.includes(kw)) score += 3;
+      if (files.includes(kw)) score += 2;
+      if (tools.includes(kw)) score += 1;
+    }
+
+    if (score > 0) {
+      results.push({ ...entry, score });
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, 10);
+}
+
+async function expandCatalogMatches(vaultPath, catalogMatches, keywords) {
+  const results = [];
+
+  for (const match of catalogMatches) {
+    if (match.documentGenerated && match.documentPath) {
+      // Read the actual document for full excerpt
+      const docPath = join(vaultPath, match.documentPath.replace(/\\/g, "/"));
+      try {
+        const content = await readFile(docPath, "utf8");
+        const lowerContent = content.toLowerCase();
+        let firstHit = -1;
+        for (const kw of keywords) {
+          if (!kw) continue;
+          const hit = lowerContent.indexOf(kw);
+          if (hit >= 0 && (firstHit === -1 || hit < firstHit)) firstHit = hit;
+        }
+        const fileStat = await stat(docPath);
+        results.push({
+          path: match.documentPath,
+          category: match.category || classifyPath(match.documentPath),
+          type: extractTypeFromFrontmatter(content),
+          excerpt: extractExcerpt(content, firstHit),
+          score: match.score,
+          modifiedAt: fileStat.mtime.toISOString(),
+          source: "catalog+document",
+        });
+      } catch {
+        // Document might have been deleted; include catalog metadata only
+        results.push(buildCatalogOnlyResult(match));
+      }
+    } else {
+      // No document generated yet — return catalog metadata
+      results.push(buildCatalogOnlyResult(match));
+    }
+  }
+
+  return results;
+}
+
+function buildCatalogOnlyResult(entry) {
+  const lines = [
+    `date: ${entry.date || ""} ${entry.startTime || ""}`,
+    `source: ${entry.source || ""}`,
+    `firstUserMessage: ${entry.firstUserMessage || ""}`,
+    `tools: ${(entry.toolsUsed || []).join(", ")}`,
+    `files: ${(entry.filesModified || []).join(", ")}`,
+  ];
+  if (entry.errorSignalCount > 0) {
+    lines.push(`errors: ${(entry.errorSignals || []).slice(0, 3).join("; ")}`);
+  }
+  return {
+    path: entry.sourceFile || "",
+    category: entry.category || "",
+    type: null,
+    excerpt: lines.join("\n"),
+    score: entry.score,
+    modifiedAt: entry.date || "",
+    source: "catalog-only",
+    note: "이 세션은 아직 상세 문서가 생성되지 않았습니다.",
+  };
 }
 
 function extractExcerpt(content, firstHit) {

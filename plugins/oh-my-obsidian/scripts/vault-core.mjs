@@ -79,6 +79,10 @@ export function setupStatePath(vaultRoot) {
   return join(vaultRoot, ".oh-my-obsidian", "setup-state.json");
 }
 
+export function catalogPath(vaultRoot) {
+  return join(vaultRoot, ".oh-my-obsidian", "session-catalog.json");
+}
+
 export function normalizeVaultRelativePath(input) {
   if (typeof input !== "string" || input.length === 0) {
     throw new Error("relative path is required");
