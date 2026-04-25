@@ -294,7 +294,7 @@ async function restoreSessions() {
       await writeFile(finalPath, markdownContent, { encoding: "utf8", flag: "wx" });
       const relativePath = `작업기록/세션기록/${basename(finalPath)}`;
       generatedFiles.push(relativePath);
-      sessionFileMap.set(sessionMeta.fileName, relativePath);
+      sessionFileMap.set(sessionMeta.fileName, { relativePath, topic, category: "세션기록" });
       restored += 1;
     } catch (writeError) {
       skippedSessions.push({ fileName: sessionMeta.fileName, reason: `write error: ${writeError.message}` });
@@ -343,10 +343,12 @@ async function updateCatalogWithRestoredSessions(vaultPath, sessionFileMap) {
   let updatedCount = 0;
   for (const entry of catalog.sessions || []) {
     if (entry.source !== "codex") continue;
-    const docPath = sessionFileMap.get(entry.sourceFile);
-    if (docPath) {
+    const restoreInfo = sessionFileMap.get(entry.sourceFile);
+    if (restoreInfo) {
       entry.documentGenerated = true;
-      entry.documentPath = docPath;
+      entry.documentPath = restoreInfo.relativePath;
+      entry.topic = restoreInfo.topic;
+      entry.category = restoreInfo.category;
       updatedCount += 1;
     }
   }
