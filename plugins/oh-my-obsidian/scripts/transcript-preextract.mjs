@@ -13,6 +13,8 @@
  */
 
 import { readFile, stat, readdir } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import * as readline from "node:readline";
 import { basename, dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import {
@@ -200,19 +202,12 @@ async function loadClaudeCodeHistory() {
 
 /**
  * Full async pre-extraction for Claude Code session.
+ * Uses readline streaming to avoid loading the entire file into memory.
  */
 async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatResult) {
   const fileName = basename(filePath);
   const sessionId = fileName.replace(/\.jsonl$/, "");
 
-  let rawContent;
-  try {
-    rawContent = await readFile(filePath, "utf8");
-  } catch {
-    return null;
-  }
-
-  const lines = rawContent.split("\n").filter((l) => l.trim());
   const userMessages = [];
   const toolsUsed = new Set();
   const filesModified = new Set();
@@ -222,7 +217,13 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
   let currentToolName = "";
   let sessionCwd = "";
 
-  for (const line of lines) {
+  const rl = readline.createInterface({
+    input: createReadStream(filePath, { encoding: "utf8" }),
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of rl) {
+    if (!line.trim()) continue;
     let obj;
     try {
       obj = JSON.parse(line);
@@ -325,7 +326,7 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
     startTime,
     endTime,
     projectCwd: sessionCwd,
-    sizeBytes: fileStatResult ? fileStatResult.size : rawContent.length,
+    sizeBytes: fileStatResult ? fileStatResult.size : 0,
     userMessageCount: userMessages.length,
     assistantTurnCount,
     firstUserMessage,
