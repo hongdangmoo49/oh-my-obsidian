@@ -29,6 +29,10 @@ import {
   resolveSessionsRoot as resolveCodexSessionsRoot,
   detectPlatformLabel,
   humanFileSize,
+  scanErrorSignals,
+  MAX_ERROR_SIGNALS,
+  ERROR_PATTERNS,
+  SEARCH_TOOLS,
 } from "./parse-codex-rollout.mjs";
 
 // ---------------------------------------------------------------------------
@@ -36,28 +40,9 @@ import {
 // ---------------------------------------------------------------------------
 
 const CATALOG_SCHEMA = "oh-my-obsidian/session-catalog/v1";
-const MAX_ERROR_SIGNALS = 10;
-const ERROR_SIGNAL_TRUNCATE = 120;
 const USER_MSG_TRUNCATE = 200;
 const FIRST_MSG_TRUNCATE = 300;
 const LAST_MSG_TRUNCATE = 200;
-
-const ERROR_PATTERNS = [
-  /\berror\b/i,
-  /\bfail(?:ed|ure)?\b/i,
-  /\bexception\b/i,
-  /\btraceback\b/i,
-  /\bcannot find\b/i,
-  /\bENOENT\b/i,
-  /\bSyntaxError\b/i,
-  /\bsyntax error\b/i,
-  /\bTypeError\b/i,
-  /\bReferenceError\b/i,
-  /\bRangeError\b/i,
-  /\bexit code [1-9]/i,
-];
-
-const SEARCH_TOOLS = new Set(["grep", "Grep", "Glob", "glob", "rg", "find"]);
 
 // ---------------------------------------------------------------------------
 // CLI entry
@@ -216,16 +201,9 @@ async function loadClaudeCodeHistory() {
 /**
  * Full async pre-extraction for Claude Code session.
  */
-async function preextractClaudeCodeSessionAsync(filePath, historyMeta) {
+async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatResult) {
   const fileName = basename(filePath);
   const sessionId = fileName.replace(/\.jsonl$/, "");
-
-  let fileStatResult;
-  try {
-    fileStatResult = await stat(filePath);
-  } catch {
-    return null;
-  }
 
   let rawContent;
   try {
@@ -302,7 +280,7 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta) {
   }
 
   const substantiveMessages = userMessages.filter((m) => m.text.length >= 10);
-  const isEmptySession = substantiveMessages.length < 2;
+  const isEmptySession = substantiveMessages.length < 3;
 
   // Determine date/time
   let date = "";
@@ -369,21 +347,20 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta) {
 // Codex JSONL pre-extraction
 // ---------------------------------------------------------------------------
 
-async function preextractCodexSession(filePath) {
-  const meta = await extractRolloutMeta(filePath);
+async function preextractCodexSession(filePath, fileStatResult) {
+  const meta = await extractRolloutMeta(filePath, {
+    fileStat: fileStatResult,
+    includeRawContent: true,
+  });
   if (!meta) return null;
 
-  let rawContent;
-  try {
-    rawContent = await readFile(filePath, "utf8");
-  } catch {
-    return null;
-  }
-
-  const parsed = parseRolloutFile(rawContent, meta);
+  const errorSignals = [];
+  const parsed = parseRolloutFile(meta.rawContent, meta, {
+    errorSignalAccumulator: errorSignals,
+  });
 
   const substantiveMessages = parsed.userMessages.filter((m) => m.text.length >= 10);
-  const isEmptySession = substantiveMessages.length < 2;
+  const isEmptySession = substantiveMessages.length < 3;
 
   // Derive ID from filename
   const sessionId = meta.fileName.replace(/\.jsonl$/, "");
@@ -394,25 +371,6 @@ async function preextractCodexSession(filePath) {
   const lastUserMessage = parsed.userMessages.length > 0
     ? parsed.userMessages[parsed.userMessages.length - 1].text.slice(0, LAST_MSG_TRUNCATE)
     : "";
-
-  // Scan for error signals in tool results
-  const errorSignals = [];
-  let currentToolName = "";
-  for (const line of rawContent.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const obj = JSON.parse(line);
-      if (obj.type === "tool_call" || obj.type === "function_call") {
-        currentToolName = obj.tool || obj.name || "";
-      }
-      if (obj.type === "execution_result" && !SEARCH_TOOLS.has(currentToolName)) {
-        const output = obj.output || "";
-        if (output) scanErrorSignals(output, errorSignals);
-      }
-    } catch {
-      continue;
-    }
-  }
 
   return {
     id: sessionId,
@@ -533,7 +491,7 @@ async function scanAndBuildCatalog() {
           continue;
         }
 
-        const entry = await preextractClaudeCodeSessionAsync(filePath, historyMeta);
+        const entry = await preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStat);
         if (entry) {
           allEntries.push(entry);
           claudeCodeCount += 1;
@@ -559,7 +517,7 @@ async function scanAndBuildCatalog() {
           continue;
         }
 
-        const entry = await preextractCodexSession(filePath);
+        const entry = await preextractCodexSession(filePath, fileStat);
         if (entry) {
           allEntries.push(entry);
           codexCount += 1;
@@ -717,25 +675,6 @@ function extractClaudeCodeResultText(obj) {
   return "";
 }
 
-// ---------------------------------------------------------------------------
-// Error signal scanning
-// ---------------------------------------------------------------------------
-
-function scanErrorSignals(text, accumulator) {
-  if (accumulator.length >= MAX_ERROR_SIGNALS) return;
-
-  for (const line of text.split("\n")) {
-    if (accumulator.length >= MAX_ERROR_SIGNALS) break;
-    for (const pattern of ERROR_PATTERNS) {
-      if (pattern.test(line)) {
-        accumulator.push(line.trim().slice(0, ERROR_SIGNAL_TRUNCATE));
-        break; // One match per line is enough
-      }
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Utility
 // ---------------------------------------------------------------------------
 

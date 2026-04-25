@@ -17,7 +17,7 @@
 
 import { readFile, readdir, mkdir, writeFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { pathExists, writeJsonAtomic, catalogPath } from "./vault-core.mjs";
+import { pathExists, writeJsonAtomic, catalogPath, nowIso } from "./vault-core.mjs";
 import {
   discoverRolloutFiles,
   extractRolloutMeta,
@@ -351,7 +351,7 @@ async function updateCatalogWithRestoredSessions(vaultPath, sessionFileMap) {
     }
   }
 
-  catalog.updatedAt = new Date().toISOString();
+  catalog.updatedAt = nowIso();
   catalog.stats.documentedSessions = (catalog.sessions || []).filter((s) => s.documentGenerated).length;
 
   try {

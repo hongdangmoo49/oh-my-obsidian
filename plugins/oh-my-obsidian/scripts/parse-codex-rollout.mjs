@@ -67,6 +67,46 @@ export async function discoverRolloutFiles(sessionsRoot) {
 }
 
 // ---------------------------------------------------------------------------
+// Error signal detection (shared with transcript-preextract.mjs)
+// ---------------------------------------------------------------------------
+
+const MAX_ERROR_SIGNALS = 10;
+const ERROR_SIGNAL_TRUNCATE = 120;
+
+const ERROR_PATTERNS = [
+  /\berror\b/i,
+  /\bfail(?:ed|ure)?\b/i,
+  /\bexception\b/i,
+  /\btraceback\b/i,
+  /\bcannot find\b/i,
+  /\bENOENT\b/i,
+  /\bSyntaxError\b/i,
+  /\bsyntax error\b/i,
+  /\bTypeError\b/i,
+  /\bReferenceError\b/i,
+  /\bRangeError\b/i,
+  /\bexit code [1-9]/i,
+];
+
+const SEARCH_TOOLS = new Set(["grep", "Grep", "Glob", "glob", "rg", "find"]);
+
+export { MAX_ERROR_SIGNALS, ERROR_SIGNAL_TRUNCATE, ERROR_PATTERNS, SEARCH_TOOLS };
+
+export function scanErrorSignals(text, accumulator) {
+  if (accumulator.length >= MAX_ERROR_SIGNALS) return;
+
+  for (const line of text.split("\n")) {
+    if (accumulator.length >= MAX_ERROR_SIGNALS) break;
+    for (const pattern of ERROR_PATTERNS) {
+      if (pattern.test(line)) {
+        accumulator.push(line.trim().slice(0, ERROR_SIGNAL_TRUNCATE));
+        break; // One match per line is enough
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Metadata & content extraction helpers
 // ---------------------------------------------------------------------------
 
@@ -110,12 +150,14 @@ export function normalizeCwdForComparison(cwd) {
 // ---------------------------------------------------------------------------
 
 /**
- * Extract lightweight metadata from a rollout file.
- * Reads the full file but stops iterating lines once both firstUserMessage and sessionCwd are found.
+ * Extract metadata from a rollout file.
+ * Reads the file and iterates lines until both firstUserMessage and sessionCwd are found.
+ * Accepts optional pre-computed fileStat and returns rawContent when includeRawContent is true.
  */
-export async function extractRolloutMeta(filePath) {
+export async function extractRolloutMeta(filePath, options = {}) {
+  const { fileStat: providedStat, includeRawContent = false } = options;
   const fileName = basename(filePath);
-  const fileStat = await stat(filePath);
+  const fileStat = providedStat || await stat(filePath);
 
   const dateMatch = fileName.match(/^rollout-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})/);
   const dateStr = dateMatch
@@ -158,6 +200,7 @@ export async function extractRolloutMeta(filePath) {
     firstUserMessage: firstUserMessage.slice(0, 120),
     sessionCwd,
     lineCount: lines.filter((l) => l.trim()).length,
+    ...(includeRawContent ? { rawContent } : {}),
   };
 }
 
@@ -167,13 +210,17 @@ export async function extractRolloutMeta(filePath) {
 
 /**
  * Parse a complete rollout JSONL file into a structured session object.
+ * When options.errorSignalAccumulator is provided, error signals are collected
+ * during the same pass to avoid iterating the content twice.
  */
-export function parseRolloutFile(rawContent, meta) {
+export function parseRolloutFile(rawContent, meta, options = {}) {
+  const { errorSignalAccumulator = null } = options;
   const lines = rawContent.split("\n");
   const userMessages = [];
   const toolsUsed = new Set();
   const filesModified = new Set();
   let sessionCwd = meta.sessionCwd || "";
+  let currentToolName = "";
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -198,7 +245,10 @@ export function parseRolloutFile(rawContent, meta) {
 
     if (obj.type === "tool_call" || obj.type === "function_call") {
       const toolName = obj.tool || obj.name || obj.function?.name || "";
-      if (toolName) toolsUsed.add(toolName);
+      if (toolName) {
+        toolsUsed.add(toolName);
+        currentToolName = toolName;
+      }
     }
     if (obj.tool_calls && Array.isArray(obj.tool_calls)) {
       for (const tc of obj.tool_calls) {
@@ -212,6 +262,12 @@ export function parseRolloutFile(rawContent, meta) {
       if (path && (obj.tool === "filesystem_write" || obj.tool === "write" || obj.tool === "edit" || obj.tool === "create")) {
         filesModified.add(path);
       }
+    }
+
+    // Scan for error signals in execution results
+    if (errorSignalAccumulator && obj.type === "execution_result" && !SEARCH_TOOLS.has(currentToolName)) {
+      const output = obj.output || "";
+      if (output) scanErrorSignals(output, errorSignalAccumulator);
     }
   }
 
