@@ -240,7 +240,7 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
       const text = extractClaudeCodeText(obj.message);
       if (text) {
         userMessages.push({
-          text: text.slice(0, USER_MSG_TRUNCATE),
+          text: text.slice(0, FIRST_MSG_TRUNCATE),
           timestamp: obj.timestamp || "",
         });
       }
