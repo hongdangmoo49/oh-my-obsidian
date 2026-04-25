@@ -289,13 +289,13 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
 
   if (historyMeta?.timestamp) {
     const d = new Date(historyMeta.timestamp);
-    date = d.toISOString().slice(0, 10);
-    startTime = d.toISOString().slice(11, 16);
+    date = localDateStr(d);
+    startTime = localTimeStr(d);
   }
 
   if (!date && fileStatResult) {
-    date = fileStatResult.mtime.toISOString().slice(0, 10);
-    startTime = fileStatResult.mtime.toISOString().slice(11, 16);
+    date = localDateStr(fileStatResult.mtime);
+    startTime = localTimeStr(fileStatResult.mtime);
   }
 
   // Try to compute endTime from last user message timestamp
@@ -303,7 +303,7 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
     const lastTs = userMessages[userMessages.length - 1].timestamp;
     if (lastTs) {
       try {
-        endTime = new Date(lastTs).toISOString().slice(11, 16);
+        endTime = localTimeStr(new Date(lastTs));
       } catch {
         // ignore
       }
@@ -677,6 +677,14 @@ function extractClaudeCodeResultText(obj) {
 
 // Utility
 // ---------------------------------------------------------------------------
+
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function localTimeStr(d) {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
