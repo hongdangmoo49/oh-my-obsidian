@@ -8,7 +8,8 @@
  */
 
 import { readFile, readdir, stat } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
+import * as readline from "node:readline";
 import { basename, join, resolve } from "node:path";
 import { homedir, platform } from "node:os";
 import { pathExists } from "./vault-core.mjs";
@@ -151,8 +152,9 @@ export function normalizeCwdForComparison(cwd) {
 
 /**
  * Extract metadata from a rollout file.
- * Reads the file and iterates lines until both firstUserMessage and sessionCwd are found.
- * Accepts optional pre-computed fileStat and returns rawContent when includeRawContent is true.
+ * When includeRawContent is false (default), uses readline streaming for memory efficiency.
+ * When includeRawContent is true, reads the full file for caller reuse.
+ * Accepts optional pre-computed fileStat.
  */
 export async function extractRolloutMeta(filePath, options = {}) {
   const { fileStat: providedStat, includeRawContent = false } = options;
@@ -169,23 +171,61 @@ export async function extractRolloutMeta(filePath, options = {}) {
 
   let firstUserMessage = "";
   let sessionCwd = "";
-  let rawContent;
-  try {
-    rawContent = await readFile(filePath, "utf8");
-  } catch {
-    return null;
+
+  if (includeRawContent) {
+    // Full content needed by caller — read entire file
+    let rawContent;
+    try {
+      rawContent = await readFile(filePath, "utf8");
+    } catch {
+      return null;
+    }
+
+    const lines = rawContent.split("\n");
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (!sessionCwd) sessionCwd = extractCwd(obj);
+        if (!firstUserMessage && obj.role === "user") {
+          firstUserMessage = extractTextContent(obj);
+        }
+        if (firstUserMessage && sessionCwd) break;
+      } catch {
+        continue;
+      }
+    }
+
+    return {
+      filePath,
+      fileName,
+      date: dateStr,
+      time: timeStr,
+      sizeBytes: fileStat.size,
+      firstUserMessage: firstUserMessage.slice(0, 120),
+      sessionCwd,
+      lineCount: lines.filter((l) => l.trim()).length,
+      rawContent,
+    };
   }
 
-  const lines = rawContent.split("\n");
-  for (const line of lines) {
+  // Streaming: read line-by-line without loading entire file into memory
+  let lineCount = 0;
+  const rl = readline.createInterface({
+    input: createReadStream(filePath, { encoding: "utf8" }),
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of rl) {
     if (!line.trim()) continue;
+    lineCount += 1;
+    if (firstUserMessage && sessionCwd) continue; // skip parsing, just count
     try {
       const obj = JSON.parse(line);
       if (!sessionCwd) sessionCwd = extractCwd(obj);
       if (!firstUserMessage && obj.role === "user") {
         firstUserMessage = extractTextContent(obj);
       }
-      if (firstUserMessage && sessionCwd) break;
     } catch {
       continue;
     }
@@ -199,8 +239,7 @@ export async function extractRolloutMeta(filePath, options = {}) {
     sizeBytes: fileStat.size,
     firstUserMessage: firstUserMessage.slice(0, 120),
     sessionCwd,
-    lineCount: lines.filter((l) => l.trim()).length,
-    ...(includeRawContent ? { rawContent } : {}),
+    lineCount,
   };
 }
 
