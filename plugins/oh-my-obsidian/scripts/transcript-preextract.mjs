@@ -280,7 +280,7 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
   }
 
   const substantiveMessages = userMessages.filter((m) => m.text.length >= 10);
-  const isEmptySession = substantiveMessages.length < 3;
+  const isEmptySession = substantiveMessages.length < 1;
 
   // Determine date/time
   let date = "";
@@ -360,7 +360,7 @@ async function preextractCodexSession(filePath, fileStatResult) {
   });
 
   const substantiveMessages = parsed.userMessages.filter((m) => m.text.length >= 10);
-  const isEmptySession = substantiveMessages.length < 3;
+  const isEmptySession = substantiveMessages.length < 1;
 
   // Derive ID from filename
   const sessionId = meta.fileName.replace(/\.jsonl$/, "");
