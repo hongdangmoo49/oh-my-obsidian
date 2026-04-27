@@ -104,14 +104,17 @@ install official Codex hooks after vault validation.
 Recommended project-local plan:
 
 ```bash
-node plugins/oh-my-obsidian/scripts/codex-hooks.mjs plan --mode repo-local --repo-root . --vault "$OBSIDIAN_VAULT"
+node plugins/oh-my-obsidian/scripts/codex-hooks.mjs plan --mode repo-local --repo-root /path/to/project --vault /path/to/project-vault
 ```
 
 Apply after explicit approval:
 
 ```bash
-node plugins/oh-my-obsidian/scripts/codex-hooks.mjs apply --mode repo-local --repo-root . --vault "$OBSIDIAN_VAULT"
+node plugins/oh-my-obsidian/scripts/codex-hooks.mjs apply --mode repo-local --repo-root /path/to/project --vault /path/to/project-vault
 ```
+
+The setup skill passes the selected vault path directly. Users do not need to
+set `OBSIDIAN_VAULT` before installing repo-local hooks.
 
 Install modes:
 
