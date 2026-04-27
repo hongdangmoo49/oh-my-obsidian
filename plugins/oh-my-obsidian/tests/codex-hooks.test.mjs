@@ -15,34 +15,32 @@ async function makeFixture() {
   };
 }
 
-async function seedSetupState(vaultPath) {
+async function seedSetupState(vaultPath, overrides = {}) {
   const vaultRealPath = await realpath(vaultPath);
+  const state = {
+    schema: "oh-my-obsidian/setup-state/v1",
+    status: "complete",
+    pluginVersion: "0.2.0",
+    createdAt: "2026-04-27T00:00:00.000Z",
+    updatedAt: "2026-04-27T00:00:00.000Z",
+    projectName: "Demo Project",
+    vaultPath,
+    vaultRealPath,
+    knowledgeDomains: ["API", "Infra"],
+    preflight: { status: "installed" },
+    envVar: { name: "OBSIDIAN_VAULT", expectedValue: vaultPath, currentProcessMatches: true },
+    codexConfigPointer: { created: false },
+    git: { requested: "skip", initialized: false, committed: false, issues: [] },
+    obsidianGit: { choice: "skip", preset: "skip", installed: false, enabled: false, status: "skipped" },
+    codexHooks: { enabled: false, status: "not-installed", mode: "repo-local", events: [] },
+    hookPreview: { enabled: false, status: "legacy-not-installed" },
+    managedArtifacts: [],
+    ...overrides,
+  };
   await mkdir(join(vaultPath, ".oh-my-obsidian"), { recursive: true });
   await writeFile(
     join(vaultPath, ".oh-my-obsidian", "setup-state.json"),
-    `${JSON.stringify(
-      {
-        schema: "oh-my-obsidian/setup-state/v1",
-        status: "complete",
-        pluginVersion: "0.2.0",
-        createdAt: "2026-04-27T00:00:00.000Z",
-        updatedAt: "2026-04-27T00:00:00.000Z",
-        projectName: "Demo Project",
-        vaultPath,
-        vaultRealPath,
-        knowledgeDomains: ["API", "Infra"],
-        preflight: { status: "installed" },
-        envVar: { name: "OBSIDIAN_VAULT", expectedValue: vaultPath, currentProcessMatches: true },
-        codexConfigPointer: { created: false },
-        git: { requested: "skip", initialized: false, committed: false, issues: [] },
-        obsidianGit: { choice: "skip", preset: "skip", installed: false, enabled: false, status: "skipped" },
-        codexHooks: { enabled: false, status: "not-installed", mode: "repo-local", events: [] },
-        hookPreview: { enabled: false, status: "legacy-not-installed" },
-        managedArtifacts: [],
-      },
-      null,
-      2
-    )}\n`,
+    `${JSON.stringify(state, null, 2)}\n`,
     "utf8"
   );
 }
@@ -220,6 +218,56 @@ test("invalid hooks.json and invalid config.toml fail without overwriting existi
     assert.equal(run.result.status, 1);
     assert.equal(await readFile(join(repoRoot, ".codex", "hooks.json"), "utf8"), "{invalid json\n");
     assert.equal(await readFile(join(repoRoot, ".codex", "config.toml"), "utf8"), "[features\ncodex_hooks = false\n");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("repo-local hooks complete resolver-only setup state, normalize Git root, and ignore personal pointer", async () => {
+  const fixture = await makeFixture();
+  try {
+    const repoRoot = join(fixture.root, "repo");
+    const repoSubdir = join(repoRoot, "packages", "app");
+    const vaultPath = join(fixture.root, "vault");
+    await mkdir(repoSubdir, { recursive: true });
+    const gitInit = spawnSync("git", ["-C", repoRoot, "init"], { encoding: "utf8" });
+    assert.equal(gitInit.status, 0, gitInit.stderr || gitInit.stdout);
+    await mkdir(join(repoRoot, ".codex"), { recursive: true });
+    await writeFile(join(repoRoot, ".codex", ".gitignore"), "# existing local ignores\n", "utf8");
+    await mkdir(vaultPath, { recursive: true });
+    await writeFile(join(vaultPath, "README.md"), "# Demo\n", "utf8");
+    await seedSetupState(vaultPath, {
+      status: "action_required_env",
+      envVar: { name: "OBSIDIAN_VAULT", expectedValue: vaultPath, currentProcessMatches: false },
+      managedArtifacts: [
+        { relativePath: ".oh-my-obsidian", kind: "dir", applied: true },
+        { relativePath: ".oh-my-obsidian/setup-state.json", kind: "config", applied: true },
+        { relativePath: "README.md", kind: "file", applied: true },
+      ],
+    });
+
+    let run = runHooks(["plan", "--mode", "repo-local", "--repo-root", repoSubdir, "--vault", vaultPath]);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
+    assert.equal(run.output.status, "planned");
+    assert.equal(run.output.repoRoot, repoRoot);
+    assert.equal(run.output.completesSetupState, true);
+    assert.match(run.output.nextGitignore, /oh-my-obsidian\.local\.json/);
+
+    run = runHooks(["apply", "--mode", "repo-local", "--repo-root", repoSubdir, "--vault", vaultPath]);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
+    assert.equal(run.output.status, "applied");
+    assert.equal(run.output.repoRoot, repoRoot);
+
+    const state = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
+    assert.equal(state.status, "complete");
+    assert.equal(state.codexHooks.enabled, true);
+    const gitignore = await readFile(join(repoRoot, ".codex", ".gitignore"), "utf8");
+    assert.match(gitignore, /# existing local ignores/);
+    assert.match(gitignore, /^oh-my-obsidian\.local\.json$/m);
+    const ignored = spawnSync("git", ["-C", repoRoot, "check-ignore", ".codex/oh-my-obsidian.local.json"], {
+      encoding: "utf8",
+    });
+    assert.equal(ignored.status, 0, ignored.stderr || ignored.stdout);
   } finally {
     await fixture.cleanup();
   }

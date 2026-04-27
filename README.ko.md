@@ -260,6 +260,10 @@ Codex의 후속 skill들은 vault를 찾을 때 명시적 `OBSIDIAN_VAULT`를 �
 `~/.codex/oh-my-obsidian.local.json`), 마지막으로 승인된 optional config
 pointer `~/.oh-my-obsidian/config.json`을 사용합니다.
 
+초보자용 Codex 경로에서는 권장 repo-local hooks setup이 project-local
+pointer를 만들고 `<repo>/.codex/.gitignore`로 보호하므로, 개인별 vault
+절대경로가 커밋되지 않으며 사용자가 먼저 환경변수를 설정할 필요가 없습니다.
+
 ## 권한 경계
 
 Claude Code와 Codex 흐름 모두 다음 작업 전에는 명시적 승인이 필요합니다:

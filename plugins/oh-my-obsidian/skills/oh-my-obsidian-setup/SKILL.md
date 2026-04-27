@@ -134,16 +134,20 @@ Guidance by question type:
 
 4. Dry run.
    - Run `setup-vault.mjs dry-run --preflight-json "<saved-json-or-file>"`.
-   - Present planned artifacts, approvals still required, and whether resolver
-     completion needs `OBSIDIAN_VAULT` or an approved config pointer.
+   - Present planned artifacts and approvals still required.
+   - If resolver completion is missing, prefer the official repo-local Codex
+     hooks step later in this flow instead of asking beginners to configure
+     `OBSIDIAN_VAULT` or a global config pointer first.
 
 5. Apply after approval.
    - Run `setup-vault.mjs apply --preflight-json "<saved-json-or-file>"`.
    - Add `--create-config-pointer` only if the user approved that pointer.
    - Add `--git init` only if the user approved git initialization.
    - Do not add `--git init` if preflight reported `git.status != "usable"`.
-   - If the result is `action_required_env`, show exact environment steps and do
-     not call the setup complete.
+   - If the result is `action_required_env`, explain that vault files are ready
+     but Codex still needs a project-local connection. Continue to the Codex
+     hooks choice unless the user explicitly wants to stop or configure
+     `OBSIDIAN_VAULT` manually.
 
 6. Obsidian Git choice.
    - Offer `safe`, `manual`, `team-sync`, or `skip`.
@@ -169,13 +173,19 @@ Guidance by question type:
    - Recommend `repo-local` because oh-my-obsidian is designed around a
      project-specific vault.
    - Offer `repo-local`, `user-global`, `skip for now`, or `direct input`.
-   - For `repo-local`, run:
-     `node scripts/codex-hooks.mjs plan --mode repo-local --repo-root "<current-working-dir>" --vault "<vault-path>"`
+   - For `repo-local`, run from the user's project directory or pass that
+     directory with `--repo-root`; the helper normalizes it to the Git worktree
+     root:
+     `node scripts/codex-hooks.mjs plan --mode repo-local --repo-root "<project-directory>" --vault "<vault-path>"`
    - For `user-global`, run:
      `node scripts/codex-hooks.mjs plan --mode user-global --vault "<vault-path>"`
    - Summarize that `config.toml` enables `[features].codex_hooks = true`,
-     `hooks.json` stores the `SessionStart` and `Stop` command hooks, and
-     `.codex/oh-my-obsidian.local.json` stores the approved vault pointer.
+     `hooks.json` stores the `SessionStart` and `Stop` command hooks,
+     `.codex/oh-my-obsidian.local.json` stores the user's approved vault
+     pointer, and `.codex/.gitignore` prevents that machine-specific pointer
+     from being committed.
+   - If setup-state is `action_required_env` only because no resolver exists,
+     repo-local hooks may complete setup by creating this project-local pointer.
    - Mention that repo-local hooks only run when Codex trusts the project
      `.codex/` layer.
    - Apply only after explicit approval.

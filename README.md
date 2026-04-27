@@ -262,6 +262,11 @@ first, then approved Codex hook pointers (`<repo>/.codex/oh-my-obsidian.local.js
 and `~/.codex/oh-my-obsidian.local.json`), then the optional approved config
 pointer at `~/.oh-my-obsidian/config.json`.
 
+For the beginner Codex path, the recommended repo-local hooks setup creates the
+project-local pointer and protects it with `<repo>/.codex/.gitignore`, so
+machine-specific vault paths are not committed and users do not need to configure
+environment variables first.
+
 ## Permission Boundaries
 
 Both Claude Code and Codex flows require explicit approval before:

@@ -9,6 +9,7 @@ import {
   CODEX_HOOKS_POINTER_SCHEMA,
   SETUP_STATE_SCHEMA,
   expandHome,
+  normalizeVaultRelativePath,
   nowIso,
   pathExists,
   readJsonObjectIfExists,
@@ -90,9 +91,7 @@ function legacyScopeToMode(scope) {
 
 async function buildPlan(options = {}) {
   const target = await buildTarget();
-  const issues = [];
-  const gitIssue = repoLocalGitIssue(target.repoRoot);
-  if (gitIssue) issues.push(gitIssue);
+  const issues = [...target.issues];
   const vault = await resolveVaultForInstall(issues);
 
   const hookReadIssues = [];
@@ -100,10 +99,17 @@ async function buildPlan(options = {}) {
     (await readJsonObjectNoSymlinkIfExists(target.hooksConfigPath, "hooks.json", hookReadIssues, false)) || { hooks: {} };
   const configReadIssues = [];
   const currentConfigToml = await readOptionalTextNoSymlink(target.configTomlPath, configReadIssues);
+  const gitignoreReadIssues = [];
+  const currentGitignore = target.gitignorePath
+    ? await readOptionalTextNoSymlink(target.gitignorePath, gitignoreReadIssues)
+    : "";
   const currentPointer = await readJsonObjectNoSymlinkIfExists(target.pointerPath, "oh-my-obsidian Codex pointer", issues, false);
 
   const hooksMerge = hookReadIssues.length === 0 ? mergeHooksConfig(currentHooksConfig, target.commands) : null;
   const tomlMerge = configReadIssues.length === 0 ? mergeFeatureFlag(currentConfigToml) : null;
+  const gitignoreMerge = target.gitignorePath && gitignoreReadIssues.length === 0
+    ? mergeGitignore(currentGitignore)
+    : null;
   const pointerValue =
     hookReadIssues.length === 0 && issues.length === 0 && vault.ok
       ? buildPointerValue(target, vault, currentPointer)
@@ -111,8 +117,10 @@ async function buildPlan(options = {}) {
 
   if (hookReadIssues.length) issues.push(...hookReadIssues);
   if (configReadIssues.length) issues.push(...configReadIssues);
+  if (gitignoreReadIssues.length) issues.push(...gitignoreReadIssues);
   if (hooksMerge?.issues?.length) issues.push(...hooksMerge.issues);
   if (tomlMerge?.issues?.length) issues.push(...tomlMerge.issues);
+  if (gitignoreMerge?.issues?.length) issues.push(...gitignoreMerge.issues);
   if (!vault.ok) issues.push(...vault.issues);
 
   const status = issues.length > 0 ? "failed" : options.afterApply ? "installed" : "planned";
@@ -128,14 +136,18 @@ async function buildPlan(options = {}) {
     hooksConfigPath: target.hooksConfigPath,
     runnerPath: target.runnerPath,
     pointerPath: target.pointerPath,
+    gitignorePath: target.gitignorePath,
     commands: target.commands,
     nextConfigToml: tomlMerge?.nextText ?? currentConfigToml,
     nextHooksConfig: hooksMerge?.nextConfig || currentHooksConfig,
+    nextGitignore: gitignoreMerge?.nextText ?? currentGitignore,
     nextPointer: pointerValue || currentPointer || null,
+    completesSetupState: Boolean(vault.completesSetupState),
     diff: describeDiff({
       target,
       hooksMerge,
       tomlMerge,
+      gitignoreMerge,
       currentPointer,
       pointerValue,
     }),
@@ -154,7 +166,9 @@ async function buildPlan(options = {}) {
 }
 
 async function buildTarget() {
-  const repoRoot = resolve(expandHome(args.repoRoot, args.home));
+  const requestedRepoRoot = resolve(expandHome(args.repoRoot, args.home));
+  const gitRoot = resolveRepoLocalGitRoot(requestedRepoRoot);
+  const repoRoot = args.mode === "repo-local" && gitRoot.repoRoot ? gitRoot.repoRoot : requestedRepoRoot;
   const homeRoot = resolve(expandHome(args.home, args.home));
   const base = args.mode === "repo-local" ? join(repoRoot, ".codex") : join(homeRoot, ".codex");
   const runnerPath = join(base, "hooks", "oh-my-obsidian", "codex-hook-runner.mjs");
@@ -165,11 +179,14 @@ async function buildTarget() {
   return {
     scope: args.mode === "repo-local" ? "repo" : "home",
     repoRoot,
+    requestedRepoRoot,
     configTomlPath: join(base, "config.toml"),
     hooksConfigPath: join(base, "hooks.json"),
     runnerPath,
     pointerPath: join(base, "oh-my-obsidian.local.json"),
+    gitignorePath: args.mode === "repo-local" ? join(base, ".gitignore") : "",
     commands,
+    issues: gitRoot.issue ? [gitRoot.issue] : [],
   };
 }
 
@@ -191,27 +208,39 @@ async function resolveVaultForInstall(issues) {
   if (state.schema !== SETUP_STATE_SCHEMA) {
     return { ok: false, vaultPath, vaultRealPath, issues: ["setup-state schema mismatch"] };
   }
-  if (state.status !== "complete") {
+  const completesSetupState = await setupCanBeCompletedByCodexHooks(state, vaultRealPath);
+  if (state.status !== "complete" && !completesSetupState) {
     return { ok: false, vaultPath, vaultRealPath, issues: [`setup-state must be complete before installing Codex hooks, got ${state.status || "unknown"}`] };
   }
   if (state.vaultRealPath !== vaultRealPath) {
     return { ok: false, vaultPath, vaultRealPath, issues: ["setup-state vaultRealPath does not match vault path"] };
   }
 
-  return { ok: true, vaultPath, vaultRealPath, setupStatePath: statePath, setupState: state, issues: [] };
+  return { ok: true, vaultPath, vaultRealPath, setupStatePath: statePath, setupState: state, completesSetupState, issues: [] };
 }
 
-function repoLocalGitIssue(repoRoot) {
-  if (args.mode !== "repo-local") return "";
+function resolveRepoLocalGitRoot(repoRoot) {
+  if (args.mode !== "repo-local") return { repoRoot, issue: "" };
   const result = spawnSync("git", ["-C", repoRoot, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
   if (result.status !== 0) {
-    return `repo-local Codex hooks require --repo-root to be inside a Git worktree: ${result.stderr || result.stdout}`.trim();
+    return {
+      repoRoot,
+      issue: `repo-local Codex hooks require --repo-root to be inside a Git worktree: ${result.stderr || result.stdout}`.trim(),
+    };
   }
-  const topLevel = resolve(result.stdout.trim());
-  if (topLevel !== repoRoot) {
-    return `repo-local Codex hooks must be installed from the Git worktree root: ${topLevel}`;
+  return { repoRoot: resolve(result.stdout.trim()), issue: "" };
+}
+
+async function setupCanBeCompletedByCodexHooks(state, vaultRealPath) {
+  if (state.status !== "action_required_env") return false;
+  const artifacts = Array.isArray(state.managedArtifacts) ? state.managedArtifacts : [];
+  if (artifacts.length === 0 || !artifacts.every((entry) => entry.applied === true)) return false;
+  for (const entry of artifacts) {
+    const relativePath = normalizeVaultRelativePath(entry.relativePath || "");
+    const targetPath = join(vaultRealPath, ...relativePath.split("/"));
+    if (!(await pathExists(targetPath))) return false;
   }
-  return "";
+  return true;
 }
 
 function buildPointerValue(target, vault, currentPointer) {
@@ -238,12 +267,15 @@ function buildPointerValue(target, vault, currentPointer) {
 }
 
 async function applyPlan(plan) {
-  for (const targetPath of [plan.runnerPath, plan.configTomlPath, plan.hooksConfigPath, plan.pointerPath]) {
+  for (const targetPath of [plan.runnerPath, plan.configTomlPath, plan.hooksConfigPath, plan.pointerPath, plan.gitignorePath].filter(Boolean)) {
     await assertSafeCodexWriteTarget(targetPath, plan);
   }
   await writeFileAtomicNoSymlink(plan.runnerPath, await readFile(sourceRunnerPath, "utf8"));
   await writeFileAtomicNoSymlink(plan.configTomlPath, plan.nextConfigToml);
   await writeJsonAtomic(plan.hooksConfigPath, plan.nextHooksConfig);
+  if (plan.gitignorePath) {
+    await writeFileAtomicNoSymlink(plan.gitignorePath, plan.nextGitignore);
+  }
   await writeJsonAtomic(plan.pointerPath, plan.nextPointer);
   await updateSetupState(plan);
 }
@@ -255,6 +287,7 @@ async function updateSetupState(plan) {
   if (!state) return;
   await writeJsonAtomic(plan.nextPointer.setupStatePath, {
     ...state,
+    status: plan.completesSetupState && state.status === "action_required_env" ? "complete" : state.status,
     updatedAt: nowIso(),
     codexHooks: {
       enabled: true,
@@ -329,6 +362,20 @@ function addEventHook(config, eventName, command, options, additions) {
   additions.push(eventName);
 }
 
+function mergeGitignore(currentText) {
+  const text = currentText || "";
+  const lines = text ? text.split(/\r?\n/) : [];
+  const activeLines = lines.map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+  if (activeLines.includes("oh-my-obsidian.local.json")) {
+    return { issues: [], nextText: ensureTrailingNewline(lines.join("\n")), changed: false };
+  }
+  const nextLines = [...lines];
+  while (nextLines.length > 0 && nextLines.at(-1) === "") nextLines.pop();
+  if (nextLines.length > 0) nextLines.push("");
+  nextLines.push("# Personal vault pointer. Do not commit machine-specific paths.", "oh-my-obsidian.local.json");
+  return { issues: [], nextText: ensureTrailingNewline(nextLines.join("\n")), changed: true };
+}
+
 function mergeFeatureFlag(currentText) {
   const text = currentText || "";
   const lines = text ? text.split(/\r?\n/) : [];
@@ -390,8 +437,8 @@ function mergeFeatureFlag(currentText) {
   return { issues: [], nextText: ensureTrailingNewline(nextLines.join("\n")), changed: true };
 }
 
-function describeDiff({ target, hooksMerge, tomlMerge, currentPointer, pointerValue }) {
-  if (!hooksMerge || !tomlMerge || hooksMerge.issues?.length || tomlMerge.issues?.length || !pointerValue) {
+function describeDiff({ target, hooksMerge, tomlMerge, gitignoreMerge, currentPointer, pointerValue }) {
+  if (!hooksMerge || !tomlMerge || hooksMerge.issues?.length || tomlMerge.issues?.length || gitignoreMerge?.issues?.length || !pointerValue) {
     return ["No files will be changed until reported issues are fixed."];
   }
   const diff = [];
@@ -406,6 +453,9 @@ function describeDiff({ target, hooksMerge, tomlMerge, currentPointer, pointerVa
     diff.push(`= Codex vault pointer already current ${target.pointerPath}`);
   } else {
     diff.push(`${currentPointer ? "~ update" : "+ create"} Codex vault pointer ${target.pointerPath}`);
+  }
+  if (gitignoreMerge?.changed) {
+    diff.push(`+ protect personal Codex vault pointer in ${target.gitignorePath}`);
   }
   diff.push(`+ install hook runner ${target.runnerPath}`);
   return diff;
@@ -458,7 +508,7 @@ async function readJsonObjectNoSymlinkIfExists(path, label, issues, required) {
 
 async function assertSafeCodexWriteTarget(targetPath, plan) {
   const base = plan.mode === "repo-local"
-    ? join(resolve(expandHome(args.repoRoot, args.home)), ".codex")
+    ? join(resolve(plan.repoRoot), ".codex")
     : join(resolve(expandHome(args.home, args.home)), ".codex");
   if (!isInsidePath(base, targetPath)) {
     throw new Error(`refusing to write outside Codex config directory: ${targetPath}`);

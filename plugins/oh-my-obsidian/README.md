@@ -120,12 +120,21 @@ Install modes:
 - `user-global`: installs under `~/.codex/` for advanced users who explicitly
   want the hook dispatcher available outside one project.
 
+`repo-local` accepts any directory inside the Git worktree and normalizes it to
+the Git root before writing `<repo>/.codex/`. It also creates or updates
+`<repo>/.codex/.gitignore` so the personal vault pointer is not committed.
+
 The installer keeps responsibilities separate: `config.toml` enables
 `[features].codex_hooks = true`, while `hooks.json` stores the `SessionStart`
 and `Stop` command hooks. `SessionStart` injects compact project/vault context;
 `Stop` reminds Codex to save important session decisions. Existing hooks are
 preserved, invalid config files fail safely, duplicate commands are avoided, and
 the output includes rollback plus skip guidance.
+
+For first-time setup, repo-local hooks can finish the beginner path when vault
+files are already created but Codex has no resolver yet. In that case the
+project-local pointer becomes the resolver, so users do not need to understand
+`OBSIDIAN_VAULT` or global config pointers.
 
 Repo-local hooks only run when Codex trusts the project `.codex/` layer. If the
 hooks do not fire, check that the project is trusted in Codex, that
