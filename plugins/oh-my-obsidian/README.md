@@ -136,10 +136,15 @@ files are already created but Codex has no resolver yet. In that case the
 project-local pointer becomes the resolver, so users do not need to understand
 `OBSIDIAN_VAULT` or global config pointers.
 
-Repo-local hooks only run when Codex trusts the project `.codex/` layer. If the
-hooks do not fire, check that the project is trusted in Codex, that
-`<repo>/.codex/config.toml` has `codex_hooks = true` under `[features]`, and
-that `<repo>/.codex/oh-my-obsidian.local.json` points at the intended vault.
+Last step: allow Codex to use this project's local `.codex/` settings when it
+asks. This connects the current project to the approved Obsidian vault, and the
+personal vault path stays protected from Git commits.
+
+If automatic memory does not appear in a new Codex session:
+
+1. Confirm that Codex was allowed to use this project's `.codex/` settings.
+2. Start a new Codex session from the project directory.
+3. Ask `Show me the vault health check.`
 
 To remove repo-local hooks, delete `<repo>/.codex/hooks/oh-my-obsidian/`, remove
 the oh-my-obsidian `SessionStart` and `Stop` entries from

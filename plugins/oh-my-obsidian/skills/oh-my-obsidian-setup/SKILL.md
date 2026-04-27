@@ -186,8 +186,13 @@ Guidance by question type:
      from being committed.
    - If setup-state is `action_required_env` only because no resolver exists,
      repo-local hooks may complete setup by creating this project-local pointer.
-   - Mention that repo-local hooks only run when Codex trusts the project
-     `.codex/` layer.
+   - Use this beginner-facing final guidance:
+     `마지막 단계입니다. Codex가 이 프로젝트의 .codex 설정을 사용하도록
+     허용해 주세요. 그래야 이 프로젝트와 Obsidian vault가 자동으로
+     연결됩니다. 개인 vault 경로는 Git에 커밋되지 않습니다.`
+   - If automatic memory does not appear later, tell the user to allow this
+     project's `.codex/` settings in Codex, start a new Codex session from the
+     project directory, then ask `Show me the vault health check.`
    - Apply only after explicit approval.
    - After apply, run `setup-vault.mjs validate --vault "<vault-path>"` again
      and report the `codexHooks` status.
