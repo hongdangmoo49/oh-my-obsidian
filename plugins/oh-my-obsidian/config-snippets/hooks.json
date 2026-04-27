@@ -1,11 +1,24 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"__OH_MY_OBSIDIAN_HOOK_RUNNER__\" session-start",
+            "timeout": 5,
+            "statusMessage": "Loading oh-my-obsidian project memory"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "__OH_MY_OBSIDIAN_HOOK_PATH__",
+            "command": "node \"__OH_MY_OBSIDIAN_HOOK_RUNNER__\" stop",
             "timeout": 5
           }
         ]

@@ -73,7 +73,8 @@ The setup skill performs:
 5. setup-state bootstrap and managed artifact writes
 6. optional Obsidian Git choice
 7. validation
-8. optional Codex session history restore
+8. official Codex hooks setup
+9. optional Codex session history restore
 
 ## Included Surfaces
 
@@ -85,38 +86,57 @@ The setup skill performs:
 - `vault-manager`: supports list, add, organize-plan/apply, and health-check
   flows for an attached vault.
 - `scripts/`: plugin-local helpers for setup, vault operations, Codex history
-  restore, Obsidian app preflight, Obsidian Git setup, and hook preview merge
+  restore, Obsidian app preflight, Obsidian Git setup, and official Codex hooks
   planning.
 - `templates/`: reserved for vault and onboarding templates.
-- `hooks-preview/`: optional Stop-hook preview template only.
-- `config-snippets/`: hook configuration snippet with an install-time path
-  placeholder.
+- `hooks/`: cross-platform Node hook runner for official Codex hooks.
+- `hooks-preview/`: legacy Stop-hook preview template kept for compatibility.
+- `config-snippets/`: hook and feature-flag configuration snippets with
+  install-time path placeholders.
 - `tests/`: plugin-local fixture tests for setup, vault ops, Obsidian Git, and
-  hook preview behavior.
+  Codex hooks behavior.
 
-## Hook Preview Opt-In
+## Official Codex Hooks
 
-Hooks are not enabled by the manifest.
+Hooks are not enabled by the manifest or without approval. The setup flow can
+install official Codex hooks after vault validation.
 
-Preview the merge and install paths:
+Recommended project-local plan:
 
 ```bash
-node plugins/oh-my-obsidian/scripts/hook-preview.mjs plan --scope home
+node plugins/oh-my-obsidian/scripts/codex-hooks.mjs plan --mode repo-local --repo-root . --vault "$OBSIDIAN_VAULT"
 ```
 
 Apply after explicit approval:
 
 ```bash
-node plugins/oh-my-obsidian/scripts/hook-preview.mjs apply --scope home
+node plugins/oh-my-obsidian/scripts/codex-hooks.mjs apply --mode repo-local --repo-root . --vault "$OBSIDIAN_VAULT"
 ```
 
-Available scopes:
+Install modes:
 
-- `home`: installs to `~/.codex/hooks/oh-my-obsidian/`
-- `repo`: installs to `<repo>/.codex/hooks/oh-my-obsidian/`
+- `repo-local` (recommended): installs under `<repo>/.codex/` and stores the
+  approved vault pointer in `<repo>/.codex/oh-my-obsidian.local.json`.
+- `user-global`: installs under `~/.codex/` for advanced users who explicitly
+  want the hook dispatcher available outside one project.
 
-The helper preserves existing Stop hooks, blocks invalid `hooks.json`, avoids
-duplicate insertion, and returns rollback plus skip guidance.
+The installer keeps responsibilities separate: `config.toml` enables
+`[features].codex_hooks = true`, while `hooks.json` stores the `SessionStart`
+and `Stop` command hooks. `SessionStart` injects compact project/vault context;
+`Stop` reminds Codex to save important session decisions. Existing hooks are
+preserved, invalid config files fail safely, duplicate commands are avoided, and
+the output includes rollback plus skip guidance.
+
+Repo-local hooks only run when Codex trusts the project `.codex/` layer. If the
+hooks do not fire, check that the project is trusted in Codex, that
+`<repo>/.codex/config.toml` contains `[features] codex_hooks = true`, and that
+`<repo>/.codex/oh-my-obsidian.local.json` points at the intended vault.
+
+To remove repo-local hooks, delete `<repo>/.codex/hooks/oh-my-obsidian/`, remove
+the oh-my-obsidian `SessionStart` and `Stop` entries from
+`<repo>/.codex/hooks.json`, and delete
+`<repo>/.codex/oh-my-obsidian.local.json`. Remove `codex_hooks = true` from
+`<repo>/.codex/config.toml` only if no other hook setup uses it.
 
 ## Safety Boundaries
 
@@ -130,7 +150,8 @@ Separate approval is required before:
 - auto-sync or team-sync behavior
 - git remote changes or push operations
 - file overwrites, moves, deletes, or reconcile actions
-- hook preview installation or `hooks.json` edits
+- official Codex hooks installation or `.codex/*` edits
 
-Follow-up skills resolve the vault through `OBSIDIAN_VAULT` first, then the
-optional approved pointer at `~/.oh-my-obsidian/config.json`.
+Follow-up skills resolve the vault through the project-local Codex pointer
+first, then `OBSIDIAN_VAULT`, then the optional approved pointer at
+`~/.oh-my-obsidian/config.json`.

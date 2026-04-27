@@ -149,20 +149,20 @@ Typical Codex start flow:
 3. ask Codex: `Set up an Obsidian vault for this project.`
 
 The Codex plugin keeps the same product shape: guided setup, recall,
-session-save, vault management, and an opt-in hooks preview. In Codex, these
-flows are typically used through natural-language prompts or explicit skill
-invocation rather than Claude-style slash commands.
+session-save, vault management, and official Codex hooks for project-local
+memory context. In Codex, these flows are typically used through natural-language
+prompts or explicit skill invocation rather than Claude-style slash commands.
 
 ## Feature Matrix
 
-| Capability | Claude Code Plugin | Codex v1 | Codex Hooks Preview |
+| Capability | Claude Code Plugin | Codex v1 | Official Codex Hooks |
 | :--- | :--- | :--- | :--- |
 | Guided setup | Yes | Yes | N/A |
 | Recall | Yes | Yes | N/A |
-| Session save | Yes | Yes | Reminder only |
+| Session save | Yes | Yes | Stop reminder |
 | Vault manager | Yes | Yes | N/A |
-| Hook auto-enable | Yes | No | Opt-in only |
-| Hook install path | Claude config | N/A | `~/.codex/hooks/...` or repo `.codex/hooks/...` |
+| Hook auto-enable | Yes | Approval-gated | Setup step |
+| Hook install path | Claude config | Project `.codex/` by default | Project `.codex/` |
 
 ---
 
@@ -240,8 +240,10 @@ cd scripts/team-setup
 Items that users must **manually** prepare to run the plugin normally:
 
 - **Node.js 18 or higher** must be installed on your system.
-- **Git** must be installed on your system.
-- You need one **empty local folder (empty Git repository)** where the plugin will save and synchronize files (e.g., `mkdir my-vault && cd my-vault && git init`).
+- **Git** should be installed for repository-local Codex hooks and optional vault sync.
+- You need a project-specific Obsidian vault path. Setup can create a new vault
+  or attach a compatible existing vault; Git initialization and Obsidian Git sync
+  are optional approval-gated steps.
 
 ## ⚙️ Under the Hood
 
@@ -254,8 +256,9 @@ enablement, and auto-sync choices all require separate approval.
 2. **Obsidian Git Plugin Choices**: After the vault exists, setup can offer `safe`, `manual`, or `team-sync` Obsidian Git options. Download, enablement, and sync behavior are separate approvals, not defaults.
 3. **Local Script Generation and Environment Setup Guidance**: Setup generates onboarding scripts and can help users set `OBSIDIAN_VAULT`, but shell profile edits or Codex config-pointer creation are opt-in and approval-gated.
 
-For Codex follow-up skills, vault resolution checks `OBSIDIAN_VAULT` first and
-then the optional approved config pointer at `~/.oh-my-obsidian/config.json`.
+For Codex follow-up skills, vault resolution checks the project-local Codex
+pointer first, then `OBSIDIAN_VAULT`, then the optional approved config pointer
+at `~/.oh-my-obsidian/config.json`.
 
 ## Permission Boundaries
 
@@ -268,11 +271,11 @@ Both Claude Code and Codex flows require explicit approval before:
 - auto-sync or team-sync behavior
 - git remote changes or push operations
 - overwrites, moves, deletes, or reconcile actions
-- hook preview installation
 
 Codex-only approval boundary:
 
 - creation of Codex config pointers
+- official Codex hooks installation or `.codex/*` edits
 
 ## Plugin Structure
 

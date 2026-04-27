@@ -25,7 +25,8 @@
     "developerName": "hongdangmoo49",
     "category": "Productivity",
     "capabilities": [
-      "Guided Obsidian vault setup"
+      "Guided Obsidian vault setup",
+      "Official Codex hooks integration"
     ],
     "websiteURL": "https://github.com/hongdangmoo49/oh-my-obsidian",
     "privacyPolicyURL": "https://github.com/hongdangmoo49/oh-my-obsidian",

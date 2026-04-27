@@ -353,9 +353,16 @@ function buildInitialState(plan, vaultRealPath, createdAt) {
       preset: plan.obsidianGitChoice,
       status: plan.obsidianGitChoice === "skip" ? "skipped" : "requires-separate-approval",
     },
-    hookPreview: {
+    codexHooks: {
       enabled: false,
       status: "not-installed",
+      mode: "repo-local",
+      events: [],
+      featureFlag: false,
+    },
+    hookPreview: {
+      enabled: false,
+      status: "legacy-not-installed",
     },
     managedArtifacts: plan.managedArtifacts,
   };
@@ -691,6 +698,7 @@ async function validateSetup(vaultPathInput) {
         status: "action_required_env",
         issues,
         setupStatePath: statePath,
+        codexHooks: state.codexHooks || state.hookPreview || { enabled: false, status: "not-installed" },
       };
     }
   }
@@ -700,6 +708,7 @@ async function validateSetup(vaultPathInput) {
     status: issues.length > 0 ? "failed" : state.status || "complete",
     issues,
     setupStatePath: statePath,
+    codexHooks: state?.codexHooks || state?.hookPreview || { enabled: false, status: "not-installed" },
   };
 }
 
@@ -933,6 +942,7 @@ function setupResult(action, state) {
     managedArtifacts: state.managedArtifacts,
     git: state.git,
     obsidianGit: state.obsidianGit,
+    codexHooks: state.codexHooks || state.hookPreview || { enabled: false, status: "not-installed" },
     envVar: state.envVar,
     codexConfigPointer: state.codexConfigPointer,
     nextSteps: state.status === "complete" ? [] : envNextSteps(state.vaultPath),
