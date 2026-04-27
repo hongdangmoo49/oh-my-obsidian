@@ -25,7 +25,6 @@ import {
 } from "./vault-core.mjs";
 import {
   discoverRolloutFiles,
-  extractRolloutMeta,
   extractCwd,
   extractTextContent,
   normalizeCwdForComparison,
@@ -34,7 +33,6 @@ import {
   humanFileSize,
   scanErrorSignals,
   MAX_ERROR_SIGNALS,
-  ERROR_PATTERNS,
   SEARCH_TOOLS,
 } from "./parse-codex-rollout.mjs";
 
@@ -356,18 +354,25 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
 // ---------------------------------------------------------------------------
 
 async function preextractCodexSession(filePath, fileStatResult) {
-  const meta = await extractRolloutMeta(filePath, {
-    fileStat: fileStatResult,
-  });
-  if (!meta) return null;
+  const fileName = basename(filePath);
+  const sessionId = fileName.replace(/\.jsonl$/, "");
 
-  // Stream-parse the file instead of loading rawContent into memory
-  const sessionId = meta.fileName.replace(/\.jsonl$/, "");
+  // Extract date/time from filename (same logic as extractRolloutMeta)
+  const dateMatch = fileName.match(/^rollout-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+  const dateStr = dateMatch
+    ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`
+    : localDateStr(fileStatResult.mtime);
+  const timeStr = dateMatch
+    ? `${dateMatch[4]}:${dateMatch[5]}`
+    : localTimeStr(fileStatResult.mtime);
+
+  // Single-pass streaming: metadata + content extraction in one read
   const userMessages = [];
   const toolsUsed = new Set();
   const filesModified = new Set();
   const errorSignals = [];
-  let sessionCwd = meta.sessionCwd || "";
+  let sessionCwd = "";
+  let firstUserMessageFallback = "";
   let currentToolName = "";
 
   const rl = readline.createInterface({
@@ -389,6 +394,7 @@ async function preextractCodexSession(filePath, fileStatResult) {
     if (obj.role === "user") {
       const text = extractTextContent(obj);
       if (text) {
+        if (!firstUserMessageFallback) firstUserMessageFallback = text.slice(0, 120);
         userMessages.push({
           text,
           timestamp: obj.timestamp || obj.created_at || "",
@@ -431,7 +437,7 @@ async function preextractCodexSession(filePath, fileStatResult) {
 
   const firstUserMessage = userMessages.length > 0
     ? userMessages[0].text.slice(0, FIRST_MSG_TRUNCATE)
-    : meta.firstUserMessage;
+    : firstUserMessageFallback;
   const lastUserMessage = userMessages.length > 0
     ? userMessages[userMessages.length - 1].text.slice(0, LAST_MSG_TRUNCATE)
     : "";
@@ -439,12 +445,12 @@ async function preextractCodexSession(filePath, fileStatResult) {
   return {
     id: sessionId,
     source: "codex",
-    sourceFile: meta.fileName,
-    date: meta.date,
-    startTime: meta.time,
+    sourceFile: fileName,
+    date: dateStr,
+    startTime: timeStr,
     endTime: "",
-    projectCwd: sessionCwd || meta.sessionCwd,
-    sizeBytes: meta.sizeBytes,
+    projectCwd: sessionCwd,
+    sizeBytes: fileStatResult.size,
     userMessageCount: userMessages.length,
     assistantTurnCount: 0,
     firstUserMessage,
@@ -532,6 +538,11 @@ async function scanAndBuildCatalog() {
   const vaultPath = args.vault || process.env.OBSIDIAN_VAULT || "";
   if (!vaultPath) {
     throw new Error("--vault 또는 OBSIDIAN_VAULT 환경변수가 필요합니다.");
+  }
+
+  // Resolve cwd to absolute path for correct project hashing and filtering
+  if (args.cwd) {
+    args.cwd = resolve(args.cwd);
   }
 
   const resolvedVault = resolve(vaultPath);
