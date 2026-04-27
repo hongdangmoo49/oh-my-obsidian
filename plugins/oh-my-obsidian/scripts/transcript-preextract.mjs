@@ -428,11 +428,13 @@ function createEmptyCatalog(vaultPath) {
   };
 }
 
-function mergeCatalogEntries(existing, newEntries) {
+function mergeCatalogEntries(existing, newEntries, scannedSources) {
   const existingById = new Map();
   for (const entry of (existing.sessions || [])) {
     existingById.set(entry.id, entry);
   }
+
+  const scannedIds = new Set(newEntries.map((e) => e.id));
 
   for (const entry of newEntries) {
     const existingEntry = existingById.get(entry.id);
@@ -444,6 +446,13 @@ function mergeCatalogEntries(existing, newEntries) {
       entry.category = existingEntry.category;
     }
     existingById.set(entry.id, entry);
+  }
+
+  // Prune entries whose source files were deleted (only for scanned source types)
+  for (const [id, entry] of existingById) {
+    if (!scannedIds.has(id) && scannedSources.has(entry.source)) {
+      existingById.delete(id);
+    }
   }
 
   return [...existingById.values()];
@@ -552,11 +561,16 @@ async function scanAndBuildCatalog() {
 
   if (args.recent > 0) filtered = filtered.slice(0, args.recent);
 
+  // Determine which source types were scanned (for stale entry pruning)
+  const scannedSources = new Set();
+  if (source === "both" || source === "claude-code") scannedSources.add("claude-code");
+  if (source === "both" || source === "codex") scannedSources.add("codex");
+
   // Load existing catalog and merge
   const existingCatalog = await loadCatalog(resolvedVault);
   const catalog = existingCatalog || createEmptyCatalog(resolvedVault);
 
-  const mergedSessions = mergeCatalogEntries(catalog, filtered);
+  const mergedSessions = mergeCatalogEntries(catalog, filtered, scannedSources);
 
   catalog.sessions = mergedSessions;
   catalog.updatedAt = nowIso();

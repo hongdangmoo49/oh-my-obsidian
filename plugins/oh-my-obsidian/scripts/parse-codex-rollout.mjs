@@ -100,7 +100,10 @@ export function scanErrorSignals(text, accumulator) {
     if (accumulator.length >= MAX_ERROR_SIGNALS) break;
     for (const pattern of ERROR_PATTERNS) {
       if (pattern.test(line)) {
-        accumulator.push(line.trim().slice(0, ERROR_SIGNAL_TRUNCATE));
+        const signal = line.trim().slice(0, ERROR_SIGNAL_TRUNCATE);
+        if (!accumulator.includes(signal)) {
+          accumulator.push(signal);
+        }
         break; // One match per line is enough
       }
     }
