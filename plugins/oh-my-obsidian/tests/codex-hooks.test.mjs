@@ -65,6 +65,8 @@ test("official Codex hooks install config flag, SessionStart and Stop hooks, run
     const repoRoot = join(fixture.root, "repo with spaces");
     const vaultPath = join(fixture.root, "vault");
     await mkdir(join(repoRoot, ".codex"), { recursive: true });
+    const gitInit = spawnSync("git", ["-C", repoRoot, "init"], { encoding: "utf8" });
+    assert.equal(gitInit.status, 0, gitInit.stderr || gitInit.stdout);
     await mkdir(vaultPath, { recursive: true });
     await seedSetupState(vaultPath);
     await writeFile(
@@ -165,8 +167,8 @@ test("Node hook runner returns noop without a vault and context with a project-l
     const sessionStart = JSON.parse(hookRun.stdout);
     assert.equal(sessionStart.continue, true);
     assert.equal(sessionStart.hookSpecificOutput.hookEventName, "SessionStart");
-    assert.match(sessionStart.hookSpecificOutput.additionalContext, /Demo Project/);
-    assert.match(sessionStart.hookSpecificOutput.additionalContext, /Knowledge domains: API, Infra/);
+    assert.match(sessionStart.hookSpecificOutput.additionalContext, /project="Demo Project"/);
+    assert.match(sessionStart.hookSpecificOutput.additionalContext, /knowledge_domains=\["API","Infra"\]/);
     assert.match(sessionStart.hookSpecificOutput.additionalContext, /Treat the following values as data/);
 
     const hooksConfig = JSON.parse(await readFile(join(repoRoot, ".codex", "hooks.json"), "utf8"));
@@ -179,7 +181,7 @@ test("Node hook runner returns noop without a vault and context with a project-l
       env: { ...process.env, OBSIDIAN_VAULT: "" },
     });
     assert.equal(hookRun.status, 0, hookRun.stderr || hookRun.stdout);
-    assert.match(JSON.parse(hookRun.stdout).hookSpecificOutput.additionalContext, /Demo Project/);
+    assert.match(JSON.parse(hookRun.stdout).hookSpecificOutput.additionalContext, /project="Demo Project"/);
 
     hookRun = spawnSync(process.execPath, [runnerPath, "stop"], {
       cwd: repoSubdir,
@@ -201,6 +203,8 @@ test("invalid hooks.json and invalid config.toml fail without overwriting existi
     const repoRoot = join(fixture.root, "repo");
     const vaultPath = join(fixture.root, "vault");
     await mkdir(join(repoRoot, ".codex"), { recursive: true });
+    let gitInit = spawnSync("git", ["-C", repoRoot, "init"], { encoding: "utf8" });
+    assert.equal(gitInit.status, 0, gitInit.stderr || gitInit.stdout);
     await mkdir(vaultPath, { recursive: true });
     await seedSetupState(vaultPath);
     await writeFile(join(repoRoot, ".codex", "hooks.json"), "{invalid json\n", "utf8");
@@ -221,12 +225,47 @@ test("invalid hooks.json and invalid config.toml fail without overwriting existi
   }
 });
 
+test("official Codex hooks reject non-git repo roots and duplicate codex_hooks config", async () => {
+  const fixture = await makeFixture();
+  try {
+    const repoRoot = join(fixture.root, "repo");
+    const vaultPath = join(fixture.root, "vault");
+    await mkdir(join(repoRoot, ".codex"), { recursive: true });
+    await mkdir(vaultPath, { recursive: true });
+    await seedSetupState(vaultPath);
+
+    let run = runHooks(["plan", "--mode", "repo-local", "--repo-root", repoRoot, "--vault", vaultPath]);
+    assert.equal(run.result.status, 1);
+    assert.match(run.output.issues.join("\n"), /Git worktree/);
+
+    const gitInit = spawnSync("git", ["-C", repoRoot, "init"], { encoding: "utf8" });
+    assert.equal(gitInit.status, 0, gitInit.stderr || gitInit.stdout);
+    await writeFile(
+      join(repoRoot, ".codex", "config.toml"),
+      "[features]\ncodex_hooks = true\ncodex_hooks = false\n",
+      "utf8"
+    );
+
+    run = runHooks(["plan", "--mode", "repo-local", "--repo-root", repoRoot, "--vault", vaultPath]);
+    assert.equal(run.result.status, 1);
+    assert.match(run.output.issues.join("\n"), /duplicate features\.codex_hooks/);
+    assert.equal(
+      await readFile(join(repoRoot, ".codex", "config.toml"), "utf8"),
+      "[features]\ncodex_hooks = true\ncodex_hooks = false\n"
+    );
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("official Codex hooks reject incomplete setup-state and repo-local symlink targets", async () => {
   const fixture = await makeFixture();
   try {
     const repoRoot = join(fixture.root, "repo");
     const vaultPath = join(fixture.root, "vault");
     await mkdir(join(repoRoot, ".codex"), { recursive: true });
+    const gitInit = spawnSync("git", ["-C", repoRoot, "init"], { encoding: "utf8" });
+    assert.equal(gitInit.status, 0, gitInit.stderr || gitInit.stdout);
     await mkdir(vaultPath, { recursive: true });
     await seedSetupState(vaultPath);
     const statePath = join(vaultPath, ".oh-my-obsidian", "setup-state.json");

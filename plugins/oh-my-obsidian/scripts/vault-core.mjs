@@ -163,16 +163,16 @@ export async function resolveVault(options = {}) {
   const issues = [];
   const cwd = resolve(expandHome(options.cwd || env.PWD || process.cwd(), home));
 
+  if (env.OBSIDIAN_VAULT) {
+    candidates.push({ source: "env", path: env.OBSIDIAN_VAULT });
+  }
+
   const projectPointerPath = await findCodexHooksPointer(cwd);
   if (projectPointerPath) {
     const projectPointer = await readCodexHooksPointer(projectPointerPath, "project Codex hooks pointer", issues);
     if (projectPointer) {
       candidates.push({ source: "projectCodexPointer", path: projectPointer.vaultPath, configPath: projectPointerPath });
     }
-  }
-
-  if (env.OBSIDIAN_VAULT) {
-    candidates.push({ source: "env", path: env.OBSIDIAN_VAULT });
   }
 
   const userPointerPath = join(home, ".codex", "oh-my-obsidian.local.json");

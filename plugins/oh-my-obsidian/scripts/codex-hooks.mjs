@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { lstat, mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -90,6 +91,8 @@ function legacyScopeToMode(scope) {
 async function buildPlan(options = {}) {
   const target = await buildTarget();
   const issues = [];
+  const gitIssue = repoLocalGitIssue(target.repoRoot);
+  if (gitIssue) issues.push(gitIssue);
   const vault = await resolveVaultForInstall(issues);
 
   const hookReadIssues = [];
@@ -196,6 +199,19 @@ async function resolveVaultForInstall(issues) {
   }
 
   return { ok: true, vaultPath, vaultRealPath, setupStatePath: statePath, setupState: state, issues: [] };
+}
+
+function repoLocalGitIssue(repoRoot) {
+  if (args.mode !== "repo-local") return "";
+  const result = spawnSync("git", ["-C", repoRoot, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  if (result.status !== 0) {
+    return `repo-local Codex hooks require --repo-root to be inside a Git worktree: ${result.stderr || result.stdout}`.trim();
+  }
+  const topLevel = resolve(result.stdout.trim());
+  if (topLevel !== repoRoot) {
+    return `repo-local Codex hooks must be installed from the Git worktree root: ${topLevel}`;
+  }
+  return "";
 }
 
 function buildPointerValue(target, vault, currentPointer) {
@@ -319,7 +335,6 @@ function mergeFeatureFlag(currentText) {
   const issues = [];
   let featuresStart = -1;
   let featuresEnd = lines.length;
-  let codexHooksLine = -1;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -342,19 +357,28 @@ function mergeFeatureFlag(currentText) {
   if (issues.length > 0) return { issues };
 
   if (featuresStart !== -1) {
+    let codexHooksLine = -1;
+    let codexHooksValue = "";
+    let codexHooksSuffix = "";
+    let codexHooksIndent = "";
     for (let index = featuresStart + 1; index < featuresEnd; index += 1) {
       const match = lines[index].match(/^(\s*)codex_hooks\s*=\s*([^#\s]+)(.*)$/);
       if (!match) continue;
       if (codexHooksLine !== -1) return { issues: ["config.toml contains duplicate features.codex_hooks entries"] };
       codexHooksLine = index;
-      if (match[2] === "true") {
+      codexHooksIndent = match[1];
+      codexHooksValue = match[2];
+      codexHooksSuffix = match[3] || "";
+    }
+    if (codexHooksLine !== -1) {
+      if (codexHooksValue === "true") {
         return { issues: [], nextText: ensureTrailingNewline(lines.join("\n")), changed: false };
       }
-      if (match[2] === "false") {
-        lines[index] = `${match[1]}codex_hooks = true${match[3] || ""}`;
+      if (codexHooksValue === "false") {
+        lines[codexHooksLine] = `${codexHooksIndent}codex_hooks = true${codexHooksSuffix}`;
         return { issues: [], nextText: ensureTrailingNewline(lines.join("\n")), changed: true };
       }
-      return { issues: [`features.codex_hooks must be a boolean, got ${match[2]}`] };
+      return { issues: [`features.codex_hooks must be a boolean, got ${codexHooksValue}`] };
     }
     lines.splice(featuresEnd, 0, "codex_hooks = true");
     return { issues: [], nextText: ensureTrailingNewline(lines.join("\n")), changed: true };

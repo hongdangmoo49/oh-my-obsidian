@@ -107,7 +107,7 @@ test("resolveVault uses approved config pointer and rejects realpath mismatch", 
   }
 });
 
-test("resolveVault prefers project-local Codex pointer over env and global pointers", async () => {
+test("resolveVault prefers explicit env over project-local Codex pointer", async () => {
   const fixture = await makeFixture();
   try {
     const repoRoot = join(fixture.root, "repo");
@@ -147,8 +147,8 @@ test("resolveVault prefers project-local Codex pointer over env and global point
       cwd: repoSubdir,
     });
     assert.equal(resolved.ok, true);
-    assert.equal(resolved.source, "projectCodexPointer");
-    assert.equal(resolved.vaultRealPath, projectVaultRealPath);
+    assert.equal(resolved.source, "env");
+    assert.equal(resolved.vaultRealPath, envVaultRealPath);
   } finally {
     await fixture.cleanup();
   }
