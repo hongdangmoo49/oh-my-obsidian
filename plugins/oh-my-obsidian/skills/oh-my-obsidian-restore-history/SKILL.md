@@ -25,11 +25,14 @@ Resolve the plugin directory from this skill location, then use plugin-local
 helpers:
 
 ```bash
-# Scan for available Codex sessions
-node scripts/codex-history.mjs scan [--cwd <path>] [--recent <N>] [--from <date>] [--to <date>]
+# Step 1: Build session catalog (pre-extracts metadata, zero LLM tokens)
+node scripts/transcript-preextract.mjs scan --vault <path> --source codex \
+  [--cwd <path>] [--recent <N>] [--from <date>] [--to <date>]
 
-# Restore Codex sessions to vault
-node scripts/codex-history.mjs restore --vault <path> [--cwd <path>] [--recent <N>] [--from <date>] [--to <date>]
+# Step 2: Restore Codex sessions to vault (also updates catalog)
+node scripts/codex-history.mjs restore --vault <path> \
+  --update-catalog \
+  [--cwd <path>] [--recent <N>] [--from <date>] [--to <date>]
 ```
 
 Optional flags:
@@ -40,6 +43,7 @@ Optional flags:
 - `--to <YYYY-MM-DD>` — end date for date range filter
 - `--all` — include all sessions regardless of CWD
 - `--commit-message <msg>` — custom git commit message
+- `--update-catalog` — update session-catalog.json after restore
 
 ## Platform-Aware Session Paths
 
@@ -65,11 +69,16 @@ The helper automatically detects the Codex session directory:
    4. 직접 입력
    ```
 
-2. Run `codex-history.mjs scan` with the chosen scope to discover sessions.
+2. Run `transcript-preextract.mjs scan` to build the session catalog:
+   ```bash
+   node scripts/transcript-preextract.mjs scan --source codex --vault <path> [scope flags]
+   ```
+   This creates `.oh-my-obsidian/session-catalog.json` with pre-extracted metadata.
 
-3. Show the user a summary of discovered sessions:
+3. Show the user a summary from the catalog:
    - Total count, total size, date range
-   - Preview of the first few session topics
+   - Preview of the first few session topics (from `firstUserMessage`)
+   - Number of sessions that already have documents
 
 4. Ask for confirmation before proceeding:
    ```text
@@ -78,16 +87,19 @@ The helper automatically detects the Codex session directory:
    다음 중 하나로 답해주세요.
    1. 복원 시작
    2. 범위 다시 선택
-   3. 건너뛰기
+   3. 카탈로그만 유지 (문서 생성 없이)
    4. 직접 입력
    ```
 
-5. Run `codex-history.mjs restore` with the confirmed scope.
+5. Run `codex-history.mjs restore --update-catalog` with the confirmed scope.
+   The `--update-catalog` flag updates `session-catalog.json` with
+   `documentGenerated: true` for each restored session.
 
 6. Report the result:
    - Number of sessions restored
    - Number of sessions skipped (and why)
    - Git commit status
+   - Catalog update status
    - List of generated files
 
 7. If the helper returns setup guidance instead of restoring, stop and route the
