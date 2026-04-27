@@ -1,5 +1,10 @@
 # Codex Plugin Handoff
 
+> Historical handoff: this file captures the 2026-04-23 Codex plugin state
+> before official Codex hooks support was implemented. Hooks guidance here may
+> intentionally differ from the current implementation; see
+> [../codex-hooks-implementation-plan.md](../codex-hooks-implementation-plan.md).
+
 ## Goal
 
 Continue adding Codex Plugin support for `oh-my-obsidian` while preserving the
@@ -8,7 +13,7 @@ core product UX.
 
 ## Current State
 
-- Repository: `/home/ubuntu/github/my-pjts/oh-my-obsidian`
+- Repository: `<repo>`
 - Branch: `main`
 - Existing Claude Code plugin is already distributed from the repository root.
 - Existing Claude files must not be modified unless absolutely necessary and
@@ -305,11 +310,10 @@ depend on the Claude legacy marketplace entry.
 
 ## Start Prompt
 
-Continue the Codex Plugin implementation for `/home/ubuntu/github/my-pjts/oh-my-obsidian`.
+Continue the Codex Plugin implementation for `<repo>`.
 First read `docs/codex-plugin-implementation-plan.md` and this handoff. Use
 subagents aggressively: have at least a reviewer and docs/spec checker validate
 non-trivial plan or patch decisions before implementation. Start by completing
 document validation if needed, then implement Phase 1 from the plan:
 `plugins/oh-my-obsidian/` scaffold and `.agents/plugins/marketplace.json`.
 Preserve all existing Claude plugin files unless explicit approval is obtained.
-

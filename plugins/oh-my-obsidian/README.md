@@ -129,8 +129,8 @@ the output includes rollback plus skip guidance.
 
 Repo-local hooks only run when Codex trusts the project `.codex/` layer. If the
 hooks do not fire, check that the project is trusted in Codex, that
-`<repo>/.codex/config.toml` contains `[features] codex_hooks = true`, and that
-`<repo>/.codex/oh-my-obsidian.local.json` points at the intended vault.
+`<repo>/.codex/config.toml` has `codex_hooks = true` under `[features]`, and
+that `<repo>/.codex/oh-my-obsidian.local.json` points at the intended vault.
 
 To remove repo-local hooks, delete `<repo>/.codex/hooks/oh-my-obsidian/`, remove
 the oh-my-obsidian `SessionStart` and `Stop` entries from
@@ -152,6 +152,7 @@ Separate approval is required before:
 - file overwrites, moves, deletes, or reconcile actions
 - official Codex hooks installation or `.codex/*` edits
 
-Follow-up skills resolve the vault through the project-local Codex pointer
-first, then `OBSIDIAN_VAULT`, then the optional approved pointer at
-`~/.oh-my-obsidian/config.json`.
+Follow-up skills resolve the vault through explicit `OBSIDIAN_VAULT` first,
+then approved Codex hook pointers (`<repo>/.codex/oh-my-obsidian.local.json`
+and `~/.codex/oh-my-obsidian.local.json`), then the optional approved pointer
+at `~/.oh-my-obsidian/config.json`.

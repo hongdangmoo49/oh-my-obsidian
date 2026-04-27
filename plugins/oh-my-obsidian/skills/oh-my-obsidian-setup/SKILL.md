@@ -18,9 +18,11 @@ or prepare Obsidian Git integration.
   planned `managedArtifacts`.
 - The only bootstrap exception before setup state exists is creating `vaultRoot`
   and `vaultRoot/.oh-my-obsidian`.
-- Mutating follow-up skills must resolve the vault through the project-local
-  Codex pointer first, then `OBSIDIAN_VAULT`, then the approved Codex config
-  pointer at `~/.oh-my-obsidian/config.json`.
+- Mutating follow-up skills must resolve the vault through explicit
+  `OBSIDIAN_VAULT` first, then approved Codex hook pointers
+  (`<repo>/.codex/oh-my-obsidian.local.json` and
+  `~/.codex/oh-my-obsidian.local.json`), then the approved Codex config pointer
+  at `~/.oh-my-obsidian/config.json`.
 - If neither resolver works, report `action_required_env` and stop mutation.
 - Do not depend on repository root scripts, root `bin/`, or legacy Claude-only
   environment variables.

@@ -121,6 +121,7 @@ $oh-my-obsidian-recall Find our prior vault-layout decision.
 2. 현재 프로젝트(도메인, 기술 스택, 팀 규모)에 대해 이해하기 위한 소크라테스식 심층 인터뷰를 진행합니다.
 3. `vault-architect` 보조 에이전트를 가동해 입력받은 팀 맞춤형 폴더/문서 분류 구조 계층을 디자인합니다.
 4. 별도 승인을 거쳐 optional Obsidian Git 선택지(`safe`, `manual`, `team-sync`)를 제안합니다.
+5. Codex에서는 validation 이후 승인 기반 official hooks와 선택적 session history restore를 제안합니다.
 </details>
 
 ## Codex 플러그인
@@ -253,8 +254,10 @@ cd scripts/team-setup
 2. **Obsidian Git 플러그인 선택지**: vault가 준비된 뒤 `safe`, `manual`, `team-sync` 중 하나를 제안할 수 있습니다. 다운로드, 활성화, sync 동작은 기본값이 아니라 각각 별도 승인 항목입니다.
 3. **로컬 스크립트 생성과 환경 설정 가이드**: 온보딩용 스크립트는 생성할 수 있지만, `OBSIDIAN_VAULT`를 위한 shell profile 수정이나 Codex config-pointer 생성은 opt-in이며 승인 기반입니다.
 
-Codex의 후속 skill들은 vault를 찾을 때 먼저 project-local Codex pointer를
-확인하고, 그 다음 `OBSIDIAN_VAULT`, 마지막으로 승인된 optional config
+Codex의 후속 skill들은 vault를 찾을 때 명시적 `OBSIDIAN_VAULT`를 먼저
+확인하고, 그 다음 승인된 Codex hook pointer
+(`<repo>/.codex/oh-my-obsidian.local.json`,
+`~/.codex/oh-my-obsidian.local.json`), 마지막으로 승인된 optional config
 pointer `~/.oh-my-obsidian/config.json`을 사용합니다.
 
 ## 권한 경계

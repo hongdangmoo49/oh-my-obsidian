@@ -1,5 +1,10 @@
 # Codex Plugin Implementation Plan
 
+> Historical implementation plan: this document records the first Codex plugin
+> split. Some hooks details here describe the older preview-era design. For the
+> official Codex hooks implementation status, use
+> [codex-hooks-implementation-plan.md](codex-hooks-implementation-plan.md).
+
 ## Goal
 
 Ship oh-my-obsidian as a Codex Plugin while preserving the existing Claude Code

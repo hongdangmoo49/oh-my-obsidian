@@ -207,13 +207,14 @@ sequencing, and completion criteria.
 3. Run public safety checks if docs or install behavior changed.
 4. Inspect `git diff` for accidental Claude root changes.
 5. Confirm the final behavior against this plan.
-6. Remove the temporary implementation-plan pointer from `AGENTS.md`.
+6. Remove the temporary implementation-plan pointer from `AGENTS.md`, if that
+   file exists in the working tree.
 7. If this plan file is no longer useful after completion, either remove it or
    convert it into a historical implementation note.
 
 ### Completion Criteria
 
 - Tests and docs are aligned.
-- `AGENTS.md` no longer contains the temporary instruction to keep consulting
-  this implementation plan.
+- `AGENTS.md` is absent or no longer contains the temporary instruction to keep
+  consulting this implementation plan.
 - The final patch can be reviewed without temporary coordination scaffolding.

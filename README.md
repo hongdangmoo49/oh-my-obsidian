@@ -122,6 +122,7 @@ The plugin will:
 2. Conduct a Socratic interview to understand your project (domain, tech stack, team size).
 3. Generate a tailored folder structure via the `vault-architect` agent.
 4. Offer an optional Obsidian Git choice (`safe`, `manual`, or `team-sync`) after separate approvals.
+5. For Codex, offer approval-gated official hooks and optional session history restore after validation.
 </details>
 
 ## Codex Plugin
@@ -256,9 +257,10 @@ enablement, and auto-sync choices all require separate approval.
 2. **Obsidian Git Plugin Choices**: After the vault exists, setup can offer `safe`, `manual`, or `team-sync` Obsidian Git options. Download, enablement, and sync behavior are separate approvals, not defaults.
 3. **Local Script Generation and Environment Setup Guidance**: Setup generates onboarding scripts and can help users set `OBSIDIAN_VAULT`, but shell profile edits or Codex config-pointer creation are opt-in and approval-gated.
 
-For Codex follow-up skills, vault resolution checks the project-local Codex
-pointer first, then `OBSIDIAN_VAULT`, then the optional approved config pointer
-at `~/.oh-my-obsidian/config.json`.
+For Codex follow-up skills, vault resolution checks explicit `OBSIDIAN_VAULT`
+first, then approved Codex hook pointers (`<repo>/.codex/oh-my-obsidian.local.json`
+and `~/.codex/oh-my-obsidian.local.json`), then the optional approved config
+pointer at `~/.oh-my-obsidian/config.json`.
 
 ## Permission Boundaries
 
