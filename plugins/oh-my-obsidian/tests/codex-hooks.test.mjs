@@ -20,7 +20,7 @@ async function seedSetupState(vaultPath, overrides = {}) {
   const state = {
     schema: "oh-my-obsidian/setup-state/v1",
     status: "complete",
-    pluginVersion: "0.2.0",
+    pluginVersion: "0.3.0",
     createdAt: "2026-04-27T00:00:00.000Z",
     updatedAt: "2026-04-27T00:00:00.000Z",
     projectName: "Demo Project",
