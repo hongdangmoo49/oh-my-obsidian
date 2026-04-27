@@ -45,7 +45,7 @@ const USER_MSG_TRUNCATE = 200;
 const FIRST_MSG_TRUNCATE = 300;
 const LAST_MSG_TRUNCATE = 200;
 
-const FILE_WRITE_TOOLS = new Set(["write", "edit", "create"]);
+const FILE_WRITE_TOOLS = new Set(["write", "edit", "create", "filesystem_write"]);
 
 // ---------------------------------------------------------------------------
 // CLI entry
@@ -295,8 +295,10 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
 
   if (historyMeta?.timestamp) {
     const d = new Date(historyMeta.timestamp);
-    date = localDateStr(d);
-    startTime = localTimeStr(d);
+    if (!isNaN(d.getTime())) {
+      date = localDateStr(d);
+      startTime = localTimeStr(d);
+    }
   }
 
   if (!date && fileStatResult) {
@@ -308,10 +310,9 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
   if (userMessages.length > 0) {
     const lastTs = userMessages[userMessages.length - 1].timestamp;
     if (lastTs) {
-      try {
-        endTime = localTimeStr(new Date(lastTs));
-      } catch {
-        // ignore
+      const d = new Date(lastTs);
+      if (!isNaN(d.getTime())) {
+        endTime = localTimeStr(d);
       }
     }
   }
