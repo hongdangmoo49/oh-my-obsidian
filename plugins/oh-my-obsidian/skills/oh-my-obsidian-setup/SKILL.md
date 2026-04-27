@@ -18,9 +18,11 @@ or prepare Obsidian Git integration.
   planned `managedArtifacts`.
 - The only bootstrap exception before setup state exists is creating `vaultRoot`
   and `vaultRoot/.oh-my-obsidian`.
-- Mutating follow-up skills must resolve the vault through `OBSIDIAN_VAULT`
-  first, then the approved Codex config pointer at
-  `~/.oh-my-obsidian/config.json`.
+- Mutating follow-up skills must resolve the vault through explicit
+  `OBSIDIAN_VAULT` first, then approved Codex hook pointers
+  (`<repo>/.codex/oh-my-obsidian.local.json` and
+  `~/.codex/oh-my-obsidian.local.json`), then the approved Codex config pointer
+  at `~/.oh-my-obsidian/config.json`.
 - If neither resolver works, report `action_required_env` and stop mutation.
 - Do not depend on repository root scripts, root `bin/`, or legacy Claude-only
   environment variables.
@@ -32,16 +34,18 @@ helpers:
 
 ```bash
 node scripts/obsidian-app-preflight.mjs check
-node scripts/setup-vault.mjs dry-run --preflight-json "<json-or-file>" --vault "<path>" --project-name "<name>" --domain "<domain>" --domain "<domain>"
-node scripts/setup-vault.mjs apply --preflight-json "<json-or-file>" --vault "<path>" --project-name "<name>" --domain "<domain>" --domain "<domain>"
-node scripts/setup-vault.mjs attach --preflight-json "<json-or-file>" --vault "<path>" --project-name "<name>" --domain "<domain>" --domain "<domain>"
+node scripts/setup-vault.mjs dry-run --preflight-json "<json-or-file>" --vault "<path>" --project-name "<name>" --domain "<domain-a>" --domain "<domain-b>"
+node scripts/setup-vault.mjs apply --preflight-json "<json-or-file>" --vault "<path>" --project-name "<name>" --domain "<domain-a>" --domain "<domain-b>"
+node scripts/setup-vault.mjs attach --preflight-json "<json-or-file>" --vault "<path>" --project-name "<name>" --domain "<domain-a>" --domain "<domain-b>"
 node scripts/setup-vault.mjs validate --vault "<path>"
+node scripts/codex-hooks.mjs plan --mode repo-local --repo-root "<repo>" --vault "<path>"
+node scripts/codex-hooks.mjs apply --mode repo-local --repo-root "<repo>" --vault "<path>"
 node scripts/obsidian-git-setup.mjs check "<path>"
 ```
 
 Only add `--create-config-pointer`, `--git init`, Obsidian Git `apply`, package
-manager installs, shell profile edits, remote changes, or push commands after
-separate explicit approval.
+manager installs, Codex hooks `apply`, shell profile edits, remote changes, or
+push commands after separate explicit approval.
 
 ## Bundled References
 
@@ -130,16 +134,20 @@ Guidance by question type:
 
 4. Dry run.
    - Run `setup-vault.mjs dry-run --preflight-json "<saved-json-or-file>"`.
-   - Present planned artifacts, approvals still required, and whether resolver
-     completion needs `OBSIDIAN_VAULT` or an approved config pointer.
+   - Present planned artifacts and approvals still required.
+   - If resolver completion is missing, prefer the official repo-local Codex
+     hooks step later in this flow instead of asking beginners to configure
+     `OBSIDIAN_VAULT` or a global config pointer first.
 
 5. Apply after approval.
    - Run `setup-vault.mjs apply --preflight-json "<saved-json-or-file>"`.
    - Add `--create-config-pointer` only if the user approved that pointer.
    - Add `--git init` only if the user approved git initialization.
    - Do not add `--git init` if preflight reported `git.status != "usable"`.
-   - If the result is `action_required_env`, show exact environment steps and do
-     not call the setup complete.
+   - If the result is `action_required_env`, explain that vault files are ready
+     but Codex still needs a project-local connection. Continue to the Codex
+     hooks choice unless the user explicitly wants to stop or configure
+     `OBSIDIAN_VAULT` manually.
 
 6. Obsidian Git choice.
    - Offer `safe`, `manual`, `team-sync`, or `skip`.
@@ -159,7 +167,37 @@ Guidance by question type:
    - Report project name, vault path, resolver source, setup-state status,
      Obsidian Git status, and remaining manual actions.
 
-8. Optional History Restore (non-blocking).
+8. Official Codex hooks choice.
+   - Explain that Codex hooks are officially supported but still modify Codex
+     project or user config files.
+   - Recommend `repo-local` because oh-my-obsidian is designed around a
+     project-specific vault.
+   - Offer `repo-local`, `user-global`, `skip for now`, or `direct input`.
+   - For `repo-local`, run from the user's project directory or pass that
+     directory with `--repo-root`; the helper normalizes it to the Git worktree
+     root:
+     `node scripts/codex-hooks.mjs plan --mode repo-local --repo-root "<project-directory>" --vault "<vault-path>"`
+   - For `user-global`, run:
+     `node scripts/codex-hooks.mjs plan --mode user-global --vault "<vault-path>"`
+   - Summarize that `config.toml` enables `[features].codex_hooks = true`,
+     `hooks.json` stores the `SessionStart` and `Stop` command hooks,
+     `.codex/oh-my-obsidian.local.json` stores the user's approved vault
+     pointer, and `.codex/.gitignore` prevents that machine-specific pointer
+     from being committed.
+   - If setup-state is `action_required_env` only because no resolver exists,
+     repo-local hooks may complete setup by creating this project-local pointer.
+   - Use this beginner-facing final guidance:
+     `마지막 단계입니다. Codex가 이 프로젝트의 .codex 설정을 사용하도록
+     허용해 주세요. 그래야 이 프로젝트와 Obsidian vault가 자동으로
+     연결됩니다. 개인 vault 경로는 Git에 커밋되지 않습니다.`
+   - If automatic memory does not appear later, tell the user to allow this
+     project's `.codex/` settings in Codex, start a new Codex session from the
+     project directory, then ask `Show me the vault health check.`
+   - Apply only after explicit approval.
+   - After apply, run `setup-vault.mjs validate --vault "<vault-path>"` again
+     and report the `codexHooks` status.
+
+9. Optional History Restore (non-blocking).
    - After validation, check if Codex session data exists by running:
      `node scripts/codex-history.mjs scan --cwd "<current-working-dir>"`
    - If sessions are found, offer restore using the four-choice interaction mode:
@@ -189,6 +227,9 @@ Guidance by question type:
 - If managed artifacts are missing, run reconcile dry-run first.
 - Deletions, moves, overwrites, shell profile mutation, and `.obsidian` changes
   require a diff/dry-run and separate approval.
+- Codex hooks installation and changes to `.codex/config.toml`,
+  `.codex/hooks.json`, `.codex/hooks/`, or `.codex/oh-my-obsidian.local.json`
+  require `codex-hooks.mjs plan` output and separate approval.
 
 ## Output Style
 

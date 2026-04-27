@@ -121,6 +121,7 @@ $oh-my-obsidian-recall Find our prior vault-layout decision.
 2. 현재 프로젝트(도메인, 기술 스택, 팀 규모)에 대해 이해하기 위한 소크라테스식 심층 인터뷰를 진행합니다.
 3. `vault-architect` 보조 에이전트를 가동해 입력받은 팀 맞춤형 폴더/문서 분류 구조 계층을 디자인합니다.
 4. 별도 승인을 거쳐 optional Obsidian Git 선택지(`safe`, `manual`, `team-sync`)를 제안합니다.
+5. Codex에서는 validation 이후 승인 기반 official hooks와 선택적 session history restore를 제안합니다.
 </details>
 
 ## Codex 플러그인
@@ -148,20 +149,21 @@ Codex에서는 다음 마켓플레이스 파일을 사용하세요:
 2. `codex` 실행 후 `/plugins`를 열고 `oh-my-obsidian`를 설치한다
 3. Codex에게 `Set up an Obsidian vault for this project.` 라고 요청한다
 
-Codex 플러그인도 guided setup, recall, session-save, vault manager, opt-in
-hooks preview를 포함합니다. Codex에서는 이 흐름들을 Claude식 slash
-command 대신 자연어 요청이나 특정 skill 직접 호출로 주로 사용합니다.
+Codex 플러그인도 guided setup, recall, session-save, vault manager, 공식
+Codex hooks 기반 project-local memory context를 포함합니다. Codex에서는 이
+흐름들을 Claude식 slash command 대신 자연어 요청이나 특정 skill 직접
+호출로 주로 사용합니다.
 
 ## 기능 매트릭스
 
-| 기능 | Claude Code Plugin | Codex v1 | Codex Hooks Preview |
+| 기능 | Claude Code Plugin | Codex v1 | Official Codex Hooks |
 | :--- | :--- | :--- | :--- |
 | Guided setup | 예 | 예 | 해당 없음 |
 | Recall | 예 | 예 | 해당 없음 |
-| Session save | 예 | 예 | 저장 리마인더만 |
+| Session save | 예 | 예 | Stop 리마인더 |
 | Vault manager | 예 | 예 | 해당 없음 |
-| Hook 자동 활성화 | 예 | 아니오 | opt-in |
-| Hook 설치 위치 | Claude 설정 | 해당 없음 | `~/.codex/hooks/...` 또는 repo `.codex/hooks/...` |
+| Hook 자동 활성화 | 예 | 승인 기반 | setup 단계 |
+| Hook 설치 위치 | Claude 설정 | 기본 project `.codex/` | project `.codex/` |
 
 ---
 
@@ -239,8 +241,10 @@ cd scripts/team-setup
 사용자가 플러그인을 정상적으로 구동하기 위해 **직접 수동으로** 구축해 두어야 하는 항목들입니다:
 
 - **Node.js 18 이상** 버전이 운영체제 시스템에 설치되어 있어야 정상 동작합니다.
-- 동기화를 위해 **Git** 이 터미널 운영체제에 전역 설치되어 있어야 합니다.
-- 위에서 동기화될 플러그인 전용 파일 데이터가 담길 **빈 로컬 폴더 망(ex. 원격에 비어있는 신규 Github Repository 등)** 이 마련되어야 합니다 (예시: `mkdir my-vault && cd my-vault && git init`).
+- repository-local Codex hooks와 선택적 vault sync를 위해 **Git** 설치를 권장합니다.
+- 프로젝트별 Obsidian vault 경로가 필요합니다. setup은 새 vault를 만들거나
+  호환되는 기존 vault에 attach할 수 있으며, Git 초기화와 Obsidian Git sync는
+  모두 별도 승인 기반 선택 단계입니다.
 
 ## ⚙️ 내부 동작 원리 (Under the Hood)
 
@@ -250,9 +254,15 @@ cd scripts/team-setup
 2. **Obsidian Git 플러그인 선택지**: vault가 준비된 뒤 `safe`, `manual`, `team-sync` 중 하나를 제안할 수 있습니다. 다운로드, 활성화, sync 동작은 기본값이 아니라 각각 별도 승인 항목입니다.
 3. **로컬 스크립트 생성과 환경 설정 가이드**: 온보딩용 스크립트는 생성할 수 있지만, `OBSIDIAN_VAULT`를 위한 shell profile 수정이나 Codex config-pointer 생성은 opt-in이며 승인 기반입니다.
 
-Codex의 후속 skill들은 vault를 찾을 때 먼저 `OBSIDIAN_VAULT`를 확인하고,
-그 다음 승인된 optional config pointer
-`~/.oh-my-obsidian/config.json`을 사용합니다.
+Codex의 후속 skill들은 vault를 찾을 때 명시적 `OBSIDIAN_VAULT`를 먼저
+확인하고, 그 다음 승인된 Codex hook pointer
+(`<repo>/.codex/oh-my-obsidian.local.json`,
+`~/.codex/oh-my-obsidian.local.json`), 마지막으로 승인된 optional config
+pointer `~/.oh-my-obsidian/config.json`을 사용합니다.
+
+초보자용 Codex 경로에서는 권장 repo-local hooks setup이 project-local
+pointer를 만들고 `<repo>/.codex/.gitignore`로 보호하므로, 개인별 vault
+절대경로가 커밋되지 않으며 사용자가 먼저 환경변수를 설정할 필요가 없습니다.
 
 ## 권한 경계
 
@@ -265,11 +275,11 @@ Claude Code와 Codex 흐름 모두 다음 작업 전에는 명시적 승인이 �
 - auto-sync 또는 team-sync 활성화
 - git remote 변경 또는 push
 - overwrite, move, delete, reconcile
-- hook preview 설치
 
 Codex 전용 승인 경계:
 
 - Codex config pointer 생성
+- official Codex hooks 설치 또는 `.codex/*` 편집
 
 ## 📂 플러그인 폴더망 구조 (Structure)
 
