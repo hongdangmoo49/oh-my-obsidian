@@ -115,30 +115,13 @@ async function recall() {
 
   const keywords = uniqueValues(query.split(/\s+/).map((part) => part.trim().toLowerCase())).slice(0, 8);
 
-  // --- Step 1: Catalog search (fast path) ---
+  // --- Step 1: Catalog search (supplement) ---
   const catalog = await loadSessionCatalog(vault.vaultPath);
-  if (catalog) {
-    const catalogResults = scoreCatalogEntries(catalog.sessions || [], keywords);
-    if (catalogResults.length > 0) {
-      const expandedResults = await expandCatalogMatches(vault.vaultPath, catalogResults, keywords);
-      if (expandedResults.length > 0) {
-        expandedResults.sort((left, right) => {
-          if (right.score !== left.score) return right.score - left.score;
-          return (right.modifiedAt || "").localeCompare(left.modifiedAt || "");
-        });
-        return {
-          status: "ok",
-          action: "recall",
-          query,
-          source: "catalog",
-          results: expandedResults.slice(0, 10),
-          guidance: [],
-        };
-      }
-    }
-  }
+  const catalogResults = catalog
+    ? scoreCatalogEntries(catalog.sessions || [], keywords)
+    : [];
 
-  // --- Step 2: Full vault walk (fallback) ---
+  // --- Step 2: Full vault walk (always runs) ---
   const files = await collectMarkdownFiles(vault.vaultPath);
   const results = [];
 
@@ -168,6 +151,18 @@ async function recall() {
       score,
       modifiedAt: fileStat.mtime.toISOString(),
     });
+  }
+
+  // --- Step 3: Expand catalog matches and merge ---
+  const seenPaths = new Set(results.map((r) => r.path));
+  if (catalogResults.length > 0) {
+    const expandedResults = await expandCatalogMatches(vault.vaultPath, catalogResults, keywords);
+    for (const entry of expandedResults) {
+      if (!seenPaths.has(entry.path)) {
+        seenPaths.add(entry.path);
+        results.push(entry);
+      }
+    }
   }
 
   results.sort((left, right) => {

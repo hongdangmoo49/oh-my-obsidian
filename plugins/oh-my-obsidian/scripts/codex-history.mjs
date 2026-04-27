@@ -16,7 +16,7 @@
  */
 
 import { readFile, readdir, mkdir, writeFile, stat } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { pathExists, writeJsonAtomic, catalogPath, nowIso } from "./vault-core.mjs";
 import {
   discoverRolloutFiles,
@@ -229,51 +229,94 @@ async function restoreSessions() {
   const sessionFileMap = new Map(); // fileName → relativePath
   let restored = 0;
 
+  // Load catalog for pre-extracted data when available
+  const catalog = await loadSessionCatalog(resolvedVault);
+  const catalogByFile = new Map();
+  if (catalog) {
+    for (const entry of catalog.sessions || []) {
+      if (entry.source === "codex" && entry.sourceFile) {
+        catalogByFile.set(entry.sourceFile, entry);
+      }
+    }
+  }
+
   for (const sessionMeta of scanResult.sessions) {
-    const filePath = join(sessionsRoot, resolveRelativeSessionPath(sessionMeta));
-    let rawContent;
-    try {
-      rawContent = await readFile(filePath, "utf8");
-    } catch {
-      const allFiles = await discoverRolloutFiles(sessionsRoot);
-      const match = allFiles.find((f) => basename(f) === sessionMeta.fileName);
-      if (!match) {
-        skippedSessions.push({ fileName: sessionMeta.fileName, reason: "file not found" });
-        continue;
+    // Use catalog pre-extracted data when available, fall back to raw JSONL parse
+    const catEntry = catalogByFile.get(sessionMeta.fileName);
+    let topic;
+    let userMessages;
+    let toolsUsed;
+    let filesModified;
+    let sessionCwd;
+
+    if (catEntry && catEntry.firstUserMessage) {
+      // Catalog fast path: use pre-extracted metadata
+      topic = catEntry.topic || catEntry.firstUserMessage.slice(0, 60);
+      userMessages = catEntry.firstUserMessage
+        ? [{ text: catEntry.firstUserMessage, timestamp: "" }]
+        : [];
+      if (catEntry.lastUserMessage) {
+        userMessages.push({ text: catEntry.lastUserMessage, timestamp: "" });
       }
+      toolsUsed = catEntry.toolsUsed || [];
+      filesModified = catEntry.filesModified || [];
+      sessionCwd = catEntry.projectCwd || sessionMeta.sessionCwd;
+    } else {
+      // Fallback: read and parse raw JSONL
+      const filePath = join(sessionsRoot, resolveRelativeSessionPath(sessionMeta));
+      let rawContent;
       try {
-        rawContent = await readFile(match, "utf8");
+        rawContent = await readFile(filePath, "utf8");
       } catch {
-        skippedSessions.push({ fileName: sessionMeta.fileName, reason: "read error" });
+        const allFiles = await discoverRolloutFiles(sessionsRoot);
+        const match = allFiles.find((f) => basename(f) === sessionMeta.fileName);
+        if (!match) {
+          skippedSessions.push({ fileName: sessionMeta.fileName, reason: "file not found" });
+          continue;
+        }
+        try {
+          rawContent = await readFile(match, "utf8");
+        } catch {
+          skippedSessions.push({ fileName: sessionMeta.fileName, reason: "read error" });
+          continue;
+        }
+      }
+
+      const parsed = parseRolloutFile(rawContent, sessionMeta);
+
+      if (parsed.userMessages.length === 0) {
+        skippedSessions.push({ fileName: sessionMeta.fileName, reason: "no user messages" });
         continue;
       }
+
+      const substantiveMessages = parsed.userMessages.filter((m) => m.text.length >= 10);
+      if (substantiveMessages.length === 0) {
+        skippedSessions.push({ fileName: sessionMeta.fileName, reason: "no substantive messages" });
+        continue;
+      }
+
+      topic = substantiveMessages[0].text.slice(0, 60);
+      userMessages = parsed.userMessages;
+      toolsUsed = parsed.toolsUsed;
+      filesModified = parsed.filesModified;
+      sessionCwd = parsed.sessionCwd;
     }
 
-    const parsed = parseRolloutFile(rawContent, sessionMeta);
-
-    if (parsed.userMessages.length === 0) {
-      skippedSessions.push({ fileName: sessionMeta.fileName, reason: "no user messages" });
+    if (!topic || topic.length < 5) {
+      skippedSessions.push({ fileName: sessionMeta.fileName, reason: "insufficient content for topic" });
       continue;
     }
 
-    const substantiveMessages = parsed.userMessages.filter((m) => m.text.length >= 10);
-    if (substantiveMessages.length === 0) {
-      skippedSessions.push({ fileName: sessionMeta.fileName, reason: "no substantive messages" });
-      continue;
-    }
-
-    const topicMessage = substantiveMessages[0].text;
-    const topic = topicMessage.slice(0, 60);
     const slug = generateSlug(topic, sessionMeta.fileName);
 
     const markdownContent = renderCodexSessionNote({
       date: sessionMeta.date,
       time: sessionMeta.time,
       topic,
-      userMessages: parsed.userMessages,
-      toolsUsed: parsed.toolsUsed,
-      filesModified: parsed.filesModified,
-      sessionCwd: parsed.sessionCwd,
+      userMessages,
+      toolsUsed,
+      filesModified,
+      sessionCwd: sessionCwd || sessionMeta.sessionCwd,
       fileName: sessionMeta.fileName,
       source: "codex-rollout",
     });
@@ -307,7 +350,13 @@ async function restoreSessions() {
     catalogUpdate = await updateCatalogWithRestoredSessions(resolvedVault, sessionFileMap);
   }
 
-  const git = await maybeGitCommit(resolvedVault, generatedFiles, restored);
+  // Include catalog file in commit when --update-catalog updated it
+  const commitPaths = [...generatedFiles];
+  if (args.updateCatalog && catalogUpdate?.updated) {
+    commitPaths.push(relative(resolvedVault, catalogPath(resolvedVault)).replace(/\\/g, "/"));
+  }
+
+  const git = await maybeGitCommit(resolvedVault, commitPaths, restored);
 
   return {
     status: "ok",
@@ -362,6 +411,16 @@ async function updateCatalogWithRestoredSessions(vaultPath, sessionFileMap) {
     return { updated: true, sessionsUpdated: updatedCount };
   } catch (error) {
     return { updated: false, reason: error.message };
+  }
+}
+
+async function loadSessionCatalog(vaultPath) {
+  const catPath = catalogPath(vaultPath);
+  if (!(await pathExists(catPath))) return null;
+  try {
+    return JSON.parse(await readFile(catPath, "utf8"));
+  } catch {
+    return null;
   }
 }
 

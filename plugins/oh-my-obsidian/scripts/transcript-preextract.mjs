@@ -27,6 +27,7 @@ import {
   discoverRolloutFiles,
   extractCwd,
   extractTextContent,
+  normalizeCodexLine,
   normalizeCwdForComparison,
   resolveSessionsRoot as resolveCodexSessionsRoot,
   detectPlatformLabel,
@@ -385,14 +386,14 @@ async function preextractCodexSession(filePath, fileStatResult) {
     if (!line.trim()) continue;
     let obj;
     try {
-      obj = JSON.parse(line);
+      obj = normalizeCodexLine(JSON.parse(line));
     } catch {
       continue;
     }
 
     if (!sessionCwd) sessionCwd = extractCwd(obj);
 
-    if (obj.role === "user") {
+    if (obj.role === "user" || obj.payload?.role === "user") {
       const text = extractTextContent(obj);
       if (text) {
         if (!firstUserMessageFallback) firstUserMessageFallback = text.slice(0, 120);
@@ -572,8 +573,9 @@ async function scanAndBuildCatalog() {
         const historyMeta = history.get(sessionId) || null;
 
         // Skip small files
+        let fileStat;
         try {
-          const fileStat = await stat(filePath);
+          fileStat = await stat(filePath);
           if (fileStat.size < 1024) continue;
         } catch {
           continue;
@@ -598,8 +600,9 @@ async function scanAndBuildCatalog() {
 
       for (const filePath of rolloutFiles) {
         // Skip small files
+        let fileStat;
         try {
-          const fileStat = await stat(filePath);
+          fileStat = await stat(filePath);
           if (fileStat.size < 1024) continue;
         } catch {
           continue;

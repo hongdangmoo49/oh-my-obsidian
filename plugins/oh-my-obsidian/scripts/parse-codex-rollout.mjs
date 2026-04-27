@@ -117,6 +117,7 @@ export function scanErrorSignals(text, accumulator) {
 /** Try to extract the working directory from various possible metadata structures. */
 export function extractCwd(obj) {
   if (obj.cwd) return String(obj.cwd);
+  if (obj.payload?.cwd) return String(obj.payload.cwd);
   if (obj.metadata?.cwd) return String(obj.metadata.cwd);
   if (obj.context?.cwd) return String(obj.context.cwd);
   if (obj.session?.cwd) return String(obj.session.cwd);
@@ -135,6 +136,16 @@ export function extractTextContent(obj) {
       if (part?.type === "input_text" && part?.text) return String(part.text);
     }
   }
+  // Codex payload-nested content
+  if (obj.payload?.content) {
+    if (typeof obj.payload.content === "string") return obj.payload.content;
+    if (Array.isArray(obj.payload.content)) {
+      for (const part of obj.payload.content) {
+        if (typeof part === "string") return part;
+        if (part?.text) return String(part.text);
+      }
+    }
+  }
   return "";
 }
 
@@ -147,6 +158,43 @@ export function normalizeCwdForComparison(cwd) {
     normalized = normalized[0].toLowerCase() + normalized.slice(1);
   }
   return normalized;
+}
+
+// ---------------------------------------------------------------------------
+// Codex payload normalization
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize Codex JSONL line: unwrap payload-based schema into flat structure.
+ * Codex uses { type: "session_meta"|"response_item"|"event_msg", payload: {...} }
+ */
+export function normalizeCodexLine(obj) {
+  if (!obj.payload || typeof obj.payload !== "object") return obj;
+
+  const n = { ...obj };
+  const p = obj.payload;
+
+  if (p.cwd && !n.cwd) n.cwd = p.cwd;
+  if (p.role && !n.role) n.role = p.role;
+  if (p.content !== undefined && n.content === undefined) n.content = p.content;
+
+  // Unwrap event_msg payload types
+  if (obj.type === "event_msg") {
+    if (p.type === "function_call" || p.type === "tool_call") {
+      n.type = p.type;
+      if (p.function?.name) n.function = p.function;
+      if (p.name) n.name = p.name;
+      if (p.tool) n.tool = p.tool;
+      if (p.input) n.input = p.input;
+      if (p.arguments) n.arguments = p.arguments;
+    }
+    if (p.type === "execution_result") {
+      n.type = p.type;
+      if (p.output) n.output = p.output;
+    }
+  }
+
+  return n;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +316,7 @@ export function parseRolloutFile(rawContent, meta, options = {}) {
     if (!line.trim()) continue;
     let obj;
     try {
-      obj = JSON.parse(line);
+      obj = normalizeCodexLine(JSON.parse(line));
     } catch {
       continue;
     }
