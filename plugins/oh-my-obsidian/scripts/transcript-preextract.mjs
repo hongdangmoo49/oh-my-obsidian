@@ -26,7 +26,8 @@ import {
 import {
   discoverRolloutFiles,
   extractRolloutMeta,
-  parseRolloutFile,
+  extractCwd,
+  extractTextContent,
   normalizeCwdForComparison,
   resolveSessionsRoot as resolveCodexSessionsRoot,
   detectPlatformLabel,
@@ -45,6 +46,8 @@ const CATALOG_SCHEMA = "oh-my-obsidian/session-catalog/v1";
 const USER_MSG_TRUNCATE = 200;
 const FIRST_MSG_TRUNCATE = 300;
 const LAST_MSG_TRUNCATE = 200;
+
+const FILE_WRITE_TOOLS = new Set(["write", "edit", "create"]);
 
 // ---------------------------------------------------------------------------
 // CLI entry
@@ -181,9 +184,13 @@ async function loadClaudeCodeHistory() {
   if (!(await pathExists(historyPath))) return new Map();
 
   try {
-    const content = await readFile(historyPath, "utf8");
     const history = new Map();
-    for (const line of content.split("\n")) {
+    const rl = readline.createInterface({
+      input: createReadStream(historyPath, { encoding: "utf8" }),
+      crlfDelay: Infinity,
+    });
+
+    for await (const line of rl) {
       if (!line.trim()) continue;
       try {
         const obj = JSON.parse(line);
@@ -261,7 +268,7 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
       const toolInput = obj.tool_use?.input || obj.input || {};
       const filePath = toolInput.file_path || toolInput.path || toolInput.filePath || "";
       if (filePath) {
-        if (["Write", "Edit", "write", "edit", "create"].includes(toolName)) {
+        if (FILE_WRITE_TOOLS.has(toolName.toLowerCase())) {
           filesModified.add(filePath);
         } else {
           filesRead.add(filePath);
@@ -351,26 +358,82 @@ async function preextractClaudeCodeSessionAsync(filePath, historyMeta, fileStatR
 async function preextractCodexSession(filePath, fileStatResult) {
   const meta = await extractRolloutMeta(filePath, {
     fileStat: fileStatResult,
-    includeRawContent: true,
   });
   if (!meta) return null;
 
+  // Stream-parse the file instead of loading rawContent into memory
+  const sessionId = meta.fileName.replace(/\.jsonl$/, "");
+  const userMessages = [];
+  const toolsUsed = new Set();
+  const filesModified = new Set();
   const errorSignals = [];
-  const parsed = parseRolloutFile(meta.rawContent, meta, {
-    errorSignalAccumulator: errorSignals,
+  let sessionCwd = meta.sessionCwd || "";
+  let currentToolName = "";
+
+  const rl = readline.createInterface({
+    input: createReadStream(filePath, { encoding: "utf8" }),
+    crlfDelay: Infinity,
   });
 
-  const substantiveMessages = parsed.userMessages.filter((m) => m.text.length >= 10);
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    if (!sessionCwd) sessionCwd = extractCwd(obj);
+
+    if (obj.role === "user") {
+      const text = extractTextContent(obj);
+      if (text) {
+        userMessages.push({
+          text,
+          timestamp: obj.timestamp || obj.created_at || "",
+        });
+      }
+    }
+
+    if (obj.type === "tool_call" || obj.type === "function_call") {
+      const toolName = obj.tool || obj.name || obj.function?.name || "";
+      if (toolName) {
+        toolsUsed.add(toolName);
+        currentToolName = toolName;
+      }
+    }
+    if (obj.tool_calls && Array.isArray(obj.tool_calls)) {
+      for (const tc of obj.tool_calls) {
+        const name = tc.function?.name || tc.tool || tc.name || "";
+        if (name) {
+          toolsUsed.add(name);
+          currentToolName = name;
+        }
+      }
+    }
+
+    if (obj.type === "tool_call" || obj.type === "function_call") {
+      const path = obj.path || obj.input?.path || obj.arguments?.path || "";
+      if (path && FILE_WRITE_TOOLS.has((obj.tool || "").toLowerCase())) {
+        filesModified.add(path);
+      }
+    }
+
+    if (obj.type === "execution_result" && !SEARCH_TOOLS.has(currentToolName)) {
+      const output = obj.output || "";
+      if (output) scanErrorSignals(output, errorSignals);
+    }
+  }
+
+  const substantiveMessages = userMessages.filter((m) => m.text.length >= 10);
   const isEmptySession = substantiveMessages.length < 1;
 
-  // Derive ID from filename
-  const sessionId = meta.fileName.replace(/\.jsonl$/, "");
-
-  const firstUserMessage = parsed.userMessages.length > 0
-    ? parsed.userMessages[0].text.slice(0, FIRST_MSG_TRUNCATE)
+  const firstUserMessage = userMessages.length > 0
+    ? userMessages[0].text.slice(0, FIRST_MSG_TRUNCATE)
     : meta.firstUserMessage;
-  const lastUserMessage = parsed.userMessages.length > 0
-    ? parsed.userMessages[parsed.userMessages.length - 1].text.slice(0, LAST_MSG_TRUNCATE)
+  const lastUserMessage = userMessages.length > 0
+    ? userMessages[userMessages.length - 1].text.slice(0, LAST_MSG_TRUNCATE)
     : "";
 
   return {
@@ -380,14 +443,14 @@ async function preextractCodexSession(filePath, fileStatResult) {
     date: meta.date,
     startTime: meta.time,
     endTime: "",
-    projectCwd: meta.sessionCwd,
+    projectCwd: sessionCwd || meta.sessionCwd,
     sizeBytes: meta.sizeBytes,
-    userMessageCount: parsed.userMessages.length,
+    userMessageCount: userMessages.length,
     assistantTurnCount: 0,
     firstUserMessage,
     lastUserMessage,
-    toolsUsed: parsed.toolsUsed,
-    filesModified: parsed.filesModified,
+    toolsUsed: [...toolsUsed],
+    filesModified: [...filesModified],
     filesRead: [],
     errorSignals: errorSignals.slice(0, MAX_ERROR_SIGNALS),
     errorSignalCount: errorSignals.length,
@@ -428,7 +491,8 @@ function createEmptyCatalog(vaultPath) {
   };
 }
 
-function mergeCatalogEntries(existing, newEntries, scannedSources) {
+function mergeCatalogEntries(existing, newEntries, options = {}) {
+  const { scannedSources = new Set(), fullScan = false } = options;
   const existingById = new Map();
   for (const entry of (existing.sessions || [])) {
     existingById.set(entry.id, entry);
@@ -448,10 +512,12 @@ function mergeCatalogEntries(existing, newEntries, scannedSources) {
     existingById.set(entry.id, entry);
   }
 
-  // Prune entries whose source files were deleted (only for scanned source types)
-  for (const [id, entry] of existingById) {
-    if (!scannedIds.has(id) && scannedSources.has(entry.source)) {
-      existingById.delete(id);
+  // Prune entries only during unfiltered full scans to avoid data loss
+  if (fullScan) {
+    for (const [id, entry] of existingById) {
+      if (!scannedIds.has(id) && scannedSources.has(entry.source)) {
+        existingById.delete(id);
+      }
     }
   }
 
@@ -566,11 +632,17 @@ async function scanAndBuildCatalog() {
   if (source === "both" || source === "claude-code") scannedSources.add("claude-code");
   if (source === "both" || source === "codex") scannedSources.add("codex");
 
+  // Only prune stale entries during unfiltered full scans
+  const hasFilter = args.cwd || args.from || args.to || args.recent > 0;
+
   // Load existing catalog and merge
   const existingCatalog = await loadCatalog(resolvedVault);
   const catalog = existingCatalog || createEmptyCatalog(resolvedVault);
 
-  const mergedSessions = mergeCatalogEntries(catalog, filtered, scannedSources);
+  const mergedSessions = mergeCatalogEntries(catalog, filtered, {
+    scannedSources,
+    fullScan: !hasFilter,
+  });
 
   catalog.sessions = mergedSessions;
   catalog.updatedAt = nowIso();
