@@ -1,6 +1,8 @@
 {
   "name": "oh-my-obsidian",
+
   "version": "0.3.1",
+
   "description": "Connect Codex to an Obsidian vault for persistent project memory, guided setup, recall, and session notes.",
   "author": {
     "name": "hongdangmoo49"
@@ -25,7 +27,8 @@
     "developerName": "hongdangmoo49",
     "category": "Productivity",
     "capabilities": [
-      "Guided Obsidian vault setup"
+      "Guided Obsidian vault setup",
+      "Official Codex hooks integration"
     ],
     "websiteURL": "https://github.com/hongdangmoo49/oh-my-obsidian",
     "privacyPolicyURL": "https://github.com/hongdangmoo49/oh-my-obsidian",

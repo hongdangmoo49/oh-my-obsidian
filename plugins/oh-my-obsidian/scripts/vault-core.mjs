@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from "node:path";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep, win32 } from "node:path";
 
-export const PLUGIN_VERSION = "0.2.0";
+export const PLUGIN_VERSION = "0.3.0";
 export const SETUP_STATE_SCHEMA = "oh-my-obsidian/setup-state/v1";
 export const CODEX_CONFIG_SCHEMA = "oh-my-obsidian/codex-config/v1";
 export const CODEX_CONFIG_CREATED_BY = "oh-my-obsidian-codex-setup";
+export const CODEX_HOOKS_POINTER_SCHEMA = "oh-my-obsidian/codex-hooks-pointer/v1";
+export const CODEX_HOOKS_POINTER_CREATED_BY = "oh-my-obsidian-codex-hooks";
 
 export function nowIso() {
   return new Date().toISOString();
@@ -163,23 +165,38 @@ export async function resolveVault(options = {}) {
   const home = options.home || homedir();
   const candidates = [];
   const issues = [];
+  const cwd = resolve(expandHome(options.cwd || env.PWD || process.cwd(), home));
 
   if (env.OBSIDIAN_VAULT) {
     candidates.push({ source: "env", path: env.OBSIDIAN_VAULT });
-  } else {
-    const configPath = codexConfigPath(home);
-    const config = await readJsonObjectIfExists(configPath, "codex config", issues, false);
-    if (
-      config &&
-      config.schema === CODEX_CONFIG_SCHEMA &&
-      config.createdBy === CODEX_CONFIG_CREATED_BY &&
-      config.approvedAt &&
-      config.vaultPath
-    ) {
-      candidates.push({ source: "codexConfigPointer", path: config.vaultPath, configPath });
-    } else if (config) {
-      issues.push("codex config pointer exists but was not created by approved Codex setup");
+  }
+
+  const projectPointerPath = await findCodexHooksPointer(cwd);
+  if (projectPointerPath) {
+    const projectPointer = await readCodexHooksPointer(projectPointerPath, "project Codex hooks pointer", issues);
+    if (projectPointer) {
+      candidates.push({ source: "projectCodexPointer", path: projectPointer.vaultPath, configPath: projectPointerPath });
     }
+  }
+
+  const userPointerPath = join(home, ".codex", "oh-my-obsidian.local.json");
+  const userPointer = await readCodexHooksPointer(userPointerPath, "user Codex hooks pointer", issues);
+  if (userPointer) {
+    candidates.push({ source: "userCodexPointer", path: userPointer.vaultPath, configPath: userPointerPath });
+  }
+
+  const configPath = codexConfigPath(home);
+  const config = await readJsonObjectIfExists(configPath, "codex config", issues, false);
+  if (
+    config &&
+    config.schema === CODEX_CONFIG_SCHEMA &&
+    config.createdBy === CODEX_CONFIG_CREATED_BY &&
+    config.approvedAt &&
+    config.vaultPath
+  ) {
+    candidates.push({ source: "codexConfigPointer", path: config.vaultPath, configPath });
+  } else if (config) {
+    issues.push("codex config pointer exists but was not created by approved Codex setup");
   }
 
   for (const candidate of candidates) {
@@ -223,10 +240,40 @@ export async function resolveVault(options = {}) {
     issues,
     instructions: [
       "Run the oh-my-obsidian setup skill.",
+      "Or install repo-local Codex hooks with the project vault pointer.",
       "Or set OBSIDIAN_VAULT to the vault path in the current Codex environment.",
       "Or approve creation of ~/.oh-my-obsidian/config.json during setup.",
     ],
   };
+}
+
+export async function findCodexHooksPointer(startDir) {
+  let current = resolve(startDir || process.cwd());
+  const root = parse(current).root;
+  while (true) {
+    const pointerPath = join(current, ".codex", "oh-my-obsidian.local.json");
+    if (await pathExists(pointerPath)) return pointerPath;
+    const gitDir = join(current, ".git");
+    if (await pathExists(gitDir)) return "";
+    if (current === root) return "";
+    current = dirname(current);
+  }
+}
+
+async function readCodexHooksPointer(pointerPath, label, issues) {
+  if (!(await pathExists(pointerPath))) return null;
+  const pointer = await readJsonObjectIfExists(pointerPath, label, issues, false);
+  if (!pointer) return null;
+  if (
+    pointer.schema !== CODEX_HOOKS_POINTER_SCHEMA ||
+    pointer.createdBy !== CODEX_HOOKS_POINTER_CREATED_BY ||
+    !pointer.approvedAt ||
+    !pointer.vaultPath
+  ) {
+    issues.push(`${label} exists but was not created by approved Codex hooks setup`);
+    return null;
+  }
+  return pointer;
 }
 
 export function sanitizePathSegment(input, fallback = "untitled") {
