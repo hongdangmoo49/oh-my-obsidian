@@ -1,6 +1,6 @@
 {
   "name": "oh-my-obsidian",
-  "version": "0.2.1",
+  "version": "0.3.1",
   "description": "Connect Codex to an Obsidian vault for persistent project memory, guided setup, recall, and session notes.",
   "author": {
     "name": "hongdangmoo49"
