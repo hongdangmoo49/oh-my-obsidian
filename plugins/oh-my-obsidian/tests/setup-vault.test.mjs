@@ -112,6 +112,56 @@ test("apply with config pointer completes and validate passes", async () => {
   }
 });
 
+test("apply with git init commits the final complete setup-state cleanly", async () => {
+  const fixture = await makeFixture();
+  try {
+    const vaultPath = join(fixture.root, "vault");
+    await mkdir(vaultPath, { recursive: true });
+    spawnSync("git", ["-C", vaultPath, "-c", "init.defaultBranch=main", "init"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.email", "test@example.com"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
+
+    const run = runSetup(
+      fixture.home,
+      [
+        "apply",
+        "--home",
+        fixture.home,
+        "--vault",
+        vaultPath,
+        "--project-name",
+        "Git Clean",
+        "--domain",
+        "API",
+        "--domain",
+        "Infra",
+        "--preflight-json",
+        preflightJson,
+        "--git",
+        "init",
+      ],
+      {
+        OBSIDIAN_VAULT: vaultPath,
+      }
+    );
+    assert.equal(run.result.status, 0);
+    assert.equal(run.output.status, "complete");
+    assert.equal(run.output.git.committed, true);
+
+    const status = spawnSync("git", ["-C", vaultPath, "status", "--porcelain=v1"], { encoding: "utf8" });
+    assert.equal(status.status, 0);
+    assert.equal(status.stdout, "");
+
+    const committedState = spawnSync("git", ["-C", vaultPath, "show", "HEAD:.oh-my-obsidian/setup-state.json"], {
+      encoding: "utf8",
+    });
+    assert.equal(committedState.status, 0);
+    assert.equal(JSON.parse(committedState.stdout).status, "complete");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("apply without env or config pointer returns action_required_env", async () => {
   const fixture = await makeFixture();
   try {
