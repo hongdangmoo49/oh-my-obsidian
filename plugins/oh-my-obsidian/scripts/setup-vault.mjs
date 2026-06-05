@@ -177,7 +177,11 @@ async function applySetup() {
     state.updatedAt = nowIso();
     await writeState(vaultRoot, state);
     if (state.git?.committed) {
-      state.git = amendFinalSetupStateCommit(vaultRoot, state.git);
+      const nextGit = amendFinalSetupStateCommit(vaultRoot, state.git);
+      state.git = nextGit;
+      if (!nextGit.committed) {
+        await writeState(vaultRoot, state);
+      }
     }
     return setupResult("apply", state);
   } catch (error) {
@@ -429,7 +433,7 @@ async function writeState(vaultRoot, state) {
     ...state,
     updatedAt: nowIso(),
   };
-  if (nextState.git?.commit) {
+  if (nextState.git?.commit !== undefined) {
     const { commit, ...gitWithoutCommit } = nextState.git;
     nextState.git = gitWithoutCommit;
   }
