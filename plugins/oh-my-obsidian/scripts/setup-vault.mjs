@@ -176,6 +176,13 @@ async function applySetup() {
     state.status = await completionStatus(state.vaultRealPath, state);
     state.updatedAt = nowIso();
     await writeState(vaultRoot, state);
+    if (state.git?.committed) {
+      const nextGit = amendFinalSetupStateCommit(vaultRoot, state.git);
+      state.git = nextGit;
+      if (!nextGit.committed) {
+        await writeState(vaultRoot, state);
+      }
+    }
     return setupResult("apply", state);
   } catch (error) {
     if (state) {
@@ -422,10 +429,15 @@ async function markArtifactApplied(state, vaultRoot, relativePath, hash) {
 }
 
 async function writeState(vaultRoot, state) {
-  await writeJsonAtomic(setupStatePath(vaultRoot), {
+  const nextState = {
     ...state,
     updatedAt: nowIso(),
-  });
+  };
+  if (nextState.git?.commit !== undefined) {
+    const { commit, ...gitWithoutCommit } = nextState.git;
+    nextState.git = gitWithoutCommit;
+  }
+  await writeJsonAtomic(setupStatePath(vaultRoot), nextState);
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -593,7 +605,15 @@ async function maybeInitializeGit(vaultRoot, state) {
     .map((entry) => entry.relativePath);
   paths.push(".oh-my-obsidian/setup-state.json");
 
-  const statusBefore = run("git", ["-C", vaultRoot, "status", "--porcelain=v1", "--untracked-files=all"]);
+  const statusBefore = run("git", [
+    "-C",
+    vaultRoot,
+    "-c",
+    "core.quotePath=false",
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all",
+  ]);
   if (statusBefore.status !== 0) {
     return { ...gitState, skippedReason: "git status failed", issues: [statusBefore.stderr || statusBefore.stdout] };
   }
@@ -621,6 +641,33 @@ async function maybeInitializeGit(vaultRoot, state) {
     ...gitState,
     committed: true,
     skippedReason: "",
+    commit: run("git", ["-C", vaultRoot, "rev-parse", "--short", "HEAD"]).stdout.trim(),
+  };
+}
+
+function amendFinalSetupStateCommit(vaultRoot, gitState) {
+  const add = run("git", ["-C", vaultRoot, "add", "--", ".oh-my-obsidian/setup-state.json"]);
+  if (add.status !== 0) {
+    return {
+      ...gitState,
+      committed: false,
+      skippedReason: "git add final setup-state failed",
+      issues: [...(gitState.issues || []), add.stderr || add.stdout],
+    };
+  }
+
+  const amend = run("git", ["-C", vaultRoot, "commit", "--amend", "--no-edit"]);
+  if (amend.status !== 0) {
+    return {
+      ...gitState,
+      committed: false,
+      skippedReason: "git amend final setup-state failed",
+      issues: [...(gitState.issues || []), amend.stderr || amend.stdout],
+    };
+  }
+
+  return {
+    ...gitState,
     commit: run("git", ["-C", vaultRoot, "rev-parse", "--short", "HEAD"]).stdout.trim(),
   };
 }

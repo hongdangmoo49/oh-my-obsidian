@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -47,6 +47,33 @@ function runSetup(home, args, env = {}) {
   });
   const output = result.stdout ? JSON.parse(result.stdout) : null;
   return { result, output };
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+async function makeGitWrapper(root, { failAmend = false, emptyShortRevParse = false } = {}) {
+  const realGit = spawnSync("command -v git", { shell: true, encoding: "utf8" }).stdout.trim();
+  const binDir = join(root, "bin");
+  await mkdir(binDir, { recursive: true });
+  const wrapperPath = join(binDir, "git");
+  const lines = [
+    "#!/bin/sh",
+    `REAL_GIT=${shellQuote(realGit)}`,
+    "saw_rev_parse=false",
+    "saw_short=false",
+    "for arg in \"$@\"; do",
+    failAmend ? "  if [ \"$arg\" = \"--amend\" ]; then echo \"forced amend failure\" >&2; exit 1; fi" : "",
+    emptyShortRevParse ? "  if [ \"$arg\" = \"rev-parse\" ]; then saw_rev_parse=true; fi" : "",
+    emptyShortRevParse ? "  if [ \"$arg\" = \"--short\" ]; then saw_short=true; fi" : "",
+    "done",
+    emptyShortRevParse ? "if [ \"$saw_rev_parse\" = true ] && [ \"$saw_short\" = true ]; then printf '\\n'; exit 0; fi" : "",
+    "exec \"$REAL_GIT\" \"$@\"",
+  ].filter(Boolean);
+  await writeFile(wrapperPath, `${lines.join("\n")}\n`, "utf8");
+  await chmod(wrapperPath, 0o755);
+  return binDir;
 }
 
 test("dry-run returns planned managed artifacts", async () => {
@@ -107,6 +134,146 @@ test("apply with config pointer completes and validate passes", async () => {
     ]);
     assert.equal(validateRun.result.status, 0);
     assert.equal(validateRun.output.status, "complete");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("apply with git init commits the final complete setup-state cleanly", async () => {
+  const fixture = await makeFixture();
+  try {
+    const vaultPath = join(fixture.root, "vault");
+    await mkdir(vaultPath, { recursive: true });
+    spawnSync("git", ["-C", vaultPath, "-c", "init.defaultBranch=main", "init"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.email", "test@example.com"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
+
+    const run = runSetup(
+      fixture.home,
+      [
+        "apply",
+        "--home",
+        fixture.home,
+        "--vault",
+        vaultPath,
+        "--project-name",
+        "Git Clean",
+        "--domain",
+        "API",
+        "--domain",
+        "Infra",
+        "--preflight-json",
+        preflightJson,
+        "--git",
+        "init",
+      ],
+      {
+        OBSIDIAN_VAULT: vaultPath,
+      }
+    );
+    assert.equal(run.result.status, 0);
+    assert.equal(run.output.status, "complete");
+    assert.equal(run.output.git.committed, true);
+
+    const status = spawnSync("git", ["-C", vaultPath, "status", "--porcelain=v1"], { encoding: "utf8" });
+    assert.equal(status.status, 0);
+    assert.equal(status.stdout, "");
+
+    const committedState = spawnSync("git", ["-C", vaultPath, "show", "HEAD:.oh-my-obsidian/setup-state.json"], {
+      encoding: "utf8",
+    });
+    assert.equal(committedState.status, 0);
+    assert.equal(JSON.parse(committedState.stdout).status, "complete");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("apply persists git amend failure in setup-state", async () => {
+  const fixture = await makeFixture();
+  try {
+    const vaultPath = join(fixture.root, "vault");
+    await mkdir(vaultPath, { recursive: true });
+    spawnSync("git", ["-C", vaultPath, "-c", "init.defaultBranch=main", "init"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.email", "test@example.com"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
+    const gitWrapperBin = await makeGitWrapper(fixture.root, { failAmend: true });
+
+    const run = runSetup(
+      fixture.home,
+      [
+        "apply",
+        "--home",
+        fixture.home,
+        "--vault",
+        vaultPath,
+        "--project-name",
+        "Git Amend Failure",
+        "--domain",
+        "API",
+        "--domain",
+        "Infra",
+        "--preflight-json",
+        preflightJson,
+        "--git",
+        "init",
+      ],
+      {
+        OBSIDIAN_VAULT: vaultPath,
+        PATH: `${gitWrapperBin}:${process.env.PATH}`,
+      }
+    );
+    assert.equal(run.result.status, 0);
+    assert.equal(run.output.git.committed, false);
+    assert.match(run.output.git.skippedReason, /git amend final setup-state failed/);
+
+    const state = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
+    assert.equal(state.git.committed, false);
+    assert.match(state.git.skippedReason, /git amend final setup-state failed/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("apply does not persist an empty git commit hash in setup-state", async () => {
+  const fixture = await makeFixture();
+  try {
+    const vaultPath = join(fixture.root, "vault");
+    await mkdir(vaultPath, { recursive: true });
+    spawnSync("git", ["-C", vaultPath, "-c", "init.defaultBranch=main", "init"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.email", "test@example.com"], { encoding: "utf8" });
+    spawnSync("git", ["-C", vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
+    const gitWrapperBin = await makeGitWrapper(fixture.root, { emptyShortRevParse: true });
+
+    const run = runSetup(
+      fixture.home,
+      [
+        "apply",
+        "--home",
+        fixture.home,
+        "--vault",
+        vaultPath,
+        "--project-name",
+        "Empty Commit Hash",
+        "--domain",
+        "API",
+        "--domain",
+        "Infra",
+        "--preflight-json",
+        preflightJson,
+        "--git",
+        "init",
+      ],
+      {
+        OBSIDIAN_VAULT: vaultPath,
+        PATH: `${gitWrapperBin}:${process.env.PATH}`,
+      }
+    );
+    assert.equal(run.result.status, 0);
+    assert.equal(run.output.git.commit, "");
+
+    const state = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
+    assert.equal(Object.hasOwn(state.git, "commit"), false);
   } finally {
     await fixture.cleanup();
   }
