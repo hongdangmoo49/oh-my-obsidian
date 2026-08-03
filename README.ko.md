@@ -33,9 +33,9 @@
   <a href="#the-agents">에이전트</a>
 </p>
 
-**oh-my-obsidian은 Claude Code를 무한한 기억력을 가진 에이전트로 탈바꿈시킵니다.**
+**oh-my-obsidian은 Claude Code와 Codex에 Obsidian 기반 프로젝트 기억을 연결합니다.**
 
-AI 코딩 에이전트들은 영리하지만 기억력이 짧습니다. oh-my-obsidian은 여러분의 Claude Code 워크플로우에 Obsidian 볼트를 직접 통합시켜 이러한 간극을 메웁니다. 소크라테스식 인터뷰, 자동 리팩토링, 실시간 Git 로컬 동기화 기능을 통해 AI는 여러분의 특정 프로젝트 맥락을 학습하고, 의사 결정 내역을 기록하며, 여러 작업 세션이 지나더라도 그 과거들을 완벽히 회상해 냅니다.
+AI 코딩 에이전트는 세션이 바뀌면 작업 맥락을 잃기 쉽습니다. oh-my-obsidian은 프로젝트 결정과 세션 기록을 Obsidian 볼트의 Markdown으로 저장하고, Claude Code와 Codex가 다음 작업에서 관련 맥락을 다시 찾도록 돕습니다. 안내형 설정, 볼트 관리와 승인 기반 Git 동기화로 기록 위치와 변경 과정을 사용자가 직접 확인할 수 있습니다.
 
 ---
 

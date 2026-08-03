@@ -33,9 +33,9 @@
   <a href="#the-agents">The Agents</a>
 </p>
 
-**Oh-my-obsidian transforms Claude Code into an agent with infinite memory.**
+**Oh-my-obsidian gives Claude Code and Codex persistent, Obsidian-backed project memory.**
 
-AI coding agents are brilliant but amnesiac. Oh-my-obsidian bridges this gap by integrating an Obsidian vault directly into your Claude Code workflow. Through Socratic interviews, automated refactoring, and real-time Git sync, your AI learns your project's context, records its decisions, and recalls them perfectly across sessions.
+AI coding agents are capable but lose context between sessions. Oh-my-obsidian stores project decisions and session notes as Markdown in an Obsidian vault, then helps Claude Code and Codex retrieve the relevant context later. Guided setup, vault maintenance, and approval-based Git sync keep that memory usable without hiding where it lives.
 
 ---
 
