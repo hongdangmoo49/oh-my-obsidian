@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const{execFileSync}=require('node:child_process'),{join}=require('node:path'),{pathToFileURL}=require('node:url');const root=execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();import(pathToFileURL(join(root,'.codex','hooks','oh-my-obsidian','codex-hook-runner.mjs')).href)\" _ session-start",
+            "timeout": 5,
+            "statusMessage": "Loading oh-my-obsidian project memory"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const{execFileSync}=require('node:child_process'),{join}=require('node:path'),{pathToFileURL}=require('node:url');const root=execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();import(pathToFileURL(join(root,'.codex','hooks','oh-my-obsidian','codex-hook-runner.mjs')).href)\" _ stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
