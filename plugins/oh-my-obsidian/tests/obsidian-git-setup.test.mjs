@@ -154,7 +154,7 @@ test("reconcile preserves enabled truth and updates setup-state timestamp", asyn
       "--version",
       "9.9.9",
     ]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
 
     const afterEnable = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
     const firstUpdatedAt = afterEnable.updatedAt;
@@ -171,7 +171,7 @@ test("reconcile preserves enabled truth and updates setup-state timestamp", asyn
       "--version",
       "9.9.9",
     ]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
 
     const afterReconcile = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
     const community = JSON.parse(await readFile(join(vaultPath, ".obsidian", "community-plugins.json"), "utf8"));
@@ -203,7 +203,7 @@ test("existing plugin files require explicit reconcile approval", async () => {
       "--version",
       "9.9.9",
     ]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
 
     run = runGitSetup([
       "apply",
@@ -275,7 +275,7 @@ test("safe preset returns ready without remote or upstream requirements", async 
       "--version",
       "9.9.9",
     ]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
     assert.equal(run.output.status, "ready");
     assert.equal(run.output.recommendations.some((entry) => /remote/i.test(entry)), false);
   } finally {
@@ -302,10 +302,10 @@ test("validate uses persisted manual choice when preset is not explicitly passed
       "--version",
       "9.9.9",
     ]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
 
     run = runGitSetup(["validate", vaultPath]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
     assert.equal(run.output.plugin.effectivePreset, "manual");
     assert.equal(run.output.status, "needs-user-action");
     assert.equal(run.output.recommendations.some((entry) => /Enable Obsidian Git/.test(entry)), true);
@@ -338,7 +338,7 @@ test("reconcile without explicit preset preserves persisted manual preset", asyn
       "--version",
       "9.9.9",
     ]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
 
     run = runGitSetup([
       "apply",
@@ -349,7 +349,7 @@ test("reconcile without explicit preset preserves persisted manual preset", asyn
       "--version",
       "9.9.9",
     ]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
 
     const data = JSON.parse(await readFile(join(vaultPath, ".obsidian", "plugins", "obsidian-git", "data.json"), "utf8"));
     const state = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
@@ -385,7 +385,7 @@ test("validate treats an existing install without data.json as installed", async
     await writeFile(join(vaultPath, ".obsidian", "community-plugins.json"), '["obsidian-git"]\n', "utf8");
 
     const run = runGitSetup(["validate", vaultPath]);
-    assert.equal(run.result.status, 0);
+    assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
     assert.equal(run.output.plugin.installed, true);
   } finally {
     await fixture.cleanup();
