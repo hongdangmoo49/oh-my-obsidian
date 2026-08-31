@@ -13,10 +13,6 @@ jobs:
   test:
     name: Node 24 / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    env:
-      TEMP: ${{ runner.temp }}
-      TMP: ${{ runner.temp }}
-      TMPDIR: ${{ runner.temp }}
     strategy:
       fail-fast: false
       matrix:
@@ -30,3 +26,7 @@ jobs:
         with:
           node-version: 24
       - run: node --test
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TMPDIR: ${{ runner.temp }}
