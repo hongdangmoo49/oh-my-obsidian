@@ -827,7 +827,7 @@ function inspectGitRepository(vaultPath, allowedRelativePaths = []) {
   if (repoCheck.status !== 0) {
     return { available: true, isGitRepo: false, unsafePaths: [], status: [] };
   }
-  const status = run("git", ["-C", vaultPath, "status", "--porcelain=v1", "--untracked-files=all"]);
+  const status = run("git", ["-C", vaultPath, "-c", "core.quotePath=false", "status", "--porcelain=v1", "--untracked-files=all"]);
   const unsafePaths = collectUnsafeGitPaths(status.stdout, allowedRelativePaths);
   return {
     available: true,

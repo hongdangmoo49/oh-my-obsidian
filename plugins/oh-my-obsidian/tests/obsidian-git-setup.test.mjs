@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const scriptPath = join(process.cwd(), "plugins/oh-my-obsidian/scripts/obsidian-git-setup.mjs");
+const symlinkTest = process.platform === "win32" ? test.skip : test;
+const executableScriptTest = process.platform === "win32" ? test.skip : test;
 
 async function makeFixture() {
   const root = await mkdtemp(join(tmpdir(), "omob-git-test-"));
@@ -390,7 +392,7 @@ test("validate treats an existing install without data.json as installed", async
   }
 });
 
-test("apply blocks .obsidian symlink escape without writing plugin files", async () => {
+symlinkTest("apply blocks .obsidian symlink escape without writing plugin files", async () => {
   const fixture = await makeFixture();
   try {
     const vaultPath = join(fixture.root, "vault");
@@ -421,7 +423,7 @@ test("apply blocks .obsidian symlink escape without writing plugin files", async
   }
 });
 
-test("validate reports broken macOS git tooling explicitly", async () => {
+executableScriptTest("validate reports broken macOS git tooling explicitly", async () => {
   const fixture = await makeFixture();
   try {
     const vaultPath = join(fixture.root, "vault");

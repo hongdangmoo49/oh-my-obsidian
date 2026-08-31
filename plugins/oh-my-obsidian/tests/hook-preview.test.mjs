@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 
 const helperPath = join(process.cwd(), "plugins/oh-my-obsidian/scripts/hook-preview.mjs");
 const hookScript = join(process.cwd(), "plugins/oh-my-obsidian/hooks-preview/stop-save-reminder.sh");
+const previewTest = process.platform === "win32" ? test.skip : test;
 
 async function makeFixture() {
   const root = await mkdtemp(join(tmpdir(), "omob-hook-test-"));
@@ -16,7 +17,7 @@ async function makeFixture() {
   };
 }
 
-test("hook preview merge preserves existing Stop hooks and avoids duplicates", async () => {
+previewTest("hook preview merge preserves existing Stop hooks and avoids duplicates", async () => {
   const fixture = await makeFixture();
   try {
     const repoRoot = join(fixture.root, "repo");
@@ -74,7 +75,7 @@ test("hook preview merge preserves existing Stop hooks and avoids duplicates", a
   }
 });
 
-test("hook script returns noop json without vault and reminder json with valid setup", async () => {
+previewTest("hook script returns noop json without vault and reminder json with valid setup", async () => {
   const fixture = await makeFixture();
   try {
     let run = spawnSync("bash", [hookScript], { cwd: process.cwd(), encoding: "utf8", env: { ...process.env } });
@@ -112,7 +113,7 @@ test("hook script returns noop json without vault and reminder json with valid s
   }
 });
 
-test("invalid hooks.json blocks plan and apply without overwrite", async () => {
+previewTest("invalid hooks.json blocks plan and apply without overwrite", async () => {
   const fixture = await makeFixture();
   try {
     const repoRoot = join(fixture.root, "repo");

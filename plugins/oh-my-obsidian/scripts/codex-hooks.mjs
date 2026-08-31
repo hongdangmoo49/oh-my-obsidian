@@ -468,7 +468,7 @@ async function readOptionalText(path) {
 
 function buildHookCommand(runnerPath, eventName) {
   if (args.mode === "repo-local") {
-    return `node "$(git rev-parse --show-toplevel)/.codex/hooks/oh-my-obsidian/codex-hook-runner.mjs" ${eventName}`;
+    return `node -e "const{execFileSync}=require('node:child_process'),{join}=require('node:path'),{pathToFileURL}=require('node:url');const root=execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();import(pathToFileURL(join(root,'.codex','hooks','oh-my-obsidian','codex-hook-runner.mjs')).href)" _ ${eventName}`;
   }
   return `node ${quoteCommandArg(runnerPath)} ${eventName}`;
 }

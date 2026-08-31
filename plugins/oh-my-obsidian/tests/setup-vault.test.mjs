@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const scriptPath = join(process.cwd(), "plugins/oh-my-obsidian/scripts/setup-vault.mjs");
+const symlinkTest = process.platform === "win32" ? test.skip : test;
 const preflightJson = JSON.stringify({
   schema: "oh-my-obsidian/obsidian-app-preflight/v1",
   status: "installed",
@@ -47,33 +48,6 @@ function runSetup(home, args, env = {}) {
   });
   const output = result.stdout ? JSON.parse(result.stdout) : null;
   return { result, output };
-}
-
-function shellQuote(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
-}
-
-async function makeGitWrapper(root, { failAmend = false, emptyShortRevParse = false } = {}) {
-  const realGit = spawnSync("command -v git", { shell: true, encoding: "utf8" }).stdout.trim();
-  const binDir = join(root, "bin");
-  await mkdir(binDir, { recursive: true });
-  const wrapperPath = join(binDir, "git");
-  const lines = [
-    "#!/bin/sh",
-    `REAL_GIT=${shellQuote(realGit)}`,
-    "saw_rev_parse=false",
-    "saw_short=false",
-    "for arg in \"$@\"; do",
-    failAmend ? "  if [ \"$arg\" = \"--amend\" ]; then echo \"forced amend failure\" >&2; exit 1; fi" : "",
-    emptyShortRevParse ? "  if [ \"$arg\" = \"rev-parse\" ]; then saw_rev_parse=true; fi" : "",
-    emptyShortRevParse ? "  if [ \"$arg\" = \"--short\" ]; then saw_short=true; fi" : "",
-    "done",
-    emptyShortRevParse ? "if [ \"$saw_rev_parse\" = true ] && [ \"$saw_short\" = true ]; then printf '\\n'; exit 0; fi" : "",
-    "exec \"$REAL_GIT\" \"$@\"",
-  ].filter(Boolean);
-  await writeFile(wrapperPath, `${lines.join("\n")}\n`, "utf8");
-  await chmod(wrapperPath, 0o755);
-  return binDir;
 }
 
 test("dry-run returns planned managed artifacts", async () => {
@@ -197,7 +171,13 @@ test("apply persists git amend failure in setup-state", async () => {
     spawnSync("git", ["-C", vaultPath, "-c", "init.defaultBranch=main", "init"], { encoding: "utf8" });
     spawnSync("git", ["-C", vaultPath, "config", "user.email", "test@example.com"], { encoding: "utf8" });
     spawnSync("git", ["-C", vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
-    const gitWrapperBin = await makeGitWrapper(fixture.root, { failAmend: true });
+    const preCommitHook = join(vaultPath, ".git", "hooks", "pre-commit");
+    await writeFile(
+      preCommitHook,
+      '#!/bin/sh\nif [ -f .git/omob-precommit-seen ]; then echo "forced amend failure" >&2; exit 1; fi\ntouch .git/omob-precommit-seen\n',
+      "utf8"
+    );
+    await chmod(preCommitHook, 0o755);
 
     const run = runSetup(
       fixture.home,
@@ -218,10 +198,7 @@ test("apply persists git amend failure in setup-state", async () => {
         "--git",
         "init",
       ],
-      {
-        OBSIDIAN_VAULT: vaultPath,
-        PATH: `${gitWrapperBin}:${process.env.PATH}`,
-      }
+      { OBSIDIAN_VAULT: vaultPath }
     );
     assert.equal(run.result.status, 0);
     assert.equal(run.output.git.committed, false);
@@ -243,7 +220,13 @@ test("apply does not persist an empty git commit hash in setup-state", async () 
     spawnSync("git", ["-C", vaultPath, "-c", "init.defaultBranch=main", "init"], { encoding: "utf8" });
     spawnSync("git", ["-C", vaultPath, "config", "user.email", "test@example.com"], { encoding: "utf8" });
     spawnSync("git", ["-C", vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
-    const gitWrapperBin = await makeGitWrapper(fixture.root, { emptyShortRevParse: true });
+    const postRewriteHook = join(vaultPath, ".git", "hooks", "post-rewrite");
+    await writeFile(
+      postRewriteHook,
+      '#!/bin/sh\ngit update-ref -d "$(git symbolic-ref HEAD)"\n',
+      "utf8"
+    );
+    await chmod(postRewriteHook, 0o755);
 
     const run = runSetup(
       fixture.home,
@@ -264,10 +247,7 @@ test("apply does not persist an empty git commit hash in setup-state", async () 
         "--git",
         "init",
       ],
-      {
-        OBSIDIAN_VAULT: vaultPath,
-        PATH: `${gitWrapperBin}:${process.env.PATH}`,
-      }
+      { OBSIDIAN_VAULT: vaultPath }
     );
     assert.equal(run.result.status, 0);
     assert.equal(run.output.git.commit, "");
@@ -586,7 +566,7 @@ test("attach blocks conflicting managed files such as README.md", async () => {
   }
 });
 
-test("attach rejects managed file symlink escape", async () => {
+symlinkTest("attach rejects managed file symlink escape", async () => {
   const fixture = await makeFixture();
   try {
     const vaultPath = join(fixture.root, "vault");
