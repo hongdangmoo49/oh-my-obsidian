@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const helperPath = join(process.cwd(), "plugins/oh-my-obsidian/scripts/codex-hooks.mjs");
+const symlinkTest = process.platform === "win32" ? test.skip : test;
 
 async function makeFixture() {
   const root = await mkdtemp(join(tmpdir(), "omob-codex-hooks-test-"));
@@ -96,10 +97,9 @@ test("official Codex hooks install config flag, SessionStart and Stop hooks, run
     assert.match(run.output.nextConfigToml, /\[features\][\s\S]*existing = true[\s\S]*codex_hooks = true/);
     assert.equal(run.output.nextHooksConfig.hooks.Stop.length, 2);
     assert.equal(run.output.nextHooksConfig.hooks.SessionStart.length, 1);
-    assert.equal(
-      run.output.commands.stop,
-      'node "$(git rev-parse --show-toplevel)/.codex/hooks/oh-my-obsidian/codex-hook-runner.mjs" stop'
-    );
+    assert.match(run.output.commands.stop, /^node -e /);
+    assert.doesNotMatch(run.output.commands.stop, /\$\(/);
+    assert.match(run.output.commands.stop, / stop$/);
 
     run = runHooks(["apply", "--mode", "repo-local", "--repo-root", repoRoot, "--vault", vaultPath]);
     assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
@@ -306,7 +306,7 @@ test("official Codex hooks reject non-git repo roots and duplicate codex_hooks c
   }
 });
 
-test("official Codex hooks reject incomplete setup-state and repo-local symlink targets", async () => {
+symlinkTest("official Codex hooks reject incomplete setup-state and repo-local symlink targets", async () => {
   const fixture = await makeFixture();
   try {
     const repoRoot = join(fixture.root, "repo");

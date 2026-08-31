@@ -17,6 +17,8 @@ import {
   writeJsonAtomic,
 } from "../scripts/vault-core.mjs";
 
+const symlinkTest = process.platform === "win32" ? test.skip : test;
+
 async function makeFixture() {
   const root = await mkdtemp(join(tmpdir(), "omob-core-test-"));
   const home = join(root, "home");
@@ -35,7 +37,7 @@ test("normalizeVaultRelativePath rejects traversal and absolute paths", () => {
   assert.equal(normalizeVaultRelativePath("작업기록/세션기록"), "작업기록/세션기록");
 });
 
-test("resolveSafeVaultTarget rejects symlink parent escape", async () => {
+symlinkTest("resolveSafeVaultTarget rejects symlink parent escape", async () => {
   const fixture = await makeFixture();
   try {
     const vaultRoot = join(fixture.root, "vault");
@@ -52,7 +54,7 @@ test("resolveSafeVaultTarget rejects symlink parent escape", async () => {
   }
 });
 
-test("validatePlannedVaultTarget rejects missing-path symlink escape before writes", async () => {
+symlinkTest("validatePlannedVaultTarget rejects missing-path symlink escape before writes", async () => {
   const fixture = await makeFixture();
   try {
     const vaultRoot = join(fixture.root, "vault");
