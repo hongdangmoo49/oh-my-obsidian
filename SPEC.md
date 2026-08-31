@@ -131,7 +131,7 @@ plugins/oh-my-obsidian/
 ```json
 {
   "name": "oh-my-obsidian",
-  "version": "0.1.0",
+  "version": "0.3.3",
   "description": "Connect Obsidian vault to Claude Code for persistent team memory",
   "license": "MIT",
   "keywords": ["obsidian", "vault", "memory", "recall", "team"]
@@ -159,8 +159,9 @@ Multi-round interactive setup wizard:
 5. **Success message** with generated vault tree
 
 #### `/oh-my-obsidian:recall`
-Search and recall past documents from vault via local file search.
-If user has configured an MCP server with search capability, use it.
+Search and recall past documents from the vault. Use an already-configured MCP
+search capability first; otherwise fall back to the bundled local Markdown
+search. The plugin does not install or require an MCP server.
 
 #### `/oh-my-obsidian:refactor`
 Multi-phase automated vault refactoring orchestrated across 3 subagents:
@@ -197,8 +198,8 @@ Manage vault: list, add, organize.
 
 #### `recall`
 - **Trigger**: "회상", "기억나", "이전에", "어떻게 했지", "recall", "remember"
-- **Behavior**: The agent automatically searches vault for relevant past context
-- **Tools**: Bash, Read, Glob, Grep (local search); MCP if user-configured
+- **Behavior**: The agent uses configured MCP search first, then falls back to local Markdown search
+- **Tools**: MCP if user-configured; Bash, Read, Glob, Grep for the default local fallback
 
 #### `session-save`
 - **Trigger**: "기록해", "저장해", "save", "기록"

@@ -16,6 +16,8 @@ in the Obsidian vault.
 - Do not mutate the vault.
 - Search Markdown only.
 - Exclude `.git`, `.obsidian`, and `.oh-my-obsidian`.
+- Prefer an already-configured MCP recall or semantic-search tool when one is
+  available. Do not install, start, or require an MCP server.
 - Return concise excerpts with relative paths and categories.
 
 ## Helper
@@ -26,16 +28,17 @@ node scripts/vault-ops.mjs recall --query "<user query>"
 
 ## Expected Flow
 
-1. Run the helper with the user’s query.
-   The helper now searches the session catalog first (`session-catalog.json`) for fast
-   in-memory matching, then expands to full documents only for matches. If no catalog
-   exists or no matches are found, it falls back to full vault walk.
+1. If a configured MCP tool can search the vault, use it first. If it returns
+   relevant results, continue at step 3.
+2. Otherwise run the local helper with the user’s query. This is the default
+   backend and requires no external service. It walks the vault's Markdown files
+   and supplements those results with matching `session-catalog.json` metadata.
    - **Type-Aware Search**: If the query includes a type hint (e.g., ‘이전 결정’, ‘past decision’,
      ‘트러블슈팅’), use grep pattern `type:decision` or `type:troubleshooting` for more precise matching.
      Type mapping: 세션기록→session-log, 의사결정→decision, 트러블슈팅→troubleshooting, 회의록→meeting-notes
-2. Review the returned excerpts.
-3. Summarize only the relevant context. Include the `type` field in the output.
-4. Connect the recalled result to the user’s current question.
+3. Review the returned excerpts.
+4. Summarize only the relevant context. Include the `type` field in the output.
+5. Connect the recalled result to the user’s current question.
 
 Output format should include the type field:
 ```

@@ -15,18 +15,20 @@ Search the Obsidian vault for relevant past context matching the user's query: {
 ### Search Strategy
 
 1. **MCP Semantic Search (if available)**
-   If the user has configured an MCP server with recall/semantic search capability, use it.
+   If the user has already configured an MCP server with recall/semantic search
+   capability, use it first. Do not install, start, or require an MCP server.
 
 2. **Type-Aware Search**
    If the query includes a type hint (e.g., '이전 결정', 'past decision', '트러블슈팅'),
    use grep pattern `type:decision` or `type:troubleshooting` for more precise matching.
    Type mapping: 세션기록→session-log, 의사결정→decision, 트러블슈팅→troubleshooting, 회의록→meeting-notes
 
-3. **Local Search**
-   Search the vault directly using grep/glob:
-   - Search filenames matching keywords
-   - Search file contents with grep
-   - Check all categories: 작업기록, 의사결정, 트러블슈팅, 회의록, 외부자료, 가이드
+3. **Local Search (default fallback)**
+   If no suitable MCP search is configured, run the bundled helper:
+   ```bash
+   node "$CLAUDE_PLUGIN_ROOT/plugins/oh-my-obsidian/scripts/vault-ops.mjs" recall --query "{{ARGUMENTS}}"
+   ```
+   It searches local Markdown files and supplements matches with session-catalog metadata.
 
 4. **Return Results**
    For each match found, provide:

@@ -29,22 +29,17 @@ or any knowledge that should exist in the team's Obsidian vault.
    If not set, inform the user and suggest running `/oh-my-obsidian:setup`.
 
 2. **Search Strategy**
-   - **Catalog Search** (preferred): Search `session-catalog.json` first for fast in-memory
-     keyword matching. If matches have generated documents, read those `.md` files for excerpts.
-     If matches have no documents yet, show catalog metadata (date, firstUserMessage, tools).
+   - **MCP Semantic Search** (optional): If the user has already configured an MCP server with
+     recall/search capability, use it first. Do not install, start, or require an MCP server.
+   - **Local Search** (default): Otherwise run the bundled keyword-search helper:
      ```
-     node "$PLUGIN_ROOT/plugins/oh-my-obsidian/scripts/vault-ops.mjs" recall --query "<query>"
+     node "$CLAUDE_PLUGIN_ROOT/plugins/oh-my-obsidian/scripts/vault-ops.mjs" recall --query "<query>"
      ```
-     The recall helper automatically uses the catalog when available.
-   - **MCP Semantic Search**: If the user has configured an MCP server with recall/search capability,
-     use it for semantic search.
+     The helper walks local Markdown files and supplements those results with matching
+     `session-catalog.json` metadata when available.
    - **Type-Aware Search**: If the query includes a type hint (e.g., '이전 결정', 'past decision',
      '트러블슈팅'), use grep pattern `type:decision` or `type:troubleshooting` for more precise matching.
      Type mapping: 세션기록→session-log, 의사결정→decision, 트러블슈팅→troubleshooting, 회의록→meeting-notes
-   - **Local Search**: Search vault directly (fallback when catalog has no matches):
-     ```
-     grep -ril "keyword1\|keyword2" "$OBSIDIAN_VAULT" --include="*.md"
-     ```
      Search across both layers:
      - 서비스 레이어: all project-specific knowledge folders
      - 작업기록 레이어: 세션기록, 의사결정, 트러블슈팅, 회의록
