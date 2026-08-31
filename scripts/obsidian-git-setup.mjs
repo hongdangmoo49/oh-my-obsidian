@@ -245,11 +245,11 @@ async function extractAndValidateZip(zipPath, tempDir, expectedVersion) {
   const extractDir = join(tempDir, "extract");
   await mkdir(extractDir, { recursive: true });
 
-  const unzip = spawnSync("unzip", ["-q", zipPath, "-d", extractDir], {
-    encoding: "utf8",
-  });
-  if (unzip.status !== 0) {
-    throw new Error(`unzip failed: ${unzip.stderr || unzip.stdout}`);
+  const extractor = commandExists("unzip")
+    ? spawnSync("unzip", ["-q", zipPath, "-d", extractDir], { encoding: "utf8" })
+    : spawnSync("tar", ["-xf", zipPath, "-C", extractDir], { encoding: "utf8" });
+  if (extractor.status !== 0) {
+    throw new Error(`zip extraction failed: ${extractor.stderr || extractor.stdout}`);
   }
 
   const pluginDir = join(extractDir, PLUGIN_ID);
