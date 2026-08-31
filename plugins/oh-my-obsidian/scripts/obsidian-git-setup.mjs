@@ -295,11 +295,14 @@ async function extractAndValidateZip(zipPath, tempDir, expectedVersion) {
   const extractDir = join(tempDir, "extract");
   await mkdir(extractDir, { recursive: true });
 
-  const extractor = commandExists("unzip")
-    ? spawnSync("unzip", ["-q", zipPath, "-d", extractDir], { encoding: "utf8" })
-    : spawnSync("tar", ["-xf", zipPath, "-C", extractDir], { encoding: "utf8" });
+  let extractor = spawnSync("unzip", ["-q", zipPath, "-d", extractDir], { encoding: "utf8" });
+  if (extractor.error?.code === "ENOENT") {
+    extractor = spawnSync("tar", ["-xf", zipPath, "-C", extractDir], { encoding: "utf8" });
+  }
   if (extractor.status !== 0) {
-    throw new Error(`zip extraction failed: ${extractor.stderr || extractor.stdout}`);
+    throw new Error(
+      `zip extraction failed: ${extractor.stderr || extractor.stdout || extractor.error?.message || "unknown error"}`
+    );
   }
 
   const pluginDir = join(extractDir, PLUGIN_ID);
@@ -630,13 +633,6 @@ function run(command, commandArgs) {
     stdout: result.stdout || "",
     stderr: result.stderr || "",
   };
-}
-
-function commandExists(command) {
-  if (command === "git") {
-    return detectGitState().status === "usable";
-  }
-  return spawnSync(command, ["--version"], { stdio: "ignore" }).status === 0;
 }
 
 function detectGitState() {
