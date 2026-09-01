@@ -321,21 +321,27 @@ async function restoreSessions() {
       source: "codex-rollout",
     });
 
-    const targetDir = join(resolvedVault, "작업기록", "세션기록");
+    const targetDir = join(
+      resolvedVault,
+      "작업기록",
+      "세션기록",
+      sessionMeta.date.slice(0, 7),
+      sessionMeta.date
+    );
     await mkdir(targetDir, { recursive: true });
 
-    const targetFileName = `${sessionMeta.date}_${slug}.md`;
+    const targetFileName = `${slug}.md`;
     let finalPath = join(targetDir, targetFileName);
 
     let suffix = 1;
     while (await pathExists(finalPath)) {
       suffix += 1;
-      finalPath = join(targetDir, `${sessionMeta.date}_${slug}-${suffix}.md`);
+      finalPath = join(targetDir, `${slug}_${suffix}.md`);
     }
 
     try {
       await writeFile(finalPath, markdownContent, { encoding: "utf8", flag: "wx" });
-      const relativePath = `작업기록/세션기록/${basename(finalPath)}`;
+      const relativePath = `작업기록/세션기록/${sessionMeta.date.slice(0, 7)}/${sessionMeta.date}/${basename(finalPath)}`;
       generatedFiles.push(relativePath);
       sessionFileMap.set(sessionMeta.fileName, { relativePath, topic, category: "세션기록" });
       restored += 1;

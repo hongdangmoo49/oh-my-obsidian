@@ -17,6 +17,8 @@ async function makeFixture() {
   await mkdir(join(vaultPath, "작업기록", "의사결정"), { recursive: true });
   await mkdir(join(vaultPath, "작업기록", "트러블슈팅"), { recursive: true });
   await mkdir(join(vaultPath, "작업기록", "회의록"), { recursive: true });
+  const { date, month } = localDateParts();
+  await mkdir(join(vaultPath, "작업기록", "세션기록", month, date), { recursive: true });
   await mkdir(join(vaultPath, ".oh-my-obsidian"), { recursive: true });
   await writeFile(
     join(vaultPath, ".oh-my-obsidian", "setup-state.json"),
@@ -70,6 +72,25 @@ function runVaultOps(vaultPath, args, extraEnv = {}) {
   };
 }
 
+function localDateParts() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const date = `${year}-${month}-${day}`;
+  return { date, month: date.slice(0, 7) };
+}
+
+function workLogPath(vaultPath, slug, category = "세션기록") {
+  const { date, month } = localDateParts();
+  return join(vaultPath, "작업기록", category, month, date, `${slug}.md`);
+}
+
+function workLogRelativePath(slug, category = "세션기록") {
+  const { date, month } = localDateParts();
+  return `작업기록/${category}/${month}/${date}/${slug}.md`;
+}
+
 test("recall returns relevant excerpts from managed markdown files", async () => {
   const fixture = await makeFixture();
   try {
@@ -78,6 +99,43 @@ test("recall returns relevant excerpts from managed markdown files", async () =>
     assert.equal(run.result.status, 0);
     assert.equal(run.output.results[0].path, "Demo_Project/API/auth.md");
     assert.match(run.output.results[0].excerpt, /OAuth token flow/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("session-save groups work records by local month and day", async () => {
+  const fixture = await makeFixture();
+  try {
+    const run = runVaultOps(fixture.vaultPath, [
+      "session-save",
+      "--topic",
+      "Release Plan",
+      "--detail",
+      "Captured release plan details.",
+    ]);
+    assert.equal(run.result.status, 0);
+    assert.equal(run.output.relativePath, workLogRelativePath("release-plan"));
+    assert.match(await readFile(workLogPath(fixture.vaultPath, "release-plan"), "utf8"), /Release Plan/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("session-save groups troubleshooting by local month and day", async () => {
+  const fixture = await makeFixture();
+  try {
+    const run = runVaultOps(fixture.vaultPath, [
+      "session-save",
+      "--topic",
+      "Marketplace Source Conflict",
+      "--detail",
+      "Replaced a local marketplace with its Git source.",
+      "--category",
+      "troubleshooting",
+    ]);
+    assert.equal(run.result.status, 0);
+    assert.equal(run.output.relativePath, workLogRelativePath("marketplace-source-conflict", "트러블슈팅"));
   } finally {
     await fixture.cleanup();
   }
@@ -93,7 +151,7 @@ test("session-save creates a collision-suffixed note and skips commit when unrel
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "init"], { encoding: "utf8" });
     await writeFile(join(fixture.vaultPath, "unrelated.txt"), "user work\n", "utf8");
     spawnSync("git", ["-C", fixture.vaultPath, "add", "unrelated.txt"], { encoding: "utf8" });
-    const existing = join(fixture.vaultPath, "작업기록", "세션기록", `${new Date().toISOString().slice(0, 10)}_release-plan.md`);
+    const existing = workLogPath(fixture.vaultPath, "release-plan");
     await writeFile(existing, "# Existing\n", "utf8");
 
     const run = runVaultOps(fixture.vaultPath, [
@@ -120,7 +178,7 @@ test("session-save skips commit when the target path has pre-existing git state"
     spawnSync("git", ["-C", fixture.vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "add", "."], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "init"], { encoding: "utf8" });
-    const target = join(fixture.vaultPath, "작업기록", "세션기록", `${new Date().toISOString().slice(0, 10)}_release-plan.md`);
+    const target = workLogPath(fixture.vaultPath, "release-plan");
     await writeFile(target, "# Old note\n", "utf8");
     spawnSync("git", ["-C", fixture.vaultPath, "add", relative(fixture.vaultPath, target)], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "add old note"], { encoding: "utf8" });
@@ -150,7 +208,7 @@ test("vault add also collision-suffixes when git has a staged delete on the targ
     spawnSync("git", ["-C", fixture.vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "add", "."], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "init"], { encoding: "utf8" });
-    const target = join(fixture.vaultPath, "작업기록", "세션기록", `${new Date().toISOString().slice(0, 10)}_api-note.md`);
+    const target = workLogPath(fixture.vaultPath, "api-note");
     await writeFile(target, "# API note\n", "utf8");
     spawnSync("git", ["-C", fixture.vaultPath, "add", relative(fixture.vaultPath, target)], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "add api note"], { encoding: "utf8" });
@@ -182,13 +240,13 @@ test("session-save collision-suffixes when git has a staged rename away from the
     spawnSync("git", ["-C", fixture.vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "add", "."], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "init"], { encoding: "utf8" });
-    const original = join(fixture.vaultPath, "작업기록", "세션기록", `${new Date().toISOString().slice(0, 10)}_release-plan.md`);
+    const original = workLogPath(fixture.vaultPath, "release-plan");
     await writeFile(original, "# Old note\n", "utf8");
     spawnSync("git", ["-C", fixture.vaultPath, "add", relative(fixture.vaultPath, original)], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "add old note"], { encoding: "utf8" });
     spawnSync(
       "git",
-      ["-C", fixture.vaultPath, "mv", relative(fixture.vaultPath, original), `작업기록/세션기록/${new Date().toISOString().slice(0, 10)}_release-plan-archived.md`],
+      ["-C", fixture.vaultPath, "mv", relative(fixture.vaultPath, original), workLogRelativePath("release-plan-archived")],
       { encoding: "utf8" }
     );
 
@@ -215,13 +273,13 @@ test("vault add collision-suffixes when git has a staged rename away from the ta
     spawnSync("git", ["-C", fixture.vaultPath, "config", "user.name", "Test User"], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "add", "."], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "init"], { encoding: "utf8" });
-    const original = join(fixture.vaultPath, "작업기록", "세션기록", `${new Date().toISOString().slice(0, 10)}_api-note.md`);
+    const original = workLogPath(fixture.vaultPath, "api-note");
     await writeFile(original, "# API note\n", "utf8");
     spawnSync("git", ["-C", fixture.vaultPath, "add", relative(fixture.vaultPath, original)], { encoding: "utf8" });
     spawnSync("git", ["-C", fixture.vaultPath, "commit", "-m", "add api note"], { encoding: "utf8" });
     spawnSync(
       "git",
-      ["-C", fixture.vaultPath, "mv", relative(fixture.vaultPath, original), `작업기록/세션기록/${new Date().toISOString().slice(0, 10)}_api-note-archived.md`],
+      ["-C", fixture.vaultPath, "mv", relative(fixture.vaultPath, original), workLogRelativePath("api-note-archived")],
       { encoding: "utf8" }
     );
 
