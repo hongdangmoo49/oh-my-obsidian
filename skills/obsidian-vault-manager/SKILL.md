@@ -41,7 +41,8 @@ Common examples: API/, 인증/, 배포/, 비즈니스로직/, 스키마/
 ### Add Document
 1. Determine content from user input or file
 2. Analyze content to auto-detect category
-3. Generate appropriate filename: `YYYY-MM-DD_{slug}.md`
+3. For all work records, including troubleshooting, use
+   `YYYY-MM/YYYY-MM-DD/{slug}.md`
 4. Add frontmatter with metadata
 5. Save to appropriate location: 서비스 레이어 or `$OBSIDIAN_VAULT/작업기록/{category}/`
 6. Git add + commit

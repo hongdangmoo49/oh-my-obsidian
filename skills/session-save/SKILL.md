@@ -48,7 +48,8 @@ Also activate when the stop hook prompts and the user agrees to save.
    ```
 
 5. **Generate Document**
-   Create at: `$OBSIDIAN_VAULT/작업기록/{세션기록|의사결정|트러블슈팅}/YYYY-MM-DD_{slug}.md`
+   Create records at:
+   `$OBSIDIAN_VAULT/작업기록/{세션기록|의사결정|트러블슈팅|회의록}/YYYY-MM/YYYY-MM-DD/{slug}.md`
 
    Template:
    ```markdown
@@ -88,7 +89,7 @@ Also activate when the stop hook prompts and the user agrees to save.
 6. **Git Commit**
    ```bash
    cd "$OBSIDIAN_VAULT"
-   git add "{category}/YYYY-MM-DD_{slug}.md"
+   git add "{created relative path}"
    git commit -m "docs: {category} — {topic}"
    ```
 
@@ -98,7 +99,7 @@ Also activate when the stop hook prompts and the user agrees to save.
 
    Helper command with structural relationship flags:
    ```bash
-   node scripts/vault-ops.mjs session-save \
+   node "${CLAUDE_PLUGIN_ROOT}/plugins/oh-my-obsidian/scripts/vault-ops.mjs" session-save \
      --topic "<topic>" \
      --detail "<summary>" \
      --category "세션기록" \

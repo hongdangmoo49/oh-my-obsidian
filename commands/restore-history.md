@@ -214,8 +214,9 @@ If `isEmptySession` is true: skip, add to skippedSessions in progress file.
 
 Otherwise:
 
-1. Determine target directory: `$OBSIDIAN_VAULT/작업기록/{category}/`
-2. Generate filename: `YYYY-MM-DD_{slug}.md`
+1. For all records, including troubleshooting, use
+   `$OBSIDIAN_VAULT/작업기록/{category}/YYYY-MM/YYYY-MM-DD/`.
+2. Generate `{slug}.md` inside that date directory.
 3. Check for duplicate: if file exists, append `-2`, `-3`, etc.
 4. Write the document using this template:
 
@@ -254,14 +255,14 @@ restoredFrom: pre-extracted
 {if empty: omit this section}
 ```
 
-5. If vault is a git repository, run: `git -C "$OBSIDIAN_VAULT" add "작업기록/{category}/YYYY-MM-DD_{slug}.md"`
+5. If vault is a git repository, stage the exact created relative path.
    If not a git repo, skip the git add step.
 
 #### Step D: Update Catalog
 
 For each generated document, update the session entry in `session-catalog.json`:
 - Set `documentGenerated: true`
-- Set `documentPath: "작업기록/{category}/YYYY-MM-DD_{slug}.md"`
+- Set `documentPath` to the exact created relative path.
 - Set `topic` and `category` from the LLM response
 
 #### Step E: Update Progress File

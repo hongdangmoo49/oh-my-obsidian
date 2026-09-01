@@ -13,7 +13,8 @@ the Obsidian vault as structured knowledge documents.
 
 - Mutating use requires a resolved vault with `setup-state.status == "complete"`.
 - Never overwrite existing notes. Use exclusive create or a collision suffix.
-- Save restored sessions under `작업기록/<category>/YYYY-MM-DD_<slug>.md`.
+- Save restored sessions, including troubleshooting, under
+  `작업기록/<category>/YYYY-MM/YYYY-MM-DD/<slug>.md`.
 - Inspect git status first. If unrelated changes exist, create notes but skip
   staging and commit, then report clearly.
 - If the resolver fails or setup is incomplete, surface the helper guidance and

@@ -550,7 +550,7 @@ restoredFrom: codex-rollout
 이 기록은 Codex CLI rollout 파일에서 자동 생성된 경량 복원본입니다.
 ```
 
-Save to: `$OBSIDIAN_VAULT/작업기록/세션기록/YYYY-MM-DD_{slug}.md`
+Save to: `$OBSIDIAN_VAULT/작업기록/세션기록/YYYY-MM/YYYY-MM-DD/{slug}.md`
 
 **Topic inference rules** (shared for both Claude Code and Codex):
 - Use the first display entry that is NOT a slash command and is >= 10 characters
