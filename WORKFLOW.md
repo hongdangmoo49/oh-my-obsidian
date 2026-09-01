@@ -108,7 +108,7 @@ sequenceDiagram
         note over Summarizer: 사용자 요청, 결정사항, 에러, 파일 변경 추출
         Summarizer-->>Claude: 구조화된 세션 요약 JSON 반환
         note over Claude: 카테고리 자동 분류 (세션기록/의사결정/트러블슈팅)
-        Claude->>LocalFS: YYYY-MM-DD_{slug}.md 파일 저장
+        Claude->>LocalFS: YYYY-MM/YYYY-MM-DD/{slug}.md 파일 저장
         Claude->>LocalFS: .restore-progress.json 업데이트 (재개용)
         Claude-->>Developer: "진행: 3/10 세션 처리 완료"
     end
@@ -157,7 +157,7 @@ sequenceDiagram
         Helper->>CodexData: rollout JSONL 파일 읽기
         note over Helper: JSONL 라인별 파싱<br/>(user message, tool_call, plan 등)
         note over Helper: 사용자 메시지 추출, 도구 사용 내역 수집
-        Helper->>LocalFS: YYYY-MM-DD_{slug}.md 저장
+        Helper->>LocalFS: YYYY-MM/YYYY-MM-DD/{slug}.md 저장
     end
 
     Helper->>Git: 복원된 문서 커밋

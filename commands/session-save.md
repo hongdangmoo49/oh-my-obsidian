@@ -35,7 +35,8 @@ grep -ril "keyword1\|keyword2" "$OBSIDIAN_VAULT" --include="*.md"
 ```
 
 ### Step 4: Save to Vault
-Write to: `$OBSIDIAN_VAULT/작업기록/세션기록/YYYY-MM-DD_{topic-slug}.md`
+Write records, including troubleshooting, to:
+`$OBSIDIAN_VAULT/작업기록/{세션기록|의사결정|트러블슈팅|회의록}/YYYY-MM/YYYY-MM-DD/{topic-slug}.md`
 
 Template:
 ```markdown
@@ -72,7 +73,7 @@ participants: Claude + User
 
 Helper command with structural relationship flags:
 ```bash
-node scripts/vault-ops.mjs session-save \
+node "${CLAUDE_PLUGIN_ROOT}/plugins/oh-my-obsidian/scripts/vault-ops.mjs" session-save \
   --topic "<topic>" \
   --detail "<summary>" \
   --category "세션기록" \
@@ -85,7 +86,7 @@ node scripts/vault-ops.mjs session-save \
 If vault is a git repo:
 ```bash
 cd "$OBSIDIAN_VAULT"
-git add "작업기록/세션기록/YYYY-MM-DD_{topic-slug}.md"
+git add "{created relative path}"
 git commit -m "작업기록: {topic}"
 ```
 

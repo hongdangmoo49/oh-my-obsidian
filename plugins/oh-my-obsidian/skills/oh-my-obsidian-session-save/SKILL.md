@@ -12,7 +12,9 @@ current session into the Obsidian vault.
 
 - Mutating use requires a resolved vault with `setup-state.status == "complete"`.
 - Never overwrite an existing note. Use exclusive create or a collision suffix.
-- Save under `작업기록/<category>/YYYY-MM-DD_<slug>.md`.
+- Save work records, including troubleshooting, under
+  `작업기록/<category>/YYYY-MM/YYYY-MM-DD/<slug>.md`.
+- Use the machine's local calendar date, not UTC, for new records.
 - Inspect git status first.
 - If unrelated staged, unstaged, or ambiguous git state exists, create the note
   but skip staging and commit, then report that clearly.

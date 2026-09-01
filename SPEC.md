@@ -131,7 +131,7 @@ plugins/oh-my-obsidian/
 ```json
 {
   "name": "oh-my-obsidian",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Connect Obsidian vault to Claude Code for persistent team memory",
   "license": "MIT",
   "keywords": ["obsidian", "vault", "memory", "recall", "team"]

@@ -687,13 +687,17 @@ ${relatedWikiLinks}
 async function reserveDatedMarkdownTarget(vaultPath, relativeDir, title, blockedRelativePaths = []) {
   const normalizedDir = normalizeVaultRelativePath(relativeDir);
   const baseSlug = slugifyAscii(title, "note");
-  const date = new Date().toISOString().slice(0, 10);
+  const date = formatLocalDate(new Date());
+  const month = date.slice(0, 7);
+  const isWorkRecord = normalizedDir === "작업기록" || normalizedDir.startsWith("작업기록/");
   let suffix = 0;
   const blocked = new Set(blockedRelativePaths);
 
   while (true) {
-    const filename = suffix === 0 ? `${date}_${baseSlug}.md` : `${date}_${baseSlug}_${suffix + 1}.md`;
-    const relativePath = `${normalizedDir}/${filename}`;
+    const collisionSuffix = suffix === 0 ? "" : `_${suffix + 1}`;
+    const relativePath = isWorkRecord
+      ? `${normalizedDir}/${month}/${date}/${baseSlug}${collisionSuffix}.md`
+      : `${normalizedDir}/${date}_${baseSlug}${collisionSuffix}.md`;
     const target = await validatePlannedVaultTarget(vaultPath, relativePath);
     if (!(await pathExists(target.targetPath)) && !blocked.has(target.normalized)) {
       return {
@@ -703,6 +707,13 @@ async function reserveDatedMarkdownTarget(vaultPath, relativeDir, title, blocked
     }
     suffix += 1;
   }
+}
+
+function formatLocalDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function writeReservedMarkdownTarget(target, body) {
