@@ -138,3 +138,43 @@ export async function loadAutoState(vault, key, path, initial = null) {
   await writeJsonAtomic(path, validateState(initial, key));
   return { state: initial, recovered: false };
 }
+
+export async function verifyAutoReceipt(vault, sessionId, turnId, allowLocked = false) {
+  try {
+    if (typeof sessionId !== "string" || typeof turnId !== "string" || !sessionId || !turnId) return { verified: false, status: "missing-turn" };
+    const key = contentHash(sessionId);
+    const target = await validatePlannedVaultTarget(vault, `.oh-my-obsidian/auto-sessions/${key}.json`);
+    const receipt = await readJson(`${target.targetPath}.receipt`);
+    if (!receipt || receipt.turnId !== turnId) return { verified: false, status: "missing-receipt" };
+    if (!["saved", "unchanged", "skipped"].includes(receipt.status) || !Number.isFinite(Date.parse(receipt.verifiedAt))) return { verified: false, status: "invalid-receipt" };
+    for (const suffix of allowLocked ? [".pending"] : [".pending", ".lock"]) {
+      try { await lstat(`${target.targetPath}${suffix}`); return { verified: false, status: "unfinished" }; }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
+    if (receipt.status === "skipped") return { verified: true, status: "skipped" };
+    const state = validateState(await readJson(target.targetPath), key);
+    if (!state.noteHash || state.noteHash !== receipt.noteHash || state.relativePath !== receipt.relativePath ||
+        await noteHash(vault, state, key) !== receipt.noteHash) return { verified: false, status: "note-mismatch" };
+    return { verified: true, status: receipt.status, noteHash: receipt.noteHash };
+  } catch {
+    return { verified: false, status: "invalid-storage" };
+  }
+}
+
+export async function writeAutoReceipt(vault, sessionId, turnId, status) {
+  if (typeof sessionId !== "string" || typeof turnId !== "string" || !sessionId || !turnId.trim() || turnId.length > 240 || /[\x00-\x1f]/.test(turnId)) throw new Error("valid --auto-turn-id is required");
+  const key = contentHash(sessionId);
+  const target = await validatePlannedVaultTarget(vault, `.oh-my-obsidian/auto-sessions/${key}.json`);
+  const receipt = { turnId, status, verifiedAt: new Date().toISOString() };
+  if (status !== "skipped") {
+    const state = validateState(await readJson(target.targetPath), key);
+    receipt.noteHash = state.noteHash;
+    receipt.relativePath = state.relativePath;
+  }
+  try { if ((await lstat(`${target.targetPath}.receipt`)).isSymbolicLink()) throw new Error("receipt must not be a symlink"); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  await writeJsonAtomic(`${target.targetPath}.receipt`, receipt);
+  const result = await verifyAutoReceipt(vault, sessionId, turnId, true);
+  if (!result.verified) throw new Error(`automatic save verification failed: ${result.status}`);
+  return result;
+}
