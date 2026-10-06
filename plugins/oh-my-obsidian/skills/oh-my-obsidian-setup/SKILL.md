@@ -170,7 +170,7 @@ Guidance by question type:
 8. Official Codex hooks choice.
    - Explain that Codex hooks are officially supported but still modify Codex
      project or user config files.
-   - Recommend `repo-local` because oh-my-obsidian is designed around a
+   - Default to `repo-local` with automatic summary saving because oh-my-obsidian is designed around a
      project-specific vault.
    - Offer `repo-local`, `user-global`, `skip for now`, or `direct input`.
    - For `repo-local`, run from the user's project directory or pass that
@@ -184,6 +184,12 @@ Guidance by question type:
      `.codex/oh-my-obsidian.local.json` stores the user's approved vault
      pointer, and `.codex/.gitignore` prevents that machine-specific pointer
      from being committed.
+   - Include automatic saving in the default installation proposal: after each
+     response, Stop asks Codex to save only the cumulative work summary,
+     decisions, and next steps to one session-specific note under
+     `작업기록/세션기록/YYYY-MM/YYYY-MM-DD/`. No raw conversation, automatic
+     Git commit, or push. Explain this before installation approval.
+     Set `autoSave: false` in the approved local pointer to disable it.
    - If setup-state is `action_required_env` only because no resolver exists,
      repo-local hooks may complete setup by creating this project-local pointer.
    - Use this beginner-facing final guidance:

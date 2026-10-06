@@ -110,6 +110,7 @@ test("official Codex hooks install config flag, SessionStart and Stop hooks, run
     assert.equal(appliedHooks.hooks.SessionStart.length, 1);
     assert.match(await readFile(join(repoRoot, ".codex", "config.toml"), "utf8"), /codex_hooks = true/);
     const pointer = JSON.parse(await readFile(join(repoRoot, ".codex", "oh-my-obsidian.local.json"), "utf8"));
+    assert.equal(pointer.autoSave, true);
     assert.equal(pointer.scope, "repo-local");
     assert.equal(pointer.vaultRealPath, await realpath(vaultPath));
     const state = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
@@ -157,7 +158,7 @@ test("Node hook runner returns noop without a vault and context with a project-l
 
     hookRun = spawnSync(process.execPath, [runnerPath, "session-start"], {
       cwd: repoSubdir,
-      input: JSON.stringify({ cwd: repoSubdir }),
+      input: JSON.stringify({ cwd: repoSubdir, session_id: "demo-session" }),
       encoding: "utf8",
       env: { ...process.env, OBSIDIAN_VAULT: "" },
     });
@@ -189,7 +190,36 @@ test("Node hook runner returns noop without a vault and context with a project-l
     });
     const stop = JSON.parse(hookRun.stdout);
     assert.equal(stop.continue, true);
-    assert.match(stop.systemMessage, /session-save/);
+    // Missing session identity must not create an ambiguous automatic note.
+    assert.deepEqual(stop, { continue: true });
+    for (const active of [false, true]) {
+      hookRun = spawnSync(process.execPath, [runnerPath, "stop"], {
+        cwd: repoSubdir,
+        input: JSON.stringify({ cwd: repoSubdir, session_id: "demo-session", stop_hook_active: active }),
+        encoding: "utf8", env: { ...process.env, OBSIDIAN_VAULT: "" },
+      });
+      const output = JSON.parse(hookRun.stdout);
+      if (active) assert.deepEqual(output, { continue: true });
+      else {
+        assert.equal(output.decision, "block");
+        assert.match(output.reason, /--auto-session-id/);
+        assert.match(output.reason, /Exclude raw conversation/);
+      }
+    }
+    const save = spawnSync(process.execPath, [join(repoRoot, ".codex", "hooks", "oh-my-obsidian", "vault-ops.mjs"),
+      "session-save", "--auto-session-id", "demo-session", "--topic", "Demo", "--detail", "Installed helper works"], {
+      cwd: repoRoot, encoding: "utf8", env: { ...process.env, OBSIDIAN_VAULT: vaultPath },
+    });
+    assert.equal(save.status, 0, save.stderr || save.stdout);
+    assert.equal(JSON.parse(save.stdout).automatic, true);
+    const pointerPath = join(repoRoot, ".codex", "oh-my-obsidian.local.json");
+    const pointer = JSON.parse(await readFile(pointerPath, "utf8"));
+    await writeFile(pointerPath, JSON.stringify({ ...pointer, autoSave: false }), "utf8");
+    hookRun = spawnSync(process.execPath, [runnerPath, "stop"], {
+      cwd: repoRoot, input: JSON.stringify({ cwd: repoRoot, session_id: "demo-session" }),
+      encoding: "utf8", env: { ...process.env, OBSIDIAN_VAULT: "" },
+    });
+    assert.deepEqual(JSON.parse(hookRun.stdout), { continue: true });
   } finally {
     await fixture.cleanup();
   }

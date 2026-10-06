@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import {
   basenameWithoutExtension,
@@ -58,6 +58,7 @@ function parseArgs(argv) {
     subaction: argv[0] === "vault" ? argv[1] || "" : "",
     query: "",
     topic: "",
+    sessionId: "",
     title: "",
     category: "",
     relativeDir: "",
@@ -82,6 +83,10 @@ function parseArgs(argv) {
   for (let index = startIndex; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--query") parsed.query = argv[++index] || "";
+    else if (arg === "--auto-session-id") {
+      parsed.sessionId = argv[++index] || "";
+      if (!parsed.sessionId.trim() || parsed.sessionId.startsWith("--")) throw new Error("--auto-session-id requires a session id");
+    }
     else if (arg === "--topic") parsed.topic = argv[++index] || "";
     else if (arg === "--title") parsed.title = argv[++index] || "";
     else if (arg === "--category") parsed.category = argv[++index] || "";
@@ -189,6 +194,7 @@ async function sessionSave() {
   const categoryName = mapWorkCategory(args.category || "세션기록");
   const noteType = args.type || typeFromCategory(categoryName);
   const details = await resolveTextInput(args.detail, args.detailFile);
+  if (args.sessionId) return await autoSessionSave(vault, topic, details);
   const title = topic;
 
   const autoRelated = await searchRelatedDocs(vault.vaultPath, topic, args.tags);
@@ -237,6 +243,55 @@ async function sessionSave() {
     relativePath: reserved.relativePath,
     git,
   };
+}
+
+async function autoSessionSave(vault, topic, details) {
+  if (!details.trim()) throw new Error("automatic session-save requires a summary");
+  if (args.sessionId.length > 240 || /[\r\n\x00-\x1f]/.test(args.sessionId)) {
+    throw new Error("invalid automatic session id");
+  }
+  const key = contentHash(args.sessionId);
+  const stateTarget = await validatePlannedVaultTarget(vault.vaultPath, `.oh-my-obsidian/auto-sessions/${key}.json`);
+  await mkdir(dirname(stateTarget.targetPath), { recursive: true });
+  const createdAt = new Date();
+  const date = formatLocalDate(createdAt);
+  const initial = {
+    createdAt: createdAt.toISOString(),
+    relativePath: `작업기록/세션기록/${date.slice(0, 7)}/${date}/${slugifyAscii(basename(process.cwd()), "project")}-${key}.md`,
+  };
+  try {
+    await writeFile(stateTarget.targetPath, JSON.stringify(initial), { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+  }
+  if ((await lstat(stateTarget.targetPath)).isSymbolicLink()) throw new Error("auto-session state must not be a symlink");
+  const state = JSON.parse(await readFile(stateTarget.targetPath, "utf8"));
+  if (!/^작업기록\/세션기록\/\d{4}-\d{2}\/\d{4}-\d{2}-\d{2}\/[a-z0-9-]+\.md$/.test(state.relativePath || "") ||
+      !state.relativePath.endsWith(`-${key}.md`) || !Number.isFinite(Date.parse(state.createdAt))) {
+    throw new Error("invalid auto-session state");
+  }
+  const target = await validatePlannedVaultTarget(vault.vaultPath, state.relativePath);
+  const marker = `<!-- oh-my-obsidian:auto-session:${key} -->`;
+  const body = `${renderSessionNote({
+    title: topic, topic, category: "세션기록", type: "session-log", details,
+    decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps),
+    files: [], participants: [], tags: [], services: uniqueValues(args.services),
+    relatedDocs: uniqueValues(args.relatedDocs), timestamp: state.createdAt,
+  })}\n${marker}\n`;
+  let previous = "";
+  if (await pathExists(target.targetPath)) {
+    if ((await lstat(target.targetPath)).isSymbolicLink()) throw new Error("auto-session note must not be a symlink");
+    previous = await readFile(target.targetPath, "utf8");
+    if (!previous.endsWith(`\n${marker}\n`)) throw new Error("refusing to overwrite an unmanaged note");
+  }
+  if (body !== previous) {
+    await mkdir(dirname(target.targetPath), { recursive: true });
+    const tempPath = `${target.targetPath}.${process.pid}.tmp`;
+    await writeFile(tempPath, body, { encoding: "utf8", flag: "wx" });
+    await rename(tempPath, target.targetPath);
+  }
+  return { status: "ok", action: "session-save", automatic: true, unchanged: body === previous,
+    relativePath: target.normalized, git: { attempted: false, committed: false, reason: "automatic saves never commit or push" } };
 }
 
 async function vaultCommand() {
@@ -611,8 +666,7 @@ async function searchRelatedDocs(vaultPath, topic, tagInput, maxResults = 5) {
   return scored.slice(0, maxResults).map((r) => r.relativePath);
 }
 
-function renderSessionNote({ title, topic, category, type, details, decisions, nextSteps, files, participants, tags, services, relatedDocs }) {
-  const timestamp = new Date().toISOString();
+function renderSessionNote({ title, topic, category, type, details, decisions, nextSteps, files, participants, tags, services, relatedDocs, timestamp = new Date().toISOString() }) {
   const participantText = participants.length > 0 ? participants.join(", ") : "Codex, User";
   const tagText = tags.length > 0 ? tags.join(", ") : "";
   const serviceText = services.length > 0 ? services.join(", ") : "";

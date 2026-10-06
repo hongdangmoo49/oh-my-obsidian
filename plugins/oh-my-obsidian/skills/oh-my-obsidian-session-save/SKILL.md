@@ -1,17 +1,24 @@
 ---
 name: oh-my-obsidian-session-save
-description: Use this skill when the user explicitly wants to save, record, or summarize the current session into the Obsidian vault.
+description: Use this skill when the user wants to save the current session or the installed Stop hook requests automatic summary saving.
 ---
 
 # Oh My Obsidian Session Save
 
 Use this skill when the user explicitly wants to save, record, or summarize the
-current session into the Obsidian vault.
+current session into the Obsidian vault, or an installed Stop hook requests it.
 
 ## Contract
 
 - Mutating use requires a resolved vault with `setup-state.status == "complete"`.
 - Never overwrite an existing note. Use exclusive create or a collision suffix.
+  Exception: automatic mode updates only its own session-id-marked note.
+- For a Stop-hook automatic save, use the hook-supplied helper and
+  `--auto-session-id "<session-id>"`. Save a cumulative work summary, decisions,
+  and next steps only; never copy raw conversation, secrets, or personal data.
+  Read the existing automatic note before summarizing if needed to preserve
+  earlier decisions and unfinished next steps. Automatic saves never commit or
+  push. If saving fails, report it once and finish without a retry loop.
 - Save work records, including troubleshooting, under
   `작업기록/<category>/YYYY-MM/YYYY-MM-DD/<slug>.md`.
 - Use the machine's local calendar date, not UTC, for new records.

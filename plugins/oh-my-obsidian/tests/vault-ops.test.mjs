@@ -91,6 +91,33 @@ function workLogRelativePath(slug, category = "세션기록") {
   return `작업기록/${category}/${month}/${date}/${slug}.md`;
 }
 
+test("automatic saves update one owned note, skip unchanged content and never commit", async () => {
+  const fixture = await makeFixture();
+  try {
+    const args = ["session-save", "--auto-session-id", "test-session", "--topic", "Auto summary", "--detail", "Work done", "--decision", "Use Stop", "--next-step", "Release"];
+    const first = runVaultOps(fixture.vaultPath, args);
+    assert.equal(first.result.status, 0, first.result.stdout);
+    assert.equal(first.output.git.attempted, false);
+    const target = join(fixture.vaultPath, first.output.relativePath);
+    const content = await readFile(target, "utf8");
+    assert.match(content, /^---\ntype: session-log/);
+    assert.match(content, /Use Stop/);
+    assert.match(content, /Release/);
+    const second = runVaultOps(fixture.vaultPath, args);
+    assert.equal(second.output.unchanged, true);
+    const updated = runVaultOps(fixture.vaultPath, [...args, "--detail", "Updated work"]);
+    assert.equal(updated.output.relativePath, first.output.relativePath);
+    assert.match(await readFile(target, "utf8"), /Updated work/);
+    await writeFile(target, "# User note\n", "utf8");
+    const collision = runVaultOps(fixture.vaultPath, args);
+    assert.equal(collision.result.status, 1);
+    assert.match(collision.output.issues.join(" "), /unmanaged note/);
+    assert.equal(await readFile(target, "utf8"), "# User note\n");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("recall returns relevant excerpts from managed markdown files", async () => {
   const fixture = await makeFixture();
   try {

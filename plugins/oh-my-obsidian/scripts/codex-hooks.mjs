@@ -135,6 +135,7 @@ async function buildPlan(options = {}) {
     configTomlPath: target.configTomlPath,
     hooksConfigPath: target.hooksConfigPath,
     runnerPath: target.runnerPath,
+    autoSave: pointerValue?.autoSave !== false,
     pointerPath: target.pointerPath,
     gitignorePath: target.gitignorePath,
     commands: target.commands,
@@ -153,6 +154,7 @@ async function buildPlan(options = {}) {
     }),
     rollback: [
       `Remove ${target.runnerPath}`,
+      `Remove vault-ops.mjs and vault-core.mjs beside ${target.runnerPath}`,
       `Remove the oh-my-obsidian SessionStart and Stop hook commands from ${target.hooksConfigPath}`,
       `Remove ${target.pointerPath}`,
       `Remove codex_hooks from ${target.configTomlPath} only if oh-my-obsidian was the only feature using it`,
@@ -260,6 +262,7 @@ function buildPointerValue(target, vault, currentPointer) {
     vaultRealPath: vault.vaultRealPath,
     setupStatePath: vault.setupStatePath,
     approvedAt,
+    autoSave: currentPointer?.autoSave !== false,
     hooksConfigPath: target.hooksConfigPath,
     configTomlPath: target.configTomlPath,
     runnerPath: target.runnerPath,
@@ -267,10 +270,14 @@ function buildPointerValue(target, vault, currentPointer) {
 }
 
 async function applyPlan(plan) {
-  for (const targetPath of [plan.runnerPath, plan.configTomlPath, plan.hooksConfigPath, plan.pointerPath, plan.gitignorePath].filter(Boolean)) {
+  const helpers = ["vault-ops.mjs", "vault-core.mjs"];
+  for (const targetPath of [plan.runnerPath, ...helpers.map((name) => join(dirname(plan.runnerPath), name)), plan.configTomlPath, plan.hooksConfigPath, plan.pointerPath, plan.gitignorePath].filter(Boolean)) {
     await assertSafeCodexWriteTarget(targetPath, plan);
   }
   await writeFileAtomicNoSymlink(plan.runnerPath, await readFile(sourceRunnerPath, "utf8"));
+  for (const name of helpers) {
+    await writeFileAtomicNoSymlink(join(dirname(plan.runnerPath), name), await readFile(join(scriptDir, name), "utf8"));
+  }
   await writeFileAtomicNoSymlink(plan.configTomlPath, plan.nextConfigToml);
   await writeJsonAtomic(plan.hooksConfigPath, plan.nextHooksConfig);
   if (plan.gitignorePath) {
@@ -292,6 +299,7 @@ async function updateSetupState(plan) {
     codexHooks: {
       enabled: true,
       status: "installed",
+      autoSave: plan.nextPointer.autoSave,
       mode: plan.mode,
       events: ["SessionStart", "Stop"],
       installedAt: nowIso(),
