@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { lstat, mkdir, readdir, readFile, rename, rmdir, stat, unlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import {
   basenameWithoutExtension,
@@ -16,6 +16,7 @@ import {
   validatePlannedVaultTarget,
   writeJsonAtomic,
 } from "./vault-core.mjs";
+import { acquireAutoLock, commitAutoState, loadAutoState } from "./auto-session-recovery.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -30,7 +31,7 @@ main().catch((error) => {
 
 async function main() {
   const action = args.action;
-  if (!["recall", "session-save", "vault"].includes(action)) {
+  if (!["recall", "session-save", "session-recover", "vault"].includes(action)) {
     throw new Error(`unknown action: ${action || ""}`);
   }
 
@@ -48,6 +49,10 @@ async function main() {
     return;
   }
 
+  if (action === "session-recover") {
+    printJson(await sessionRecover());
+    return;
+  }
   const result = await vaultCommand();
   printJson(result);
   process.exit(result.status === "failed" ? 1 : 0);
@@ -259,14 +264,7 @@ async function autoSessionSave(vault, topic, details) {
   const key = contentHash(args.sessionId);
   const stateTarget = await validatePlannedVaultTarget(vault.vaultPath, `.oh-my-obsidian/auto-sessions/${key}.json`);
   await mkdir(dirname(stateTarget.targetPath), { recursive: true });
-  const lockPath = `${stateTarget.targetPath}.lock`;
-  // ponytail: orphan locks fail closed; explicit recovery is separate state-recovery work.
-  try {
-    await mkdir(lockPath);
-  } catch (error) {
-    if (error.code === "EEXIST") throw new Error("automatic session save is locked; do not overwrite or retry blindly");
-    throw error;
-  }
+  const release = await acquireAutoLock(`${stateTarget.targetPath}.lock`);
   try {
     const createdAt = new Date();
     const date = formatLocalDate(createdAt);
@@ -274,17 +272,7 @@ async function autoSessionSave(vault, topic, details) {
       createdAt: createdAt.toISOString(),
       relativePath: `작업기록/세션기록/${date.slice(0, 7)}/${date}/${slugifyAscii(basename(process.cwd()), "project")}-${key}.md`,
     };
-    try {
-      await writeFile(stateTarget.targetPath, JSON.stringify(initial), { encoding: "utf8", flag: "wx" });
-    } catch (error) {
-      if (error.code !== "EEXIST") throw error;
-    }
-    if ((await lstat(stateTarget.targetPath)).isSymbolicLink()) throw new Error("auto-session state must not be a symlink");
-    const state = JSON.parse(await readFile(stateTarget.targetPath, "utf8"));
-    if (!/^작업기록\/세션기록\/\d{4}-\d{2}\/\d{4}-\d{2}-\d{2}\/[a-z0-9-]+\.md$/.test(state.relativePath || "") ||
-        !state.relativePath.endsWith(`-${key}.md`) || !Number.isFinite(Date.parse(state.createdAt))) {
-      throw new Error("invalid auto-session state");
-    }
+    const { state, recovered } = await loadAutoState(vault.vaultPath, key, stateTarget.targetPath, initial);
     const target = await validatePlannedVaultTarget(vault.vaultPath, state.relativePath);
     const marker = `<!-- oh-my-obsidian:auto-session:${key} -->`;
     let body = `${renderSessionNote({
@@ -317,7 +305,9 @@ async function autoSessionSave(vault, topic, details) {
     } else if (previous) {
       body = previous;
     }
+    const nextState = { ...state, noteHash: contentHash(body), inputs: uniqueValues([...inputs, inputHash]) };
     if (body !== previous) {
+      await writeJsonAtomic(`${stateTarget.targetPath}.pending`, { prior: state, priorHash: previous ? contentHash(previous) : null, next: nextState });
       await mkdir(dirname(target.targetPath), { recursive: true });
       const tempPath = `${target.targetPath}.${process.pid}.${Date.now()}.tmp`;
       try {
@@ -334,11 +324,29 @@ async function autoSessionSave(vault, topic, details) {
         await unlink(tempPath).catch((error) => { if (error.code !== "ENOENT") throw error; });
       }
     }
-    await writeJsonAtomic(stateTarget.targetPath, { ...state, noteHash: contentHash(body), inputs: uniqueValues([...inputs, inputHash]) });
+    await commitAutoState(stateTarget.targetPath, nextState);
+    await unlink(`${stateTarget.targetPath}.pending`).catch((error) => { if (error.code !== "ENOENT") throw error; });
     return { status: "ok", action: "session-save", automatic: true, unchanged: body === previous,
-      noteHash: contentHash(body), relativePath: target.normalized, git: { attempted: false, committed: false, reason: "automatic saves never commit or push" } };
+      recovered, noteHash: contentHash(body), relativePath: target.normalized, git: { attempted: false, committed: false, reason: "automatic saves never commit or push" } };
   } finally {
-    await rmdir(lockPath);
+    await release();
+  }
+}
+
+async function sessionRecover() {
+  if (!args.sessionId.trim() || args.sessionId.length > 240 || /[\x00-\x1f]/.test(args.sessionId)) throw new Error("valid --auto-session-id is required");
+  const vault = await resolveManagedVault();
+  if (!vault.ok) throw new Error(`vault recovery refused: ${(vault.issues || []).join("; ")}`);
+  const key = contentHash(args.sessionId);
+  const target = await validatePlannedVaultTarget(vault.vaultPath, `.oh-my-obsidian/auto-sessions/${key}.json`);
+  await mkdir(dirname(target.targetPath), { recursive: true });
+  const release = await acquireAutoLock(`${target.targetPath}.lock`, true);
+  try {
+    const result = await loadAutoState(vault.vaultPath, key, target.targetPath);
+    return { status: "ok", action: "session-recover", recovered: result.recovered || release.lockRecovered, lockRecovered: release.lockRecovered, relativePath: result.state.relativePath,
+      noteHash: result.state.noteHash, git: { attempted: false, committed: false } };
+  } finally {
+    await release();
   }
 }
 
