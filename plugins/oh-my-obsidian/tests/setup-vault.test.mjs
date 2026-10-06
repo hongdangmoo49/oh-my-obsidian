@@ -28,6 +28,8 @@ async function makeFixture() {
   const root = await mkdtemp(join(tmpdir(), "omob-setup-test-"));
   const home = join(root, "home");
   await mkdir(home, { recursive: true });
+  // Bound project-pointer discovery to the fixture instead of the real account.
+  await mkdir(join(root, ".git"));
   return {
     root,
     home,
@@ -37,10 +39,13 @@ async function makeFixture() {
 
 function runSetup(home, args, env = {}) {
   const result = spawnSync(process.execPath, [scriptPath, ...args], {
-    cwd: process.cwd(),
+    cwd: home,
     env: {
       ...process.env,
       HOME: home,
+      USERPROFILE: home,
+      PWD: home,
+      OBSIDIAN_VAULT: "",
       OH_MY_OBSIDIAN_TEST_PLATFORM: "linux",
       ...env,
     },

@@ -23,6 +23,8 @@ async function makeFixture() {
   const root = await mkdtemp(join(tmpdir(), "omob-core-test-"));
   const home = join(root, "home");
   await mkdir(home, { recursive: true });
+  // Stop pointer discovery before it reaches directories outside this fixture.
+  await mkdir(join(root, ".git"));
   return {
     root,
     home,
@@ -91,7 +93,7 @@ test("resolveVault uses approved config pointer and rejects realpath mismatch", 
       approvedAt: new Date().toISOString(),
     });
 
-    const resolved = await resolveVault({ env: {}, home: fixture.home });
+    const resolved = await resolveVault({ env: {}, home: fixture.home, cwd: fixture.home });
     assert.equal(resolved.ok, true);
     assert.equal(resolved.source, "codexConfigPointer");
 
@@ -101,7 +103,7 @@ test("resolveVault uses approved config pointer and rejects realpath mismatch", 
       vaultPath: vaultRoot,
       vaultRealPath: join(fixture.root, "different"),
     });
-    const mismatch = await resolveVault({ env: {}, home: fixture.home });
+    const mismatch = await resolveVault({ env: {}, home: fixture.home, cwd: fixture.home });
     assert.equal(mismatch.ok, false);
     assert.match(mismatch.issues.join("\n"), /vaultRealPath/);
   } finally {
