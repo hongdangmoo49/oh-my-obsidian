@@ -44,6 +44,8 @@ try {
   }));
   const install = run(installer, ["apply", "--mode", "repo-local", "--repo-root", project, "--vault", vault, "--home", home]);
   assert.equal(install.exit, 0);
+  const projectPointer = JSON.parse(await readFile(install.output.pointerPath, "utf8"));
+  await writeFile(install.output.pointerPath, JSON.stringify({ ...projectPointer, quietStop: false }));
   const runner = install.output.runnerPath;
   const first = save("Initial work", ["--decision", "Preserve prior decision", "--next-step", "Pending task"]);
   assert.equal(first.exit, 0);

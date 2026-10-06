@@ -185,11 +185,14 @@ Guidance by question type:
      pointer, and `.codex/.gitignore` prevents that machine-specific pointer
      from being committed.
    - Include automatic saving in the default installation proposal: after each
-     response, Stop asks Codex to save only the cumulative work summary,
+     substantive response, SessionStart instructions ask Codex to save the work summary,
      decisions, and next steps to one session-specific note under
      `작업기록/세션기록/YYYY-MM/YYYY-MM-DD/`. No raw conversation, automatic
      Git commit, or push. Explain this before installation approval.
      Set `autoSave: false` in the approved local pointer to disable it.
+     Quiet mode is the default: Stop does not block or display a save prompt.
+     It does not enforce successful saving. `quietStop: false` explicitly opts
+     into the visible blocking continuation mode.
    - If setup-state is `action_required_env` only because no resolver exists,
      repo-local hooks may complete setup by creating this project-local pointer.
    - Use this beginner-facing final guidance:

@@ -130,8 +130,11 @@ the Git root before writing `<repo>/.codex/`. It also creates or updates
 The installer keeps responsibilities separate: `config.toml` enables
 `[features].codex_hooks = true`, while `hooks.json` stores the `SessionStart`
 and `Stop` command hooks. `SessionStart` injects compact project/vault context;
-`Stop` continues Codex once to save a cumulative work summary, decisions, and
-next steps by default. Automatic notes use one session-specific file under
+By default, SessionStart asks Codex to save new work, decisions and next steps
+before its final response. Stop returns success without blocking or displaying
+the save instructions. This quiet mode is best effort, not an enforced save
+gate. Set `quietStop: false` in the local pointer to opt into the visible Stop
+continuation gate. Automatic notes use one session-specific file under
 `작업기록/세션기록/YYYY-MM/YYYY-MM-DD/`, anchored to the first save's local date.
 Updates are appended to preserve earlier summaries, decisions, and next steps.
 Existing notes require `--expected-note-hash`; stale revisions and edits outside

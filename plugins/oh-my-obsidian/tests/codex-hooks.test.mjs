@@ -147,6 +147,14 @@ test("Node hook runner returns noop without a vault and context with a project-l
     let run = runHooks(["apply", "--mode", "repo-local", "--repo-root", repoRoot, "--vault", vaultPath]);
     assert.equal(run.result.status, 0, run.result.stderr || run.result.stdout);
     const runnerPath = join(repoRoot, ".codex", "hooks", "oh-my-obsidian", "codex-hook-runner.mjs");
+    const modePointerPath = join(repoRoot, ".codex", "oh-my-obsidian.local.json");
+    const modePointer = JSON.parse(await readFile(modePointerPath, "utf8"));
+    const quiet = spawnSync(process.execPath, [runnerPath, "stop"], {
+      cwd: repoRoot, input: JSON.stringify({ cwd: repoRoot, session_id: "quiet-session" }),
+      encoding: "utf8", env: { ...process.env, OBSIDIAN_VAULT: "" },
+    });
+    assert.deepEqual(JSON.parse(quiet.stdout), { continue: true });
+    await writeFile(modePointerPath, JSON.stringify({ ...modePointer, quietStop: false }), "utf8");
 
     let hookRun = spawnSync(process.execPath, [runnerPath, "stop"], {
       cwd: fixture.root,
@@ -350,6 +358,9 @@ test("Stop never requests reads through a junction outside the vault", async () 
     await seedSetupState(vaultPath);
     const installed = runHooks(["apply", "--repo-root", repoRoot, "--vault", vaultPath]);
     assert.equal(installed.result.status, 0);
+    const pointerPath = installed.output.pointerPath;
+    const pointer = JSON.parse(await readFile(pointerPath, "utf8"));
+    await writeFile(pointerPath, JSON.stringify({ ...pointer, quietStop: false }), "utf8");
     const key = createHash("sha256").update("escape-test").digest("hex");
     const day = join(vaultPath, "작업기록", "세션기록", "2000-01", "2000-01-01");
     await mkdir(join(vaultPath, "작업기록", "세션기록", "2000-01"), { recursive: true });

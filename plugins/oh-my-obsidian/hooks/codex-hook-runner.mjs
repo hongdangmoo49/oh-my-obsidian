@@ -32,6 +32,10 @@ async function main() {
   }
 
   if (event === "stop") {
+    if (resolved.pointer?.quietStop !== false) {
+      printJson(noop());
+      return;
+    }
     if (hookInput.stop_hook_active === true || typeof hookInput.session_id !== "string" || !hookInput.session_id.trim() || resolved.pointer?.autoSave === false) {
       printJson(noop());
       return;
@@ -71,7 +75,7 @@ async function main() {
     continue: true,
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      additionalContext: buildSessionStartContext(resolved),
+      additionalContext: buildSessionStartContext(resolved, hookInput),
     },
   });
 }
@@ -185,7 +189,7 @@ async function findProjectPointer(startDir) {
   }
 }
 
-function buildSessionStartContext(resolved) {
+function buildSessionStartContext(resolved, hookInput = {}) {
   const state = resolved.setupState;
   const domains = Array.isArray(state.knowledgeDomains)
     ? state.knowledgeDomains.slice(0, 6).map((domain) => safeContextValue(domain, "domain"))
@@ -195,6 +199,8 @@ function buildSessionStartContext(resolved) {
     "BEGIN_OH_MY_OBSIDIAN_DATA",
     `project=${JSON.stringify(safeContextValue(state.projectName, "Unnamed project"))}`,
     `vault=${JSON.stringify(safeContextValue(resolved.vaultRealPath, "unknown"))}`,
+    `session_id=${JSON.stringify(safeContextValue(hookInput.session_id, "unknown"))}`,
+    `save_helper=${JSON.stringify(join(dirname(fileURLToPath(import.meta.url)), "vault-ops.mjs"))}`,
   ];
   if (domains.length > 0) {
     lines.push(`knowledge_domains=${JSON.stringify(domains)}`);
@@ -203,7 +209,9 @@ function buildSessionStartContext(resolved) {
   lines.push("Use oh-my-obsidian recall before decisions that may depend on prior project context.");
   lines.push("Use oh-my-obsidian session-save to record important implementation decisions.");
   if (resolved.pointer?.autoSave !== false) {
-    lines.push("The Stop hook automatically requests a cumulative session summary, decisions, and next steps. Do not save raw conversations or secrets; automatic saves do not commit or push.");
+    lines.push("Before finishing a substantive work response, save new work summary, decisions and next steps using save_helper session-save --auto-session-id <session_id>. Set OBSIDIAN_VAULT to vault. Do not save when session_id is unknown or no new work occurred.");
+    lines.push("For an existing note, locate .oh-my-obsidian/auto-sessions/<SHA256(session_id)>.json inside the vault, validate the note path stays inside the vault without symlinks, read it, and pass --expected-note-hash <SHA256(note contents)>. Preserve earlier content; do not retry conflicts or bypass user edits.");
+    lines.push("Stop does not block or force saving in quiet mode. Do not save raw conversations or secrets, commit or push. Report a save failure briefly; successful or unchanged saves need no extra user message.");
   }
   return lines.join("\n");
 }

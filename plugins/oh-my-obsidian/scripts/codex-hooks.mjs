@@ -263,6 +263,7 @@ function buildPointerValue(target, vault, currentPointer) {
     setupStatePath: vault.setupStatePath,
     approvedAt,
     autoSave: currentPointer?.autoSave !== false,
+    quietStop: currentPointer?.quietStop !== false,
     hooksConfigPath: target.hooksConfigPath,
     configTomlPath: target.configTomlPath,
     runnerPath: target.runnerPath,
