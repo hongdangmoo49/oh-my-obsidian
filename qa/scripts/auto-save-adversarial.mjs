@@ -93,11 +93,15 @@ try {
   assert.equal(globalInstall.exit, 0);
   const globalPointerPath = globalInstall.output.pointerPath;
   const globalPointer = JSON.parse(await readFile(globalPointerPath, "utf8"));
-  await writeFile(globalPointerPath, JSON.stringify({ ...globalPointer, autoSave: false }));
+  await writeFile(globalPointerPath, JSON.stringify({ ...globalPointer, autoSave: false, quietStop: false }));
   const optedOut = run(runner, ["stop"], { cwd: root, session_id: sessionId }, { OBSIDIAN_VAULT: "" });
   const envOverride = run(runner, ["stop"], { cwd: root, session_id: sessionId });
   observations.globalOptOutHonoredWithoutEnv = !optedOut.output.decision;
   observations.globalOptOutIgnoredWithEnv = envOverride.output.decision === "block";
+  assert.equal(observations.globalOptOutIgnoredWithEnv, false);
+  const disabledStart = run(runner, ["session-start"], { cwd: root, session_id: sessionId });
+  assert.match(disabledStart.output.hookSpecificOutput.additionalContext, /Automatic session saving is disabled/);
+  assert.doesNotMatch(disabledStart.output.hookSpecificOutput.additionalContext, /Before finishing a substantive/);
 
   const fakeSecret = "sk-test-not-a-real-secret-1234567890";
   assert.equal(save(`Raw transcript: user supplied API_KEY=${fakeSecret}`).exit, 0);

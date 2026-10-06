@@ -103,6 +103,17 @@ async function resolveHookVault(hookInput) {
     candidates.push({ source: "codexConfigPointer", pointerPath: approvedConfigPath, legacy: true });
   }
 
+  let policyPointer;
+  for (const candidate of candidates.filter((entry) => entry.pointerPath)) {
+    const pointerCandidate = await resolvePointerCandidate(candidate, home);
+    if (!pointerCandidate.ok) continue;
+    const policy = await validateVaultCandidate(pointerCandidate, home);
+    if (policy.ok) {
+      policyPointer = policy.pointer;
+      break;
+    }
+  }
+
   for (const candidate of candidates) {
     const resolved = candidate.pointerPath
       ? await resolvePointerCandidate(candidate, home)
@@ -110,7 +121,7 @@ async function resolveHookVault(hookInput) {
     if (!resolved.ok) continue;
 
     const validated = await validateVaultCandidate(resolved, home);
-    if (validated.ok) return validated;
+    if (validated.ok) return { ...validated, pointer: validated.pointer || policyPointer };
   }
 
   return { ok: false };
@@ -207,11 +218,13 @@ function buildSessionStartContext(resolved, hookInput = {}) {
   }
   lines.push("END_OH_MY_OBSIDIAN_DATA");
   lines.push("Use oh-my-obsidian recall before decisions that may depend on prior project context.");
-  lines.push("Use oh-my-obsidian session-save to record important implementation decisions.");
   if (resolved.pointer?.autoSave !== false) {
+    lines.push("Use oh-my-obsidian session-save to record important implementation decisions.");
     lines.push("Before finishing a substantive work response, save new work summary, decisions and next steps using save_helper session-save --auto-session-id <session_id>. Set OBSIDIAN_VAULT to vault. Do not save when session_id is unknown or no new work occurred.");
     lines.push("For an existing note, locate .oh-my-obsidian/auto-sessions/<SHA256(session_id)>.json inside the vault, validate the note path stays inside the vault without symlinks, read it, and pass --expected-note-hash <SHA256(note contents)>. Preserve earlier content; do not retry conflicts or bypass user edits.");
     lines.push("Stop does not block or force saving in quiet mode. Do not save raw conversations or secrets, commit or push. Report a save failure briefly; successful or unchanged saves need no extra user message.");
+  } else {
+    lines.push("Automatic session saving is disabled. Use session-save only when the user explicitly asks to save.");
   }
   return lines.join("\n");
 }
