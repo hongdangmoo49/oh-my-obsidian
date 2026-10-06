@@ -105,8 +105,13 @@ try {
   assert.doesNotMatch(disabledStart.output.hookSpecificOutput.additionalContext, /Before finishing a substantive/);
 
   const fakeSecret = "sk-test-not-a-real-secret-1234567890";
-  assert.equal(save(`Raw transcript: user supplied API_KEY=${fakeSecret}`).exit, 0);
+  const protectedNote = await readFile(target, "utf8");
+  const unsafe = save(`Raw transcript: user supplied API_KEY=${fakeSecret}`);
+  assert.notEqual(unsafe.exit, 0);
+  assert.equal(JSON.stringify(unsafe.output).includes(fakeSecret), false);
+  assert.equal(await readFile(target, "utf8"), protectedNote);
   observations.rawTextAndSyntheticSecretStored = (await readFile(target, "utf8")).includes(fakeSecret);
+  assert.equal(observations.rawTextAndSyntheticSecretStored, false);
 
   const statePath = join(vault, ".oh-my-obsidian/auto-sessions", `${key}.json`);
   const state = await readFile(statePath, "utf8");

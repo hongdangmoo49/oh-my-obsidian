@@ -28,6 +28,15 @@ current session into the Obsidian vault, or an installed Stop hook requests it.
   and turn ids instead of inventing a summary. A skip receipt is not a saved
   work record. `session-status` with the same ids verifies the receipt and
   actual note hash; a nonzero exit means completion was not verified.
+- Automatic mode scans all incoming content and the existing/final note for
+  common credentials, personal identifiers and raw conversation/tool artifacts.
+  It rejects suspicious content without echoing values, silently redacting, or
+  replacing earlier records. Only explicit redactions/environment references
+  are allowed. The final automatic note is limited to 64 KiB. Patterns are not
+  exhaustive; never treat a passed scan as proof that no sensitive data exists.
+  Do not retry a refusal with a manual save or edit away the ownership/hash
+  protection. Report the category and ask for a sanitized summary or explicit
+  manual review of the existing note.
 - Save work records, including troubleshooting, under
   `작업기록/<category>/YYYY-MM/YYYY-MM-DD/<slug>.md`.
 - Use the machine's local calendar date, not UTC, for new records.

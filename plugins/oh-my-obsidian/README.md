@@ -154,6 +154,17 @@ If no new work occurred, `session-skip --auto-session-id <id> --auto-turn-id
 receipt with `session-status` and the same ids. Runtimes without `turn_id` cannot
 provide per-response verification. Receipts verify disk consistency, not the
 accuracy of a model-generated summary.
+Automatic saves run a bounded, local safety scan before writing input and again
+over the existing/final note. Common credential assignments, key/token formats,
+email/phone/id patterns, and raw conversation/tool artifacts are rejected.
+Rejections report only a category, never the matched value, and do not redact or
+overwrite user content. Known redacted assignment values and environment-variable references
+are allowed. The complete automatic note is limited to 64 KiB. This is heuristic
+protection, not exhaustive DLP: false positives (including public 64-hex `0x`
+hashes) and missed encoded secrets or unlabeled personal data remain possible.
+Existing unsafe notes require explicit manual sanitization; the saver will not
+erase them or bypass edit protection. Manual session saves retain their existing
+behavior and are not covered by this automatic-only gate.
 Unchanged content is not rewritten; raw conversations are not saved and Git
 commit/push is not run. Set `autoSave: false` in the local vault pointer to opt
 out. Saving failures are reported without a continuation loop. Existing hooks are

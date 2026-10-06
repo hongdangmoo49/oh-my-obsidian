@@ -172,6 +172,60 @@ test("session-recover restores damaged state without rewriting the note or commi
   } finally { await fixture.cleanup(); }
 });
 
+test("unsafe automatic inputs cannot alter a note, state, receipt or expose the rejected value", async () => {
+  const fixture = await makeFixture();
+  try {
+    const id = "safety-test";
+    const key = createHash("sha256").update(id).digest("hex");
+    const base = ["session-save", "--auto-session-id", id, "--auto-turn-id", "safe-turn", "--topic", "Safe", "--detail", "Safe work"];
+    const first = runVaultOps(fixture.vaultPath, base);
+    assert.equal(first.result.status, 0, first.result.stdout);
+    const notePath = join(fixture.vaultPath, first.output.relativePath);
+    const statePath = join(fixture.vaultPath, ".oh-my-obsidian", "auto-sessions", `${key}.json`);
+    const paths = [notePath, statePath, `${statePath}.backup`, `${statePath}.receipt`];
+    const before = await Promise.all(paths.map((path) => readFile(path, "utf8")));
+    const value = "synthetic-test-secret-never-store";
+    for (const flag of ["--topic", "--detail", "--decision", "--next-step", "--service", "--related-doc", "--auto-turn-id", "--auto-session-id"]) {
+      const rejected = runVaultOps(fixture.vaultPath, [...base, "--auto-turn-id", "unsafe-turn", "--expected-note-hash", first.output.noteHash, flag, `API_KEY=${value}`]);
+      assert.equal(rejected.result.status, 1);
+      assert.match(rejected.output.issues.join(" "), /automatic save refused/);
+      assert.equal(`${rejected.result.stdout}${rejected.result.stderr}`.includes(value), false);
+      assert.deepEqual(await Promise.all(paths.map((path) => readFile(path, "utf8"))), before);
+    }
+    const status = runVaultOps(fixture.vaultPath, ["session-status", "--auto-session-id", id, "--auto-turn-id", "unsafe-turn"]);
+    assert.equal(status.result.status, 1);
+    assert.equal(status.output.verified, false);
+    const freshId = "fresh-unsafe";
+    const freshKey = createHash("sha256").update(freshId).digest("hex");
+    const fresh = runVaultOps(fixture.vaultPath, ["session-save", "--auto-session-id", freshId, "--topic", "Fresh", "--detail", `API_KEY=${value}`]);
+    assert.equal(fresh.result.status, 1);
+    await assert.rejects(readFile(join(fixture.vaultPath, ".oh-my-obsidian", "auto-sessions", `${freshKey}.json`)), { code: "ENOENT" });
+  } finally { await fixture.cleanup(); }
+});
+
+test("legacy unsafe notes are preserved rather than appended to or automatically sanitized", async () => {
+  const fixture = await makeFixture();
+  try {
+    const id = "unsafe-legacy";
+    const key = createHash("sha256").update(id).digest("hex");
+    const base = ["session-save", "--auto-session-id", id, "--topic", "Legacy", "--detail", "Old work"];
+    const first = runVaultOps(fixture.vaultPath, base);
+    assert.equal(first.result.status, 0);
+    const notePath = join(fixture.vaultPath, first.output.relativePath);
+    const unsafe = (await readFile(notePath, "utf8")).replace("Old work", "password=synthetic-legacy-value");
+    const statePath = join(fixture.vaultPath, ".oh-my-obsidian", "auto-sessions", `${key}.json`);
+    const state = JSON.parse(await readFile(statePath, "utf8"));
+    state.noteHash = createHash("sha256").update(unsafe).digest("hex");
+    await writeFile(notePath, unsafe);
+    await writeFile(statePath, JSON.stringify(state));
+    const rejected = runVaultOps(fixture.vaultPath, [...base, "--detail", "New safe work", "--expected-note-hash", state.noteHash]);
+    assert.equal(rejected.result.status, 1);
+    assert.match(rejected.output.issues.join(" "), /automatic save refused/);
+    assert.equal(await readFile(notePath, "utf8"), unsafe);
+    assert.deepEqual(JSON.parse(await readFile(statePath, "utf8")), state);
+  } finally { await fixture.cleanup(); }
+});
+
 test("recall returns relevant excerpts from managed markdown files", async () => {
   const fixture = await makeFixture();
   try {
