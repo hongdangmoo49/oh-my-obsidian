@@ -16,7 +16,7 @@ import {
   validatePlannedVaultTarget,
   writeJsonAtomic,
 } from "./vault-core.mjs";
-import { acquireAutoLock, commitAutoState, loadAutoState } from "./auto-session-recovery.mjs";
+import { acquireAutoLock, commitAutoState, loadAutoState, verifyAutoReceipt, writeAutoReceipt } from "./auto-session-recovery.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -31,7 +31,7 @@ main().catch((error) => {
 
 async function main() {
   const action = args.action;
-  if (!["recall", "session-save", "session-recover", "vault"].includes(action)) {
+  if (!["recall", "session-save", "session-recover", "session-skip", "session-status", "vault"].includes(action)) {
     throw new Error(`unknown action: ${action || ""}`);
   }
 
@@ -53,6 +53,18 @@ async function main() {
     printJson(await sessionRecover());
     return;
   }
+  if (action === "session-skip") {
+    printJson(await sessionSkip());
+    return;
+  }
+  if (action === "session-status") {
+    const vault = await resolveManagedVault();
+    if (!vault.ok) throw new Error("save verification requires a managed vault");
+    const result = await verifyAutoReceipt(vault.vaultPath, args.sessionId, args.turnId);
+    printJson({ action, status: result.verified ? "ok" : "unverified", verified: result.verified, receiptStatus: result.status });
+    process.exitCode = result.verified ? 0 : 1;
+    return;
+  }
   const result = await vaultCommand();
   printJson(result);
   process.exit(result.status === "failed" ? 1 : 0);
@@ -65,6 +77,7 @@ function parseArgs(argv) {
     query: "",
     topic: "",
     sessionId: "",
+    turnId: "",
     expectedNoteHash: "",
     title: "",
     category: "",
@@ -98,6 +111,10 @@ function parseArgs(argv) {
     else if (arg === "--expected-note-hash") {
       parsed.expectedNoteHash = argv[++index] || "";
       if (!/^[a-f0-9]{64}$/.test(parsed.expectedNoteHash)) throw new Error("invalid expected note hash");
+    }
+    else if (arg === "--auto-turn-id") {
+      parsed.turnId = argv[++index] || "";
+      if (!parsed.turnId.trim() || parsed.turnId.length > 240 || /[\x00-\x1f]/.test(parsed.turnId)) throw new Error("invalid auto turn id");
     }
     else if (arg === "--title") parsed.title = argv[++index] || "";
     else if (arg === "--category") parsed.category = argv[++index] || "";
@@ -326,7 +343,9 @@ async function autoSessionSave(vault, topic, details) {
     }
     await commitAutoState(stateTarget.targetPath, nextState);
     await unlink(`${stateTarget.targetPath}.pending`).catch((error) => { if (error.code !== "ENOENT") throw error; });
-    return { status: "ok", action: "session-save", automatic: true, unchanged: body === previous,
+    if (contentHash(await readFile(target.targetPath, "utf8")) !== nextState.noteHash) throw new Error("saved note read-back verification failed");
+    if (args.turnId) await writeAutoReceipt(vault.vaultPath, args.sessionId, args.turnId, body === previous ? "unchanged" : "saved");
+    return { status: "ok", action: "session-save", automatic: true, verified: true, turnId: args.turnId || null, unchanged: body === previous,
       recovered, noteHash: contentHash(body), relativePath: target.normalized, git: { attempted: false, committed: false, reason: "automatic saves never commit or push" } };
   } finally {
     await release();
@@ -348,6 +367,19 @@ async function sessionRecover() {
   } finally {
     await release();
   }
+}
+
+async function sessionSkip() {
+  if (!args.sessionId.trim() || args.sessionId.length > 240 || /[\x00-\x1f]/.test(args.sessionId)) throw new Error("valid --auto-session-id is required");
+  const vault = await resolveManagedVault();
+  if (!vault.ok) throw new Error("session skip requires a managed vault");
+  const target = await validatePlannedVaultTarget(vault.vaultPath, `.oh-my-obsidian/auto-sessions/${contentHash(args.sessionId)}.json`);
+  await mkdir(dirname(target.targetPath), { recursive: true });
+  const release = await acquireAutoLock(`${target.targetPath}.lock`);
+  try {
+    const result = await writeAutoReceipt(vault.vaultPath, args.sessionId, args.turnId, "skipped");
+    return { status: "ok", action: "session-skip", verified: result.verified, reason: "no-new-work", git: { attempted: false, committed: false } };
+  } finally { await release(); }
 }
 
 async function vaultCommand() {

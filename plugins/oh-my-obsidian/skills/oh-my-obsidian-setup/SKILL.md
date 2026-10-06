@@ -180,7 +180,7 @@ Guidance by question type:
    - For `user-global`, run:
      `node scripts/codex-hooks.mjs plan --mode user-global --vault "<vault-path>"`
    - Summarize that `config.toml` enables `[features].codex_hooks = true`,
-     `hooks.json` stores the `SessionStart` and `Stop` command hooks,
+     `hooks.json` stores the `SessionStart`, `UserPromptSubmit`, and `Stop` command hooks,
      `.codex/oh-my-obsidian.local.json` stores the user's approved vault
      pointer, and `.codex/.gitignore` prevents that machine-specific pointer
      from being committed.
@@ -191,6 +191,9 @@ Guidance by question type:
      Git commit, or push. Explain this before installation approval.
      Set `autoSave: false` in the approved local pointer to disable it.
      Quiet mode is the default: Stop does not block or display a save prompt.
+     UserPromptSubmit supplies the current turn id, and Stop verifies the
+     completion receipt against the actual note. Success is silent; missing or
+     invalid completion produces a short, nonblocking warning.
      It does not enforce successful saving. `quietStop: false` explicitly opts
      into the visible blocking continuation mode.
    - If setup-state is `action_required_env` only because no resolver exists,

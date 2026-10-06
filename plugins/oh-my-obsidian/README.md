@@ -129,7 +129,7 @@ the Git root before writing `<repo>/.codex/`. It also creates or updates
 
 The installer keeps responsibilities separate: `config.toml` enables
 `[features].codex_hooks = true`, while `hooks.json` stores the `SessionStart`
-and `Stop` command hooks. `SessionStart` injects compact project/vault context;
+and `UserPromptSubmit`/`Stop` command hooks. `SessionStart` injects compact project/vault context;
 By default, SessionStart asks Codex to save new work, decisions and next steps
 before its final response. Stop returns success without blocking or displaying
 the save instructions. This quiet mode is best effort, not an enforced save
@@ -145,6 +145,15 @@ when the note hash matches the recorded transaction or backup. To inspect and
 recover an abandoned lock, explicitly run `vault-ops.mjs session-recover
 --auto-session-id <session-id>`; live, foreign, and unidentified owners are
 refused. Recovery does not modify the note or run Git commands.
+`UserPromptSubmit` supplies the current `turn_id` without copying the prompt.
+Use `--auto-turn-id` on automatic saves to record a verified completion receipt.
+Quiet Stop checks that receipt and the actual note hash: success is silent,
+but a missing or invalid receipt produces a short warning without blocking.
+If no new work occurred, `session-skip --auto-session-id <id> --auto-turn-id
+<turn>` records an explicit skip without creating a summary. Inspect the current
+receipt with `session-status` and the same ids. Runtimes without `turn_id` cannot
+provide per-response verification. Receipts verify disk consistency, not the
+accuracy of a model-generated summary.
 Unchanged content is not rewritten; raw conversations are not saved and Git
 commit/push is not run. Set `autoSave: false` in the local vault pointer to opt
 out. Saving failures are reported without a continuation loop. Existing hooks are

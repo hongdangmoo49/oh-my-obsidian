@@ -109,6 +109,7 @@ test("official Codex hooks install config flag, SessionStart and Stop hooks, run
     const appliedHooks = JSON.parse(await readFile(join(repoRoot, ".codex", "hooks.json"), "utf8"));
     assert.equal(appliedHooks.hooks.Stop.length, 2);
     assert.equal(appliedHooks.hooks.SessionStart.length, 1);
+    assert.equal(appliedHooks.hooks.UserPromptSubmit.length, 1);
     assert.match(await readFile(join(repoRoot, ".codex", "config.toml"), "utf8"), /codex_hooks = true/);
     const pointer = JSON.parse(await readFile(join(repoRoot, ".codex", "oh-my-obsidian.local.json"), "utf8"));
     assert.equal(pointer.autoSave, true);
@@ -117,7 +118,7 @@ test("official Codex hooks install config flag, SessionStart and Stop hooks, run
     const state = JSON.parse(await readFile(join(vaultPath, ".oh-my-obsidian", "setup-state.json"), "utf8"));
     assert.equal(state.codexHooks.enabled, true);
     assert.equal(state.codexHooks.mode, "repo-local");
-    assert.deepEqual(state.codexHooks.events, ["SessionStart", "Stop"]);
+    assert.deepEqual(state.codexHooks.events, ["SessionStart", "UserPromptSubmit", "Stop"]);
 
     const firstApprovedAt = pointer.approvedAt;
     run = runHooks(["apply", "--mode", "repo-local", "--repo-root", repoRoot, "--vault", vaultPath]);
@@ -126,6 +127,7 @@ test("official Codex hooks install config flag, SessionStart and Stop hooks, run
     const reappliedPointer = JSON.parse(await readFile(join(repoRoot, ".codex", "oh-my-obsidian.local.json"), "utf8"));
     assert.equal(reappliedHooks.hooks.Stop.length, 2);
     assert.equal(reappliedHooks.hooks.SessionStart.length, 1);
+    assert.equal(reappliedHooks.hooks.UserPromptSubmit.length, 1);
     assert.equal(reappliedPointer.approvedAt, firstApprovedAt);
   } finally {
     await fixture.cleanup();
@@ -232,6 +234,59 @@ test("Node hook runner returns noop without a vault and context with a project-l
   } finally {
     await fixture.cleanup();
   }
+});
+
+test("quiet Stop verifies this turn, warns on missing or tampered saves, and never blocks", async () => {
+  const fixture = await makeFixture();
+  try {
+    const repoRoot = join(fixture.root, "repo");
+    const vaultPath = join(fixture.root, "vault");
+    await mkdir(repoRoot);
+    await mkdir(vaultPath);
+    assert.equal(spawnSync("git", ["-C", repoRoot, "init"]).status, 0);
+    await seedSetupState(vaultPath);
+    const installed = runHooks(["apply", "--repo-root", repoRoot, "--vault", vaultPath]);
+    assert.equal(installed.result.status, 0);
+    const runner = installed.output.runnerPath;
+    const helper = join(repoRoot, ".codex", "hooks", "oh-my-obsidian", "vault-ops.mjs");
+    const hook = (event, turn) => JSON.parse(spawnSync(process.execPath, [runner, event], {
+      cwd: repoRoot, encoding: "utf8", env: { ...process.env, OBSIDIAN_VAULT: vaultPath },
+      input: JSON.stringify({ cwd: repoRoot, session_id: "receipt-test", turn_id: turn, prompt: "RAW_PROMPT_MUST_NOT_BE_COPIED" }),
+    }).stdout);
+    const save = (action, turn, extra = []) => {
+      const result = spawnSync(process.execPath, [helper, action, "--auto-session-id", "receipt-test", "--auto-turn-id", turn, ...extra], {
+        cwd: repoRoot, encoding: "utf8", env: { ...process.env, OBSIDIAN_VAULT: vaultPath },
+      });
+      assert.equal(result.status, 0, result.stdout || result.stderr);
+      return JSON.parse(result.stdout);
+    };
+    const prompt = hook("user-prompt-submit", "turn-1");
+    assert.equal(prompt.hookSpecificOutput.hookEventName, "UserPromptSubmit");
+    assert.match(prompt.hookSpecificOutput.additionalContext, /--auto-turn-id/);
+    assert.doesNotMatch(prompt.hookSpecificOutput.additionalContext, /RAW_PROMPT_MUST_NOT_BE_COPIED/);
+    assert.equal(prompt.decision, undefined);
+    const missing = hook("stop", "turn-1");
+    assert.equal(missing.decision, undefined);
+    assert.match(missing.systemMessage, /미확인/);
+    const first = save("session-save", "turn-1", ["--topic", "Verified", "--detail", "New work"]);
+    assert.equal(first.verified, true);
+    const status = save("session-status", "turn-1");
+    assert.equal(status.verified, true);
+    assert.equal(status.receiptStatus, "saved");
+    assert.deepEqual(hook("stop", "turn-1"), { continue: true });
+    assert.match(hook("stop", "turn-2").systemMessage, /미확인/);
+    const unchanged = save("session-save", "turn-2", ["--topic", "Verified", "--detail", "New work"]);
+    assert.equal(unchanged.unchanged, true);
+    assert.deepEqual(hook("stop", "turn-2"), { continue: true });
+    save("session-skip", "turn-3");
+    assert.equal(save("session-status", "turn-3").receiptStatus, "skipped");
+    assert.deepEqual(hook("stop", "turn-3"), { continue: true });
+    save("session-save", "turn-4", ["--topic", "Verified", "--detail", "New work"]);
+    await writeFile(join(vaultPath, first.relativePath), "USER EDIT");
+    const changed = hook("stop", "turn-4");
+    assert.equal(changed.decision, undefined);
+    assert.match(changed.systemMessage, /미확인/);
+  } finally { await fixture.cleanup(); }
 });
 
 test("invalid hooks.json and invalid config.toml fail without overwriting existing files", async () => {

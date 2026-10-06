@@ -155,7 +155,7 @@ async function buildPlan(options = {}) {
     rollback: [
       `Remove ${target.runnerPath}`,
       `Remove vault-ops.mjs, vault-core.mjs and auto-session-recovery.mjs beside ${target.runnerPath}`,
-      `Remove the oh-my-obsidian SessionStart and Stop hook commands from ${target.hooksConfigPath}`,
+      `Remove the oh-my-obsidian SessionStart, UserPromptSubmit and Stop hook commands from ${target.hooksConfigPath}`,
       `Remove ${target.pointerPath}`,
       `Remove codex_hooks from ${target.configTomlPath} only if oh-my-obsidian was the only feature using it`,
     ],
@@ -176,6 +176,7 @@ async function buildTarget() {
   const runnerPath = join(base, "hooks", "oh-my-obsidian", "codex-hook-runner.mjs");
   const commands = {
     sessionStart: buildHookCommand(runnerPath, "session-start"),
+    promptSubmit: buildHookCommand(runnerPath, "user-prompt-submit"),
     stop: buildHookCommand(runnerPath, "stop"),
   };
   return {
@@ -302,7 +303,7 @@ async function updateSetupState(plan) {
       status: "installed",
       autoSave: plan.nextPointer.autoSave,
       mode: plan.mode,
-      events: ["SessionStart", "Stop"],
+      events: ["SessionStart", "UserPromptSubmit", "Stop"],
       installedAt: nowIso(),
       configTomlPath: plan.configTomlPath,
       hooksConfigPath: plan.hooksConfigPath,
@@ -329,7 +330,7 @@ function mergeHooksConfig(currentConfig, commands) {
   const nextConfig = JSON.parse(JSON.stringify(currentConfig || {}));
   if (!nextConfig.hooks) nextConfig.hooks = {};
 
-  for (const eventName of ["SessionStart", "Stop"]) {
+  for (const eventName of ["SessionStart", "UserPromptSubmit", "Stop"]) {
     if (nextConfig.hooks[eventName] !== undefined && !Array.isArray(nextConfig.hooks[eventName])) {
       issues.push(`hooks.${eventName} must be an array when present`);
     }
@@ -342,6 +343,7 @@ function mergeHooksConfig(currentConfig, commands) {
     statusMessage: "Loading oh-my-obsidian project memory",
   }, additions);
   addEventHook(nextConfig, "Stop", commands.stop, {}, additions);
+  addEventHook(nextConfig, "UserPromptSubmit", commands.promptSubmit, {}, additions);
 
   return {
     issues: [],
@@ -457,6 +459,9 @@ function describeDiff({ target, hooksMerge, tomlMerge, gitignoreMerge, currentPo
   }
   if (hooksMerge?.additions?.includes("Stop")) {
     diff.push(`+ add Stop hook command ${target.commands.stop}`);
+  }
+  if (hooksMerge?.additions?.includes("UserPromptSubmit")) {
+    diff.push(`+ add UserPromptSubmit hook command ${target.commands.promptSubmit}`);
   }
   if (pointerValue && currentPointer && JSON.stringify(currentPointer) === JSON.stringify(pointerValue)) {
     diff.push(`= Codex vault pointer already current ${target.pointerPath}`);

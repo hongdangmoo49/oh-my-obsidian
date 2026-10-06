@@ -4,7 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { acquireAutoLock, commitAutoState, loadAutoState } from "../scripts/auto-session-recovery.mjs";
+import { acquireAutoLock, commitAutoState, loadAutoState, verifyAutoReceipt, writeAutoReceipt } from "../scripts/auto-session-recovery.mjs";
 import { contentHash, pathExists } from "../scripts/vault-core.mjs";
 
 async function fixture() {
@@ -143,4 +143,26 @@ test("a forcibly terminated lock owner can be recovered without changing the not
     if (child && child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
     await f.cleanup();
   }
+});
+
+test("receipt verification rejects old turns, unfinished writes, corrupt metadata and missing notes", async () => {
+  const f = await fixture();
+  try {
+    assert.equal((await verifyAutoReceipt(f.root, "recover-test", "turn-1")).verified, false);
+    assert.equal((await writeAutoReceipt(f.root, "recover-test", "turn-1", "saved")).verified, true);
+    assert.equal((await verifyAutoReceipt(f.root, "recover-test", "turn-1")).verified, true);
+    assert.equal((await verifyAutoReceipt(f.root, "recover-test", "turn-2")).verified, false);
+    await writeFile(`${f.path}.pending`, "unfinished transaction");
+    assert.equal((await verifyAutoReceipt(f.root, "recover-test", "turn-1")).status, "unfinished");
+    await rm(`${f.path}.pending`);
+    const release = await acquireAutoLock(`${f.path}.lock`);
+    assert.equal((await verifyAutoReceipt(f.root, "recover-test", "turn-1")).status, "unfinished");
+    await release();
+    const receipt = await readFile(`${f.path}.receipt`, "utf8");
+    await writeFile(`${f.path}.receipt`, "broken");
+    assert.equal((await verifyAutoReceipt(f.root, "recover-test", "turn-1")).verified, false);
+    await writeFile(`${f.path}.receipt`, receipt);
+    await rm(f.notePath);
+    assert.equal((await verifyAutoReceipt(f.root, "recover-test", "turn-1")).verified, false);
+  } finally { await f.cleanup(); }
 });

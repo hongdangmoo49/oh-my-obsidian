@@ -15,6 +15,8 @@ current session into the Obsidian vault, or an installed Stop hook requests it.
   Exception: automatic mode updates only its own session-id-marked note.
 - For a Stop-hook automatic save, use the hook-supplied helper and
   `--auto-session-id "<session-id>"`. Pass the hook-supplied
+  `--auto-turn-id "<turn-id>"` when available so Stop can verify this response.
+  For an existing note, pass
   `--expected-note-hash "<hash>"` for an existing note. Save new work, decisions,
   and next steps only; never copy raw conversation, secrets, or personal data.
   Read the existing automatic note before summarizing; the helper appends
@@ -22,6 +24,10 @@ current session into the Obsidian vault, or an installed Stop hook requests it.
   updates are rejected rather than overwritten. Do not bypass a conflict.
   Automatic saves never commit or
   push. If saving fails, report it once and finish without a retry loop.
+- For a response with no new work, run `session-skip` with the supplied session
+  and turn ids instead of inventing a summary. A skip receipt is not a saved
+  work record. `session-status` with the same ids verifies the receipt and
+  actual note hash; a nonzero exit means completion was not verified.
 - Save work records, including troubleshooting, under
   `작업기록/<category>/YYYY-MM/YYYY-MM-DD/<slug>.md`.
 - Use the machine's local calendar date, not UTC, for new records.

@@ -85,9 +85,10 @@ try {
   assert.equal(observations.priorNextStepsLost, false);
   assert.equal(observations.staleSnapshotReplacesLatest, false);
 
-  const blocked = run(runner, ["stop"], { cwd: project, session_id: sessionId, stop_hook_active: false });
-  const continuedWithoutSaving = run(runner, ["stop"], { cwd: project, session_id: sessionId, stop_hook_active: true });
-  observations.finishesWithoutSaveReceipt = blocked.output.decision === "block" && !continuedWithoutSaving.output.decision;
+  const blocked = run(runner, ["stop"], { cwd: project, session_id: sessionId, turn_id: "unsaved-turn", stop_hook_active: false });
+  const continuedWithoutSaving = run(runner, ["stop"], { cwd: project, session_id: sessionId, turn_id: "unsaved-turn", stop_hook_active: true });
+  observations.unverifiedSaveReported = blocked.output.decision === "block" && /미확인/.test(continuedWithoutSaving.output.systemMessage || "");
+  assert.equal(observations.unverifiedSaveReported, true);
 
   const globalInstall = run(installer, ["apply", "--mode", "user-global", "--vault", vault, "--home", home]);
   assert.equal(globalInstall.exit, 0);
