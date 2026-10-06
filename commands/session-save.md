@@ -13,6 +13,11 @@ allowed-tools: Bash, Read, Write
 
 Save the current session's work summary to the Obsidian vault.
 
+If this command is used for an automatic hook request, follow the Automatic mode
+contract in `skills/session-save/SKILL.md`: call the shared helper with supplied
+session/turn ids, retain prior records, and never manually Write or commit.
+The manual steps below apply only to an explicit user-requested standalone save.
+
 ### Step 1: Determine Topic
 If user provided a topic via {{ARGUMENTS}}, use it. Otherwise infer from the conversation context.
 

@@ -204,7 +204,7 @@ installed skill surface, such as `$oh-my-obsidian-setup`,
 | `/oh-my-obsidian:refactor` | **Evolve** | Audits an existing vault and safely executes a structural migration |
 | `/oh-my-obsidian:recall <query>` | **Retrieve** | Uses configured MCP search when available, otherwise searches local Markdown |
 | `/oh-my-obsidian:session-save` | **Record** | Summarizes the current session and archives it to the vault |
-| `/oh-my-obsidian:enable-auto-save` | **Config** | Enables auto-save hook on SessionEnd for existing users |
+| `/oh-my-obsidian:enable-auto-save` | **Config** | Enables quiet automatic summaries and migrates the old SessionEnd callback safely |
 | `/oh-my-obsidian:vault` | **Manage** | General purpose vault management (list, add, organize) |
 
 ---

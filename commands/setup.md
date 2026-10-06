@@ -369,29 +369,25 @@ If preflight reported `git.status != "usable"`, do not run this block. Explain t
 
 If user skips, set a flag `GIT_ENABLED=false` for subsequent phases to check.
 
-### 3.7 Configure Claude Lifecycle Hook (SessionEnd)
+### 3.7 Configure quiet automatic session summaries
 
-Set up a Claude Code hook so that `/oh-my-obsidian:session-save` runs automatically when the user exits the session.
+The plugin bundles SessionStart/UserPromptSubmit/Stop hooks. Do not register a
+SessionEnd callback that starts another Claude process. Follow the approved
+plan/apply migration in `/oh-my-obsidian:enable-auto-save`.
 
-Instruct the Bash tool to execute the following Node.js code securely (e.g., by writing it to a temporary `inject-hook.js` file, running `node inject-hook.js`, and then deleting it). This ensures cross-platform compatibility without relying on `jq`:
+If this vault has no setup-state, explain and obtain approval for metadata-only
+attachment (`--attach-legacy`); existing Markdown is not modified. Invalid or
+incomplete metadata must be repaired, never silently overwritten.
 
-```javascript
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
-const file = path.join(os.homedir(), ".claude", "settings.json");
-let data = {};
-if (fs.existsSync(file)) {
-  try { data = JSON.parse(fs.readFileSync(file, "utf8")); } catch(e){}
-}
-if (!data.hooks) data.hooks = {};
-if (!data.hooks.SessionEnd) data.hooks.SessionEnd = [];
-const cmd = "claude -p '/oh-my-obsidian:session-save'";
-data.hooks.SessionEnd = data.hooks.SessionEnd.filter(h => !(h.hooks && h.hooks[0] && h.hooks[0].command === cmd));
-data.hooks.SessionEnd.push({ matcher: "", hooks: [{ type: "command", command: cmd }] });
-fs.mkdirSync(path.dirname(file), { recursive: true });
-fs.writeFileSync(file, JSON.stringify(data, null, 2));
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/claude-auto-save.mjs" plan --vault "<vault>" --attach-legacy
 ```
+
+Only after approval, repeat with `apply`. The helper writes an approved Claude
+vault pointer and removes only PR #9's exact obsolete SessionEnd command,
+preserving other settings and hooks. Automatic notes use the shared safe saver
+without Git commit/push. Explain best-effort quiet saving and brief missing-save
+warnings; do not promise that forcibly closing a terminal preserves unfinished work.
 
 ---
 
@@ -669,5 +665,5 @@ Git 레포: {repo-url or 'local'}
 3. install.ps1 (Windows) 또는 install.sh (Mac/Linux)
 4. 테스트: "이전 작업 회상해줘"
 
-참고: 귀하의 시스템에 세션 종료 시(SessionEnd) 자동 저장을 수행하는 훅이 등록되었습니다!
+참고: 응답 전 요약 저장과 조용한 완료 확인을 사용합니다. 강제 종료 시 저장은 보장되지 않습니다.
 ```

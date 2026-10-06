@@ -276,7 +276,7 @@ async function sessionSave() {
 
 async function autoSessionSave(vault, topic, details) {
   if (!details.trim()) throw new Error("automatic session-save requires a summary");
-  assertSafeAutoContent([args.sessionId, args.turnId, topic, details, ...args.decisions, ...args.nextSteps, ...args.services, ...args.relatedDocs]);
+  assertSafeAutoContent([args.sessionId, args.turnId, topic, details, ...args.decisions, ...args.nextSteps, ...args.services, ...args.relatedDocs, ...args.participants]);
   if (args.sessionId.length > 240 || /[\r\n\x00-\x1f]/.test(args.sessionId)) {
     throw new Error("invalid automatic session id");
   }
@@ -297,7 +297,7 @@ async function autoSessionSave(vault, topic, details) {
     let body = `${renderSessionNote({
       title: topic, topic, category: "세션기록", type: "session-log", details,
       decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps),
-      files: [], participants: [], tags: [], services: uniqueValues(args.services),
+      files: [], participants: uniqueValues(args.participants), tags: [], services: uniqueValues(args.services),
       relatedDocs: uniqueValues(args.relatedDocs), timestamp: state.createdAt,
     })}\n${marker}\n`;
     let previous = "";
@@ -310,7 +310,7 @@ async function autoSessionSave(vault, topic, details) {
       }
       assertSafeAutoContent([previous]);
     }
-    const inputHash = contentHash(JSON.stringify({ topic, details, decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps), services: uniqueValues(args.services), relatedDocs: uniqueValues(args.relatedDocs) }));
+    const inputHash = contentHash(JSON.stringify({ topic, details, decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps), services: uniqueValues(args.services), relatedDocs: uniqueValues(args.relatedDocs), ...(args.participants.length ? { participants: uniqueValues(args.participants) } : {}) }));
     const inputs = Array.isArray(state.inputs) ? state.inputs : [];
     if (previous && !inputs.includes(inputHash)) {
       if (!args.expectedNoteHash || args.expectedNoteHash !== contentHash(previous)) {
