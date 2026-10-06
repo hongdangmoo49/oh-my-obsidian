@@ -133,6 +133,9 @@ and `Stop` command hooks. `SessionStart` injects compact project/vault context;
 `Stop` continues Codex once to save a cumulative work summary, decisions, and
 next steps by default. Automatic notes use one session-specific file under
 `작업기록/세션기록/YYYY-MM/YYYY-MM-DD/`, anchored to the first save's local date.
+Updates are appended to preserve earlier summaries, decisions, and next steps.
+Existing notes require `--expected-note-hash`; stale revisions and edits outside
+the saver are rejected. A session lock prevents concurrent overwrites.
 Unchanged content is not rewritten; raw conversations are not saved and Git
 commit/push is not run. Set `autoSave: false` in the local vault pointer to opt
 out. Saving failures are reported without a continuation loop. Existing hooks are

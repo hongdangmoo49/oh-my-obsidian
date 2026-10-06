@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const scriptPath = join(process.cwd(), "plugins/oh-my-obsidian/scripts/vault-ops.mjs");
 
@@ -105,14 +105,48 @@ test("automatic saves update one owned note, skip unchanged content and never co
     assert.match(content, /Release/);
     const second = runVaultOps(fixture.vaultPath, args);
     assert.equal(second.output.unchanged, true);
-    const updated = runVaultOps(fixture.vaultPath, [...args, "--detail", "Updated work"]);
+    const updated = runVaultOps(fixture.vaultPath, [...args, "--detail", "Updated work", "--expected-note-hash", first.output.noteHash]);
+    assert.equal(updated.result.status, 0, updated.result.stdout);
     assert.equal(updated.output.relativePath, first.output.relativePath);
     assert.match(await readFile(target, "utf8"), /Updated work/);
+    assert.match(await readFile(target, "utf8"), /Work done/);
+    const stale = runVaultOps(fixture.vaultPath, [...args, "--detail", "Old snapshot", "--expected-note-hash", first.output.noteHash]);
+    assert.equal(stale.result.status, 1);
+    assert.match(stale.output.issues.join(" "), /revision conflict/);
+    const edited = (await readFile(target, "utf8")).replace("Updated work", "USER EDIT");
+    await writeFile(target, edited, "utf8");
+    const overwrite = runVaultOps(fixture.vaultPath, [...args, "--detail", "Overwrite", "--expected-note-hash", updated.output.noteHash]);
+    assert.equal(overwrite.result.status, 1);
+    assert.match(overwrite.output.issues.join(" "), /preserving user changes/);
+    assert.equal(await readFile(target, "utf8"), edited);
     await writeFile(target, "# User note\n", "utf8");
     const collision = runVaultOps(fixture.vaultPath, args);
     assert.equal(collision.result.status, 1);
     assert.match(collision.output.issues.join(" "), /unmanaged note/);
     assert.equal(await readFile(target, "utf8"), "# User note\n");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("concurrent automatic updates accept one revision and retain prior decisions and tasks", async () => {
+  const fixture = await makeFixture();
+  try {
+    const base = ["session-save", "--auto-session-id", "concurrent", "--topic", "Concurrent"];
+    const initial = runVaultOps(fixture.vaultPath, [...base, "--detail", "Initial", "--decision", "Prior decision", "--next-step", "Prior task"]);
+    assert.equal(initial.result.status, 0);
+    const results = await Promise.all(Array.from({ length: 8 }, (_, index) => new Promise((resolveRun) => {
+      const child = spawn(process.execPath, [scriptPath, ...base, "--detail", `Update ${index}`, "--decision", `Decision ${index}`, "--expected-note-hash", initial.output.noteHash], {
+        cwd: process.cwd(), env: { ...process.env, OBSIDIAN_VAULT: fixture.vaultPath }, stdio: "ignore",
+      });
+      child.on("error", () => resolveRun(-1));
+      child.on("close", resolveRun);
+    })));
+    assert.equal(results.filter((code) => code === 0).length, 1);
+    const note = await readFile(join(fixture.vaultPath, initial.output.relativePath), "utf8");
+    assert.match(note, /Prior decision/);
+    assert.match(note, /Prior task/);
+    assert.equal((note.match(/Decision \d/g) || []).length, 1);
   } finally {
     await fixture.cleanup();
   }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, relative } from "node:path";
@@ -25,7 +26,11 @@ function run(script, args, input, env = {}) {
 }
 
 function save(summary, extra = []) {
-  return run(helper, ["session-save", "--auto-session-id", sessionId, "--topic", "Adversarial test", "--detail", summary, ...extra]);
+  const statePath = join(vault, ".oh-my-obsidian/auto-sessions", `${key}.json`);
+  let noteHash;
+  try { noteHash = existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")).noteHash : null; } catch {}
+  return run(helper, ["session-save", "--auto-session-id", sessionId, "--topic", "Adversarial test", "--detail", summary,
+    ...(noteHash ? ["--expected-note-hash", noteHash] : []), ...extra]);
 }
 
 try {
@@ -50,14 +55,20 @@ try {
   observations.userEditOverwritten = overwritten.exit === 0 && !(await readFile(target, "utf8")).includes("USER EDIT MUST SURVIVE");
   observations.priorDecisionsLost = !(await readFile(target, "utf8")).includes("Preserve prior decision");
   observations.priorNextStepsLost = !(await readFile(target, "utf8")).includes("Pending task");
+  assert.equal(observations.userEditOverwritten, false);
+  await writeFile(target, original);
 
+  const oldHash = JSON.parse(await readFile(join(vault, ".oh-my-obsidian/auto-sessions", `${key}.json`), "utf8")).noteHash;
   assert.equal(save("Latest summary", ["--decision", "Latest decision"]).exit, 0);
-  assert.equal(save("Stale summary", ["--decision", "Old decision"]).exit, 0);
+  const stale = save("Stale summary", ["--decision", "Old decision", "--expected-note-hash", oldHash]);
+  assert.notEqual(stale.exit, 0);
   observations.staleSnapshotReplacesLatest = !(await readFile(target, "utf8")).includes("Latest decision");
 
+  const concurrentHash = JSON.parse(await readFile(join(vault, ".oh-my-obsidian/auto-sessions", `${key}.json`), "utf8")).noteHash;
   const simultaneous = await Promise.all(Array.from({ length: 12 }, (_, index) => new Promise((resolveRun) => {
     const child = spawn(process.execPath, [helper, "session-save", "--auto-session-id", sessionId,
-      "--topic", "Concurrent test", "--detail", `Concurrent work ${index}`, "--decision", `Concurrent decision ${index}`], {
+      "--topic", "Concurrent test", "--detail", `Concurrent work ${index}`, "--decision", `Concurrent decision ${index}`,
+      "--expected-note-hash", concurrentHash], {
       cwd: project, env: { ...process.env, HOME: home, USERPROFILE: home, OBSIDIAN_VAULT: vault },
       stdio: "ignore",
     });
@@ -66,6 +77,11 @@ try {
   })));
   observations.concurrentSuccessfulWrites = simultaneous.filter((exit) => exit === 0).length;
   observations.concurrentDecisionsRetained = ((await readFile(target, "utf8")).match(/Concurrent decision /g) || []).length;
+  assert.equal(observations.concurrentSuccessfulWrites, 1);
+  assert.equal(observations.concurrentDecisionsRetained, 1);
+  assert.equal(observations.priorDecisionsLost, false);
+  assert.equal(observations.priorNextStepsLost, false);
+  assert.equal(observations.staleSnapshotReplacesLatest, false);
 
   const blocked = run(runner, ["stop"], { cwd: project, session_id: sessionId, stop_hook_active: false });
   const continuedWithoutSaving = run(runner, ["stop"], { cwd: project, session_id: sessionId, stop_hook_active: true });
@@ -105,6 +121,8 @@ try {
     const data = line ? JSON.parse(line) : {};
     observations.hookInstructsReadOutsideVault = Boolean(data.existingNote) && await realpath(data.existingNote) === await realpath(join(outside, `test-${key}.md`));
     observations.writerRejectsOutsideVault = save("Should not escape").exit !== 0;
+    assert.equal(observations.hookInstructsReadOutsideVault, false);
+    assert.equal(observations.writerRejectsOutsideVault, true);
   } catch (error) {
     if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) observations.symlinkTestSkipped = error.code;
     else throw error;

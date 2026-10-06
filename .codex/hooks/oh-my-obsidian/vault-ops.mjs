@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { lstat, mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, rmdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import {
   basenameWithoutExtension,
@@ -14,6 +14,7 @@ import {
   typeFromCategory,
   uniqueValues,
   validatePlannedVaultTarget,
+  writeJsonAtomic,
 } from "./vault-core.mjs";
 
 const args = parseArgs(process.argv.slice(2));
@@ -59,6 +60,7 @@ function parseArgs(argv) {
     query: "",
     topic: "",
     sessionId: "",
+    expectedNoteHash: "",
     title: "",
     category: "",
     relativeDir: "",
@@ -88,6 +90,10 @@ function parseArgs(argv) {
       if (!parsed.sessionId.trim() || parsed.sessionId.startsWith("--")) throw new Error("--auto-session-id requires a session id");
     }
     else if (arg === "--topic") parsed.topic = argv[++index] || "";
+    else if (arg === "--expected-note-hash") {
+      parsed.expectedNoteHash = argv[++index] || "";
+      if (!/^[a-f0-9]{64}$/.test(parsed.expectedNoteHash)) throw new Error("invalid expected note hash");
+    }
     else if (arg === "--title") parsed.title = argv[++index] || "";
     else if (arg === "--category") parsed.category = argv[++index] || "";
     else if (arg === "--relative-dir") parsed.relativeDir = argv[++index] || "";
@@ -253,45 +259,87 @@ async function autoSessionSave(vault, topic, details) {
   const key = contentHash(args.sessionId);
   const stateTarget = await validatePlannedVaultTarget(vault.vaultPath, `.oh-my-obsidian/auto-sessions/${key}.json`);
   await mkdir(dirname(stateTarget.targetPath), { recursive: true });
-  const createdAt = new Date();
-  const date = formatLocalDate(createdAt);
-  const initial = {
-    createdAt: createdAt.toISOString(),
-    relativePath: `작업기록/세션기록/${date.slice(0, 7)}/${date}/${slugifyAscii(basename(process.cwd()), "project")}-${key}.md`,
-  };
+  const lockPath = `${stateTarget.targetPath}.lock`;
+  // ponytail: orphan locks fail closed; explicit recovery is separate state-recovery work.
   try {
-    await writeFile(stateTarget.targetPath, JSON.stringify(initial), { encoding: "utf8", flag: "wx" });
+    await mkdir(lockPath);
   } catch (error) {
-    if (error.code !== "EEXIST") throw error;
+    if (error.code === "EEXIST") throw new Error("automatic session save is locked; do not overwrite or retry blindly");
+    throw error;
   }
-  if ((await lstat(stateTarget.targetPath)).isSymbolicLink()) throw new Error("auto-session state must not be a symlink");
-  const state = JSON.parse(await readFile(stateTarget.targetPath, "utf8"));
-  if (!/^작업기록\/세션기록\/\d{4}-\d{2}\/\d{4}-\d{2}-\d{2}\/[a-z0-9-]+\.md$/.test(state.relativePath || "") ||
-      !state.relativePath.endsWith(`-${key}.md`) || !Number.isFinite(Date.parse(state.createdAt))) {
-    throw new Error("invalid auto-session state");
+  try {
+    const createdAt = new Date();
+    const date = formatLocalDate(createdAt);
+    const initial = {
+      createdAt: createdAt.toISOString(),
+      relativePath: `작업기록/세션기록/${date.slice(0, 7)}/${date}/${slugifyAscii(basename(process.cwd()), "project")}-${key}.md`,
+    };
+    try {
+      await writeFile(stateTarget.targetPath, JSON.stringify(initial), { encoding: "utf8", flag: "wx" });
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+    }
+    if ((await lstat(stateTarget.targetPath)).isSymbolicLink()) throw new Error("auto-session state must not be a symlink");
+    const state = JSON.parse(await readFile(stateTarget.targetPath, "utf8"));
+    if (!/^작업기록\/세션기록\/\d{4}-\d{2}\/\d{4}-\d{2}-\d{2}\/[a-z0-9-]+\.md$/.test(state.relativePath || "") ||
+        !state.relativePath.endsWith(`-${key}.md`) || !Number.isFinite(Date.parse(state.createdAt))) {
+      throw new Error("invalid auto-session state");
+    }
+    const target = await validatePlannedVaultTarget(vault.vaultPath, state.relativePath);
+    const marker = `<!-- oh-my-obsidian:auto-session:${key} -->`;
+    let body = `${renderSessionNote({
+      title: topic, topic, category: "세션기록", type: "session-log", details,
+      decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps),
+      files: [], participants: [], tags: [], services: uniqueValues(args.services),
+      relatedDocs: uniqueValues(args.relatedDocs), timestamp: state.createdAt,
+    })}\n${marker}\n`;
+    let previous = "";
+    if (await pathExists(target.targetPath)) {
+      if ((await lstat(target.targetPath)).isSymbolicLink()) throw new Error("auto-session note must not be a symlink");
+      previous = await readFile(target.targetPath, "utf8");
+      if (!previous.endsWith(`\n${marker}\n`)) throw new Error("refusing to overwrite an unmanaged note");
+      if (state.noteHash && contentHash(previous) !== state.noteHash) {
+        throw new Error("automatic note was edited outside the saver; preserving user changes");
+      }
+    }
+    const inputHash = contentHash(JSON.stringify({ topic, details, decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps), services: uniqueValues(args.services), relatedDocs: uniqueValues(args.relatedDocs) }));
+    const inputs = Array.isArray(state.inputs) ? state.inputs : [];
+    if (previous && !inputs.includes(inputHash)) {
+      if (!args.expectedNoteHash || args.expectedNoteHash !== contentHash(previous)) {
+        throw new Error("automatic note revision conflict; read the current note before saving");
+      }
+      const additions = [
+        `## Update ${new Date().toISOString()}`, "", "### Summary", "", details,
+        "", "### Decisions", "", ...uniqueValues(args.decisions).map((value) => `- ${value}`),
+        "", "### Next Steps", "", ...uniqueValues(args.nextSteps).map((value) => `- [ ] ${value}`),
+      ].join("\n");
+      body = `${previous.slice(0, -(`${marker}\n`).length)}\n${additions}\n\n${marker}\n`;
+    } else if (previous) {
+      body = previous;
+    }
+    if (body !== previous) {
+      await mkdir(dirname(target.targetPath), { recursive: true });
+      const tempPath = `${target.targetPath}.${process.pid}.${Date.now()}.tmp`;
+      try {
+        await writeFile(tempPath, body, { encoding: "utf8", flag: "wx" });
+        await validatePlannedVaultTarget(vault.vaultPath, state.relativePath);
+        if (previous && contentHash(await readFile(target.targetPath, "utf8")) !== contentHash(previous)) {
+          throw new Error("automatic note changed during save; preserving user changes");
+        }
+        if (previous && (await lstat(target.targetPath)).isSymbolicLink()) {
+          throw new Error("auto-session note must not be a symlink");
+        }
+        await rename(tempPath, target.targetPath);
+      } finally {
+        await unlink(tempPath).catch((error) => { if (error.code !== "ENOENT") throw error; });
+      }
+    }
+    await writeJsonAtomic(stateTarget.targetPath, { ...state, noteHash: contentHash(body), inputs: uniqueValues([...inputs, inputHash]) });
+    return { status: "ok", action: "session-save", automatic: true, unchanged: body === previous,
+      noteHash: contentHash(body), relativePath: target.normalized, git: { attempted: false, committed: false, reason: "automatic saves never commit or push" } };
+  } finally {
+    await rmdir(lockPath);
   }
-  const target = await validatePlannedVaultTarget(vault.vaultPath, state.relativePath);
-  const marker = `<!-- oh-my-obsidian:auto-session:${key} -->`;
-  const body = `${renderSessionNote({
-    title: topic, topic, category: "세션기록", type: "session-log", details,
-    decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps),
-    files: [], participants: [], tags: [], services: uniqueValues(args.services),
-    relatedDocs: uniqueValues(args.relatedDocs), timestamp: state.createdAt,
-  })}\n${marker}\n`;
-  let previous = "";
-  if (await pathExists(target.targetPath)) {
-    if ((await lstat(target.targetPath)).isSymbolicLink()) throw new Error("auto-session note must not be a symlink");
-    previous = await readFile(target.targetPath, "utf8");
-    if (!previous.endsWith(`\n${marker}\n`)) throw new Error("refusing to overwrite an unmanaged note");
-  }
-  if (body !== previous) {
-    await mkdir(dirname(target.targetPath), { recursive: true });
-    const tempPath = `${target.targetPath}.${process.pid}.tmp`;
-    await writeFile(tempPath, body, { encoding: "utf8", flag: "wx" });
-    await rename(tempPath, target.targetPath);
-  }
-  return { status: "ok", action: "session-save", automatic: true, unchanged: body === previous,
-    relativePath: target.normalized, git: { attempted: false, committed: false, reason: "automatic saves never commit or push" } };
 }
 
 async function vaultCommand() {

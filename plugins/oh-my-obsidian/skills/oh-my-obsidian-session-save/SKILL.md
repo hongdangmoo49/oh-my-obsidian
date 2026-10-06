@@ -14,10 +14,13 @@ current session into the Obsidian vault, or an installed Stop hook requests it.
 - Never overwrite an existing note. Use exclusive create or a collision suffix.
   Exception: automatic mode updates only its own session-id-marked note.
 - For a Stop-hook automatic save, use the hook-supplied helper and
-  `--auto-session-id "<session-id>"`. Save a cumulative work summary, decisions,
+  `--auto-session-id "<session-id>"`. Pass the hook-supplied
+  `--expected-note-hash "<hash>"` for an existing note. Save new work, decisions,
   and next steps only; never copy raw conversation, secrets, or personal data.
-  Read the existing automatic note before summarizing if needed to preserve
-  earlier decisions and unfinished next steps. Automatic saves never commit or
+  Read the existing automatic note before summarizing; the helper appends
+  updates, retaining its prior content. User edits and stale or concurrent
+  updates are rejected rather than overwritten. Do not bypass a conflict.
+  Automatic saves never commit or
   push. If saving fails, report it once and finish without a retry loop.
 - Save work records, including troubleshooting, under
   `작업기록/<category>/YYYY-MM/YYYY-MM-DD/<slug>.md`.
