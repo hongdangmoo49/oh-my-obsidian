@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const helperPath = join(process.cwd(), "plugins/oh-my-obsidian/scripts/codex-hooks.mjs");
 const symlinkTest = process.platform === "win32" ? test.skip : test;
@@ -331,6 +332,39 @@ test("official Codex hooks reject non-git repo roots and duplicate codex_hooks c
       await readFile(join(repoRoot, ".codex", "config.toml"), "utf8"),
       "[features]\ncodex_hooks = true\ncodex_hooks = false\n"
     );
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("Stop never requests reads through a junction outside the vault", async () => {
+  const fixture = await makeFixture();
+  try {
+    const repoRoot = join(fixture.root, "repo");
+    const vaultPath = join(fixture.root, "vault");
+    const outside = join(fixture.root, "outside");
+    await mkdir(repoRoot);
+    await mkdir(vaultPath);
+    await mkdir(outside);
+    assert.equal(spawnSync("git", ["-C", repoRoot, "init"]).status, 0);
+    await seedSetupState(vaultPath);
+    const installed = runHooks(["apply", "--repo-root", repoRoot, "--vault", vaultPath]);
+    assert.equal(installed.result.status, 0);
+    const key = createHash("sha256").update("escape-test").digest("hex");
+    const day = join(vaultPath, "작업기록", "세션기록", "2000-01", "2000-01-01");
+    await mkdir(join(vaultPath, "작업기록", "세션기록", "2000-01"), { recursive: true });
+    await symlink(outside, day, process.platform === "win32" ? "junction" : "dir");
+    await writeFile(join(outside, `test-${key}.md`), "PRIVATE OUTSIDE CONTENT");
+    await mkdir(join(vaultPath, ".oh-my-obsidian", "auto-sessions"));
+    await writeFile(join(vaultPath, ".oh-my-obsidian", "auto-sessions", `${key}.json`), JSON.stringify({ relativePath: `작업기록/세션기록/2000-01/2000-01-01/test-${key}.md` }));
+    const result = spawnSync(process.execPath, [installed.output.runnerPath, "stop"], {
+      cwd: repoRoot, input: JSON.stringify({ cwd: repoRoot, session_id: "escape-test" }), encoding: "utf8",
+      env: { ...process.env, OBSIDIAN_VAULT: "" },
+    });
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.decision, undefined);
+    assert.match(output.systemMessage, /unsafe/);
+    assert.equal(await readFile(join(outside, `test-${key}.md`), "utf8"), "PRIVATE OUTSIDE CONTENT");
   } finally {
     await fixture.cleanup();
   }

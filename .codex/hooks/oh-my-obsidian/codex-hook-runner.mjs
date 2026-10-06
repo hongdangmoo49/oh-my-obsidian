@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { access, readFile, realpath } from "node:fs/promises";
+import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, parse, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
@@ -42,9 +42,14 @@ async function main() {
       return;
     }
     const key = createHash("sha256").update(hookInput.session_id).digest("hex");
-    const saved = await readJsonObjectIfExists(join(resolved.vaultRealPath, ".oh-my-obsidian", "auto-sessions", `${key}.json`));
+    const statePath = await safeVaultFile(resolved.vaultRealPath, `.oh-my-obsidian/auto-sessions/${key}.json`);
+    const saved = statePath ? await readJsonObjectIfExists(statePath) : null;
     const existingNote = /^작업기록\/세션기록\/\d{4}-\d{2}\/\d{4}-\d{2}-\d{2}\/[a-z0-9-]+\.md$/.test(saved?.relativePath || "") && saved.relativePath.endsWith(`-${key}.md`)
-      ? join(resolved.vaultRealPath, ...saved.relativePath.split("/")) : null;
+      ? await safeVaultFile(resolved.vaultRealPath, saved.relativePath) : null;
+    if (saved && !existingNote) {
+      printJson({ continue: true, systemMessage: "Automatic session-save skipped: existing note is missing or unsafe. Inspect its state before retrying." });
+      return;
+    }
     printJson({
       continue: true,
       decision: "block",
@@ -217,6 +222,23 @@ async function pathExists(path) {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function safeVaultFile(root, relativePath) {
+  const segments = relativePath.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === ".." || /[\\:]/.test(segment))) return null;
+  let current = root;
+  try {
+    for (const segment of segments) {
+      current = join(current, segment);
+      if ((await lstat(current)).isSymbolicLink()) return null;
+    }
+    const rel = relative(root, await realpath(current));
+    if (rel.startsWith("..") || isAbsolute(rel) || !(await lstat(current)).isFile()) return null;
+    return current;
+  } catch {
+    return null;
   }
 }
 
