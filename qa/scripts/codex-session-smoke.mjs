@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { contentHash } from "../../plugins/oh-my-obsidian/scripts/vault-core.mjs";
 import { verifyAutoReceipt } from "../../plugins/oh-my-obsidian/scripts/auto-session-recovery.mjs";
@@ -9,9 +8,16 @@ import { assertSafeAutoContent } from "../../plugins/oh-my-obsidian/scripts/auto
 
 const cli = process.argv[2];
 const model = process.argv[3];
-if (!cli) throw new Error("usage: node qa/scripts/codex-session-smoke.mjs <native-codex-binary> [model]");
+const windowsSandbox = process.argv[4] || "elevated";
+if (!cli) throw new Error("usage: node qa/scripts/codex-session-smoke.mjs <native-codex-binary> [model] [elevated|unelevated]");
+if (!["elevated", "unelevated"].includes(windowsSandbox)) throw new Error("invalid Windows sandbox mode");
+function safeDiagnostic(value) {
+  const text = String(value || "").slice(0, 2000);
+  try { assertSafeAutoContent([text]); return text; }
+  catch { return "diagnostic message withheld by safety scan"; }
+}
 const repo = resolve(import.meta.dirname, "../..");
-const root = await mkdtemp(join(tmpdir(), "omob-live-smoke-"));
+const root = await mkdtemp(join(repo, ".omob-live-smoke-"));
 const project = join(root, "repo");
 const vault = join(root, "vault");
 let child;
@@ -28,11 +34,12 @@ try {
     "apply", "--repo-root", project, "--vault", vault], { encoding: "utf8", windowsHide: true });
   assert.equal(install.status, 0, "fixture hook installation failed");
   const prompt = "Create smoke-result.txt in the current repository containing exactly SMOKE_OK and a newline. Do not change any other repositories. Other changes must be limited to the installed session-save instructions and the supplied temporary vault. Do not commit or push. Finish with one short Korean completion sentence.";
-  const args = ["exec", "--ignore-user-config", "--ephemeral", "--json", "--color", "never",
+  const args = ["exec", "--ignore-user-config", "--strict-config", "--ephemeral", "--json", "--color", "never",
     "--enable", "hooks", "--dangerously-bypass-hook-trust", "--add-dir", vault,
     "-c", 'default_permissions=":workspace"', "-c", 'approval_policy="never"',
+    ...(process.platform === "win32" ? ["-c", `windows.sandbox=${JSON.stringify(windowsSandbox)}`] : []),
     "--cd", project, "-c", 'model_reasoning_effort="low"',
-    "-c", `projects.${JSON.stringify(project)}.trust_level="trusted"`, ...(model ? ["--model", model] : []), prompt];
+    "-c", `projects={${JSON.stringify(project)}={trust_level="trusted"}}`, ...(model ? ["--model", model] : []), prompt];
   // Only fixture hooks installed from this repository are trusted for this invocation.
   child = spawn(cli, args, { cwd: project, windowsHide: true, env: { ...process.env, OBSIDIAN_VAULT: vault }, stdio: ["ignore", "pipe", "pipe"] });
   let stdout = "";
@@ -48,6 +55,8 @@ try {
   const exitCode = await new Promise((resolveRun, reject) => { child.once("error", reject); child.once("close", resolveRun); });
   clearTimeout(timer);
   const events = stdout.split(/\r?\n/).flatMap((line) => { try { return [JSON.parse(line)]; } catch { return []; } });
+  const items = events.filter((event) => event.item).map((event) => ({ type: event.item.type, status: event.item.status, keys: Object.keys(event.item),
+    ...(event.item.type === "error" ? { message: safeDiagnostic(event.item.message) } : {}) }));
   const sessionId = events.find((event) => event.type === "thread.started")?.thread_id;
   if (exitCode !== 0 || timedOut) throw new Error(`Codex fresh-session smoke failed: exit=${exitCode}, timeout=${timedOut}, stderrBytes=${stderrBytes}, events=${events.map((event) => event.type).join(",")}`);
   assert.ok(sessionId, "CLI did not report a fresh thread id");
@@ -56,11 +65,11 @@ try {
   catch (error) {
     if (error.code !== "ENOENT") throw error;
     const last = events.filter((event) => event.item?.type === "agent_message").at(-1)?.item?.text || "no final message";
-    let safeMessage = last.slice(0, 1500);
-    try { assertSafeAutoContent([safeMessage]); } catch { safeMessage = "diagnostic message withheld by safety scan"; }
-    throw new Error(`CLI did not create the requested file; final=${safeMessage}; eventTypes=${events.map((event) => event.type).join(",")}`);
+    const safeMessage = safeDiagnostic(last);
+    throw new Error(`CLI did not create the requested file; final=${safeMessage}; items=${JSON.stringify(items)}`);
   }
-  assert.equal(taskResult.trim(), "SMOKE_OK");
+  assert.match(taskResult, /^SMOKE_OK\r?\n$/);
+  assert.notEqual(spawnSync("git", ["-C", project, "rev-parse", "--verify", "HEAD"], { encoding: "utf8", windowsHide: true }).status, 0, "smoke must not commit");
   const key = contentHash(sessionId);
   const statePath = join(vault, ".oh-my-obsidian/auto-sessions", `${key}.json`);
   const state = JSON.parse(await readFile(statePath, "utf8"));
@@ -80,7 +89,7 @@ try {
     if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
     else child.kill("SIGTERM");
   }
-  const rel = relative(tmpdir(), root);
-  assert.ok(rel.startsWith("omob-live-smoke-") && !rel.includes(".."));
+  const rel = relative(repo, root);
+  assert.ok(rel.startsWith(".omob-live-smoke-") && !rel.includes(".."));
   await rm(root, { recursive: true, force: true });
 }
