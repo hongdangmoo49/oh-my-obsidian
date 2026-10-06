@@ -110,9 +110,10 @@ try {
   const statePath = join(vault, ".oh-my-obsidian/auto-sessions", `${key}.json`);
   const state = await readFile(statePath, "utf8");
   await writeFile(statePath, "");
-  const damaged = save("Recover work");
+  const damaged = save("Recover work", ["--expected-note-hash", JSON.parse(state).noteHash]);
   observations.truncatedStatePreventsFutureSave = damaged.exit !== 0;
-  await writeFile(statePath, state);
+  assert.equal(observations.truncatedStatePreventsFutureSave, false);
+  assert.equal(damaged.output.recovered, true);
 
   const outside = join(root, "outside");
   await mkdir(outside);

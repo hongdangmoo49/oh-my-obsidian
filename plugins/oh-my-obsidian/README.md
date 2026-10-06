@@ -139,6 +139,12 @@ continuation gate. Automatic notes use one session-specific file under
 Updates are appended to preserve earlier summaries, decisions, and next steps.
 Existing notes require `--expected-note-hash`; stale revisions and edits outside
 the saver are rejected. A session lock prevents concurrent overwrites.
+State metadata is written atomically with a verified backup and a transaction
+journal. Corrupt state and interrupted note/state updates are recovered only
+when the note hash matches the recorded transaction or backup. To inspect and
+recover an abandoned lock, explicitly run `vault-ops.mjs session-recover
+--auto-session-id <session-id>`; live, foreign, and unidentified owners are
+refused. Recovery does not modify the note or run Git commands.
 Unchanged content is not rewritten; raw conversations are not saved and Git
 commit/push is not run. Set `autoSave: false` in the local vault pointer to opt
 out. Saving failures are reported without a continuation loop. Existing hooks are

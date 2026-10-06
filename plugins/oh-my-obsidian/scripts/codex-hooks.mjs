@@ -154,7 +154,7 @@ async function buildPlan(options = {}) {
     }),
     rollback: [
       `Remove ${target.runnerPath}`,
-      `Remove vault-ops.mjs and vault-core.mjs beside ${target.runnerPath}`,
+      `Remove vault-ops.mjs, vault-core.mjs and auto-session-recovery.mjs beside ${target.runnerPath}`,
       `Remove the oh-my-obsidian SessionStart and Stop hook commands from ${target.hooksConfigPath}`,
       `Remove ${target.pointerPath}`,
       `Remove codex_hooks from ${target.configTomlPath} only if oh-my-obsidian was the only feature using it`,
@@ -271,7 +271,7 @@ function buildPointerValue(target, vault, currentPointer) {
 }
 
 async function applyPlan(plan) {
-  const helpers = ["vault-ops.mjs", "vault-core.mjs"];
+  const helpers = ["vault-ops.mjs", "vault-core.mjs", "auto-session-recovery.mjs"];
   for (const targetPath of [plan.runnerPath, ...helpers.map((name) => join(dirname(plan.runnerPath), name)), plan.configTomlPath, plan.hooksConfigPath, plan.pointerPath, plan.gitignorePath].filter(Boolean)) {
     await assertSafeCodexWriteTarget(targetPath, plan);
   }

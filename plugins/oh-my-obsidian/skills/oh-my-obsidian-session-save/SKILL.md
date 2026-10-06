@@ -35,6 +35,21 @@ current session into the Obsidian vault, or an installed Stop hook requests it.
 
 ## Helper
 
+Automatic save metadata has a verified backup and a pending-transaction journal.
+Corrupt state is restored only when its backup matches the owned note. A pending
+save is finalized or rolled back by comparing the note hash; user edits are
+never overwritten during recovery.
+
+After a reported abandoned lock, request approval before running:
+
+```bash
+node scripts/vault-ops.mjs session-recover --auto-session-id "<session-id>"
+```
+
+Recovery refuses live, foreign-host/platform, and unidentified lock owners.
+It never creates a summary, commits, or pushes. If recovery is refused, report
+the reason; do not delete a lock or fabricate replacement metadata.
+
 ```bash
 node scripts/vault-ops.mjs session-save \
   --topic "<topic>" \

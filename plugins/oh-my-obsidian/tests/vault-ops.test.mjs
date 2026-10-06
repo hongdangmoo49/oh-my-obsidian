@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const scriptPath = join(process.cwd(), "plugins/oh-my-obsidian/scripts/vault-ops.mjs");
 
@@ -150,6 +151,25 @@ test("concurrent automatic updates accept one revision and retain prior decision
   } finally {
     await fixture.cleanup();
   }
+});
+
+test("session-recover restores damaged state without rewriting the note or committing", async () => {
+  const fixture = await makeFixture();
+  try {
+    const id = "recovery-cli";
+    const key = createHash("sha256").update(id).digest("hex");
+    const first = runVaultOps(fixture.vaultPath, ["session-save", "--auto-session-id", id, "--topic", "Recovery", "--detail", "Keep original work"]);
+    assert.equal(first.result.status, 0);
+    const notePath = join(fixture.vaultPath, first.output.relativePath);
+    const original = await readFile(notePath, "utf8");
+    await writeFile(join(fixture.vaultPath, ".oh-my-obsidian", "auto-sessions", `${key}.json`), "");
+    const recovery = runVaultOps(fixture.vaultPath, ["session-recover", "--auto-session-id", id]);
+    assert.equal(recovery.result.status, 0, recovery.result.stdout);
+    assert.equal(recovery.output.recovered, true);
+    assert.equal(recovery.output.noteHash, first.output.noteHash);
+    assert.equal(recovery.output.git.attempted, false);
+    assert.equal(await readFile(notePath, "utf8"), original);
+  } finally { await fixture.cleanup(); }
 });
 
 test("recall returns relevant excerpts from managed markdown files", async () => {
