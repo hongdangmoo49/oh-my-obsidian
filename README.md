@@ -154,13 +154,47 @@ session-save, vault management, and official Codex hooks for project-local
 memory context. In Codex, these flows are typically used through natural-language
 prompts or explicit skill invocation rather than Claude-style slash commands.
 
-## Feature Matrix
+## Connect Jev (Optional)
 
-Optional experimental [Jev recall reranking](plugins/oh-my-obsidian/docs/jev.md)
-is local-off by default. It needs a user-supplied key and explicit project/vault
-consent before sending queries and candidate excerpts to TypeSafe. Windows
-supports masked Credential Manager storage; other platforms currently use
-protected environment credentials. No live accuracy or speed gain is claimed.
+Local memory works without Jev. Jev adds paid, external recall reranking; it is
+disabled until you approve it for a particular project and managed vault.
+
+1. Sign in to the [official TypeSafe console](https://console.typesafe.ai/settings/keys),
+   create an API key and check your credit balance. API usage is billed separately
+   from OMOB and your coding agent. See the [official quick start](https://docs.typesafe.ai/introduction/quickstart).
+2. If using an installed plugin, ask Claude Code `/oh-my-obsidian:jev connect`, or
+   ask Codex to use `$oh-my-obsidian-jev` to explain key setup. The agent should
+   give you the absolute helper command to run yourself, never ask for your key
+   in chat. Update older plugin installations first if this command/skill is missing.
+3. In a separate interactive terminal, run the connection command. For a source
+   checkout, the following commands work from this repository root:
+
+```text
+node plugins/oh-my-obsidian/scripts/jev.mjs connect
+node plugins/oh-my-obsidian/scripts/jev.mjs status
+node plugins/oh-my-obsidian/scripts/jev.mjs test --allow-billed-test
+node plugins/oh-my-obsidian/scripts/jev.mjs enable --allow-external-text
+```
+
+Paste the key only at the hidden `connect` prompt. Windows stores it in Credential
+Manager. macOS/Linux currently require `TYPESAFE_API_KEY` supplied through a
+protected environment/secret manager; no plaintext fallback or profile edits.
+Never put keys in agent chat, arguments, Markdown, Git or logs.
+
+Before `status`/`enable`, finish vault setup. If the project pointer does not
+resolve it, set `OBSIDIAN_VAULT` to your approved vault in the current shell only.
+For another project, keep cwd at that project's root and use the helper's
+absolute path, not this repository's cwd. Key registration is user-scoped;
+external-text consent is separately bound to the project and vault.
+
+`test` sends a synthetic sentence and may incur charges; it does not enable
+search. `enable` approves paid transmission of search questions and bounded
+candidate excerpts to TypeSafe. Review that scope before running it. Errors
+fall back to local search. To revoke consent, run the same helper with `disable`;
+`disconnect` deletes the shared Windows credential, not environment credentials.
+See the [full connection and privacy guide](plugins/oh-my-obsidian/docs/jev.md).
+
+## Feature Matrix
 
 | Capability | Claude Code Plugin | Codex v1 | Official Codex Hooks |
 | :--- | :--- | :--- | :--- |
