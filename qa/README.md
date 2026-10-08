@@ -210,21 +210,24 @@ unapproved keyword-list distractor (75 Markdown files total). This is a small
 hand-authored stress suite, not representative production evidence or a held-out
 training set. Labels and data are fixed before the first provider run.
 
-Reports are written to ignored dist/recall-evaluation-local.json and
-dist/recall-evaluation-jev.json. They contain only public synthetic question ids,
+Reports are written to ignored dist/recall-evaluation-20-local.json and
+dist/recall-evaluation-20-jev.json. The original top-10 reports are retained.
+They contain only public synthetic question ids,
 paths, metrics and validated token counts, not credentials or response bodies.
 The corpus and source hashes identify the tested version.
 
-The comparison freezes the public local top-10 candidate pool, not production's
-internal top-20 pool. Report candidate Recall@10 separately from Hit@1, Hit@5,
-MRR@10 and nDCG@5; conditional Hit@5 excludes candidate misses. Jev failure falls
+The comparison now uses `recall --local-only --limit 20` to inspect the real
+lexical candidate cap without reading a key or making a provider call, then
+passes that same pool to the production reranker (normal top-10 output).
+Report candidate Recall@20 separately from Hit@1, Hit@5, MRR@10 and nDCG@5;
+conditional Hit@5 excludes candidate misses. Jev failure falls
 back to local results and counts as a fallback, not a successful rerank.
 P95 includes local CLI process startup plus rerank time. It is not a production
 latency SLA. Costs are estimates from known provider-reported input tokens at
 the recorded official list price, not a bill; missing/failed responses can leave
 usage unaccounted for. Unknown usage is never treated as free.
 
-### First Live Stress Run (2026-10-08)
+### Historical Top-10 Stress Run (2026-10-08)
 
 Corpus SHA256: `1a2d4d21f5eef6fed29a742ace64228a559dd8ad3edce0d0422f097fffa14b33`.
 Model: `jev-1.13.0`. The paired comparison used the same local top-10 pool.
@@ -253,3 +256,14 @@ The 0% local Hit@1 is driven by deliberately keyword-stuffed distractors, not a
 measurement of ordinary user queries. Do not advertise the 98% score as real-vault
 accuracy or infer production top-20 performance. Before changing retrieval,
 evaluate candidate expansion and Korean/English terminology on a held-out set.
+
+### Production-Cap Top-20 Stress Run (2026-10-08)
+
+Same fixed corpus, with a cap of 20 candidates and no retrieval algorithm change:
+local Hit@1 0%, Hit@5 94%; Jev Hit@1/Hit@5 100%. Candidate Recall@20 was 100%.
+The previous hash-revision miss was present in the actual top-20 pool; that
+earlier top-10 miss must not be described as a production retrieval failure.
+All 50 requests succeeded, with 109,854 reported input tokens and an estimated
+USD 0.004613868 list-price cost. Paired P95: local 129 ms, Jev total 924 ms.
+Do not compare timings across separate runs as controlled speed improvements.
+These remain synthetic keyword-stuffing stress results, not real-vault accuracy.

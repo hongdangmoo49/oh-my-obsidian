@@ -21,6 +21,9 @@ test('summary separates candidate misses from conditional ranking and includes f
   assert.equal(result.candidateMisses, 1);
   assert.equal(result.conditionalHitAt5, 1);
   assert.equal(result.p95Ms, 70);
+  const expanded = [{ ...rows[1], candidatePaths: ['y', 'x'], rankedPaths: ['x'] }];
+  assert.equal(summarize(expanded, 'rankedPaths', 20).candidateRecallAt20, 1);
+  assert.equal(summarize(expanded, 'localPaths', 20).hitAt5, 0);
 });
 
 test('synthetic fixture has 50 labeled questions, unique safe ids and no identical current/obsolete decisions', async () => {

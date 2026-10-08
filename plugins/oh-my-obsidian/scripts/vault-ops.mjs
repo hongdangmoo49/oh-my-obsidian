@@ -78,6 +78,8 @@ function parseArgs(argv) {
     action: argv[0] || "",
     subaction: argv[0] === "vault" ? argv[1] || "" : "",
     query: "",
+    localOnly: false,
+    limit: 10,
     topic: "",
     sessionId: "",
     turnId: "",
@@ -106,6 +108,15 @@ function parseArgs(argv) {
   for (let index = startIndex; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--query") parsed.query = argv[++index] || "";
+    else if (arg === "--local-only") {
+      if (parsed.action !== 'recall') throw new Error('--local-only is only supported for recall');
+      parsed.localOnly = true;
+    }
+    else if (arg === '--limit') {
+      const value = argv[++index];
+      if (parsed.action !== 'recall' || !/^(?:[1-9]|1[0-9]|20)$/.test(value || '')) throw new Error('recall --limit must be an integer from 1 to 20');
+      parsed.limit = Number(value);
+    }
     else if (arg === "--auto-session-id") {
       parsed.sessionId = argv[++index] || "";
       if (!parsed.sessionId.trim() || parsed.sessionId.startsWith("--")) throw new Error("--auto-session-id requires a session id");
@@ -204,7 +215,8 @@ async function recall() {
     return right.modifiedAt.localeCompare(left.modifiedAt);
   });
 
-  const ranked = await rerankRecall(query, results, vault.vaultPath);
+  const ranked = args.localOnly ? { results: results.slice(0, args.limit), reranking: { provider: 'local', reason: 'explicit-local-only' } } :
+    await rerankRecall(query, results, vault.vaultPath, { limit: args.limit });
   return {
     status: "ok",
     action: "recall",

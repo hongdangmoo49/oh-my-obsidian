@@ -169,6 +169,10 @@ test('CLI enable requires explicit approval, status hides keys, disable restores
     const remoteRecall = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, resolve('plugins/oh-my-obsidian/scripts/vault-ops.mjs'), 'recall', '--query', 'queue'], { cwd: f.root, env, encoding: 'utf8' });
     assert.equal(remoteRecall.status, 0, remoteRecall.stderr);
     assert.equal(JSON.parse(remoteRecall.stdout).reranking.provider, 'jev');
+    const localOnly = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, resolve('plugins/oh-my-obsidian/scripts/vault-ops.mjs'),
+      'recall', '--local-only', '--limit', '20', '--query', 'queue'], { cwd: f.root, env, encoding: 'utf8' });
+    assert.equal(localOnly.status, 0);
+    assert.deepEqual(JSON.parse(localOnly.stdout).reranking, { provider: 'local', reason: 'explicit-local-only' });
     assert.equal(cli('disable').status, 0);
     assert.equal(await loadConsent(f.location), false);
     const recall = spawnSync(process.execPath, [resolve('plugins/oh-my-obsidian/scripts/vault-ops.mjs'), 'recall', '--query', 'queue'], { cwd: f.root, env, encoding: 'utf8' });

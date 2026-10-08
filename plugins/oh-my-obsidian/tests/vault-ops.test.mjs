@@ -275,6 +275,16 @@ test('catalog expansion never reads a document outside the approved vault', asyn
   } finally { await fixture.cleanup(); }
 });
 
+test('explicit local recall exposes up to twenty candidates and rejects invalid limits', async () => {
+  const fixture = await makeFixture();
+  try {
+    for (let i = 0; i < 25; i++) await writeFile(join(fixture.vaultPath, `queue-${i}.md`), 'queue evidence');
+    assert.equal(runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--limit', '20', '--query', 'queue']).output.results.length, 20);
+    assert.equal(runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'queue']).output.results.length, 10);
+    for (const value of ['0', '21', 'NaN', '1.5']) assert.notEqual(runVaultOps(fixture.vaultPath, ['recall', '--limit', value, '--query', 'queue']).result.status, 0);
+  } finally { await fixture.cleanup(); }
+});
+
 test('recall preserves rejection headings and paragraph qualifiers while finding dense long-line evidence', async () => {
   const fixture = await makeFixture();
   try {

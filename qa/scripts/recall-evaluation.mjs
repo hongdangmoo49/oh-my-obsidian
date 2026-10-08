@@ -33,14 +33,14 @@ export function rankingMetrics(paths, target) {
     mrr10: rank > 0 && rank <= 10 ? 1 / rank : 0, ndcg5: rank > 0 && rank <= 5 ? 1 / Math.log2(rank + 1) : 0 };
 }
 
-export function summarize(rows, field) {
+export function summarize(rows, field, candidateLimit = 10) {
   assert(rows.length > 0);
   const values = rows.map(row => rankingMetrics(row[field], row.target));
   const mean = key => values.reduce((total, value) => total + value[key], 0) / rows.length;
   const latencies = rows.map(row => field === 'localPaths' ? row.localMs : row.localMs + row.rerankMs).sort((a, b) => a - b);
-  const reachable = rows.filter(row => row.localPaths.includes(row.target));
+  const reachable = rows.filter(row => (row.candidatePaths || row.localPaths).includes(row.target));
   return { queries: rows.length, hitAt1: mean('hit1'), hitAt5: mean('hit5'), mrrAt10: mean('mrr10'), ndcgAt5: mean('ndcg5'),
-    candidateRecallAt10: reachable.length / rows.length, candidateMisses: rows.length - reachable.length,
+    [`candidateRecallAt${candidateLimit}`]: reachable.length / rows.length, candidateMisses: rows.length - reachable.length,
     conditionalHitAt5: reachable.length ? reachable.reduce((n, row) => n + rankingMetrics(row[field], row.target).hit5, 0) / reachable.length : null,
     p95Ms: latencies[Math.ceil(latencies.length * 0.95) - 1] };
 }
@@ -76,7 +76,7 @@ export async function evaluate({ live = false } = {}) {
     for (const topic of data.topics) {
       for (const [index, query] of topic.queries.entries()) {
         const started = performance.now();
-        const child = spawnSync(process.execPath, [join(repo, 'plugins/oh-my-obsidian/scripts/vault-ops.mjs'), 'recall', '--query', query],
+        const child = spawnSync(process.execPath, [join(repo, 'plugins/oh-my-obsidian/scripts/vault-ops.mjs'), 'recall', '--local-only', '--limit', '20', '--query', query],
           { cwd: project, env: { ...process.env, HOME: localHome, USERPROFILE: localHome, PWD: project, OBSIDIAN_VAULT: vault, TYPESAFE_API_KEY: '' }, encoding: 'utf8', timeout: 30000 });
         assert.equal(child.status, 0, 'Isolated local recall failed');
         const localMs = performance.now() - started;
@@ -86,8 +86,9 @@ export async function evaluate({ live = false } = {}) {
         const ranked = live ? await rerankRecall(query, local.results, vault, { cwd: project, home: liveHome, fetcher: (...args) => {
           requests++; return fetch(...args);
         } }) : null;
+        const candidatePaths = local.results.map(result => result.path);
         const row = { id: `${topic.id}-${index}`, language: index === 0 ? 'ko' : 'mixed', query,
-          target: `notes/${topic.id}-current.md`, localPaths: local.results.map(result => result.path), localMs,
+          target: `notes/${topic.id}-current.md`, candidatePaths, localPaths: candidatePaths.slice(0, 10), localMs,
           rankedPaths: ranked?.results.map(result => result.path) || [], rerankMs: live ? performance.now() - startRerank : 0,
           provider: ranked?.reranking.provider || 'not-run', reason: ranked?.reranking.reason || null,
           inputTokens: ranked?.reranking.usage?.inputTokens ?? null, outputTokens: ranked?.reranking.usage?.outputTokens ?? null };
@@ -99,13 +100,13 @@ export async function evaluate({ live = false } = {}) {
     const known = successful.filter(row => row.inputTokens !== null);
     const inputTokens = known.reduce((total, row) => total + row.inputTokens, 0);
     for (const [path, expected] of Object.entries(sourceHashes)) assert.equal(hash(await readFile(join(repo, path))), expected, 'Source changed during evaluation; discard the mixed-version run');
-    return { schema: 'oh-my-obsidian/recall-evaluation-result/v1', createdAt: new Date().toISOString(),
-      corpusHash: hash(fixtureBytes), sourceHashes, documents: 75, queries: rows.length, candidatePoolSize: 10, live,
-      scope: 'Synthetic stress test with keyword-only and obsolete distractors. Frozen local top-10 candidates; not a production top-20 or real-vault benchmark.',
-      local: summarize(rows, 'localPaths'), jev: live ? summarize(rows, 'rankedPaths') : null,
+    return { schema: 'oh-my-obsidian/recall-evaluation-result/v2', createdAt: new Date().toISOString(),
+      corpusHash: hash(fixtureBytes), sourceHashes, documents: 75, queries: rows.length, candidatePoolSize: 20, live,
+      scope: 'Synthetic stress test with keyword-only and obsolete distractors. Production-sized top-20 candidate cap, normal top-10 output; not real-vault accuracy.',
+      local: summarize(rows, 'localPaths', 20), jev: live ? summarize(rows, 'rankedPaths', 20) : null,
       byLanguage: Object.fromEntries(['ko', 'mixed'].map(language => {
         const subset = rows.filter(row => row.language === language);
-        return [language, { local: summarize(subset, 'localPaths'), jev: live ? summarize(subset, 'rankedPaths') : null }];
+        return [language, { local: summarize(subset, 'localPaths', 20), jev: live ? summarize(subset, 'rankedPaths', 20) : null }];
       })),
       usage: { attemptedRequests: requests, successfulReranks: successful.length, fallbackQueries: live ? rows.length - successful.length : 0,
         meteredResponses: known.length, inputTokens, outputTokens: known.reduce((n, row) => n + (row.outputTokens || 0), 0),
@@ -124,7 +125,7 @@ async function main() {
   const live = args.includes('--jev');
   assert.equal(live, args.includes('--allow-billed-test'), 'Live evaluation requires both --jev and --allow-billed-test');
   const result = await evaluate({ live });
-  const output = join(repo, 'dist', `recall-evaluation-${live ? 'jev' : 'local'}.json`);
+  const output = join(repo, 'dist', `recall-evaluation-20-${live ? 'jev' : 'local'}.json`);
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify({ output, local: result.local, jev: result.jev, usage: result.usage }, null, 2));

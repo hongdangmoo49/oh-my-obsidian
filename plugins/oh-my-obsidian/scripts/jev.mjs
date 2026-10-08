@@ -100,7 +100,9 @@ async function request(state, questions, key, fetcher = fetch) {
 }
 
 export async function rerankRecall(query, results, vault, options = {}) {
-  const fallback = reason => ({ results: results.slice(0, 10), reranking: { provider: 'local', reason } });
+  const limit = options.limit ?? 10;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) throw new Error('Recall result limit must be from 1 to 20');
+  const fallback = reason => ({ results: results.slice(0, limit), reranking: { provider: 'local', reason } });
   // Catalog-only entries can contain raw prompts and filesystem paths; keep them local.
   const eligible = results.filter(entry => entry.source !== 'catalog-only');
   if (eligible.length < 2) return fallback('not-needed');
@@ -125,7 +127,7 @@ export async function rerankRecall(query, results, vault, options = {}) {
     const ranked = candidates.map((entry, index) => ({ ...selected[index], relevance: answers[entry.id].noul, index }));
     ranked.sort((a, b) => b.relevance - a.relevance || a.index - b.index);
     const remaining = results.filter(entry => !selected.includes(entry));
-    return { results: [...ranked.map(({ index, ...entry }) => entry), ...remaining].slice(0, 10), reranking: { provider: 'jev', model: MODEL, usage } };
+    return { results: [...ranked.map(({ index, ...entry }) => entry), ...remaining].slice(0, limit), reranking: { provider: 'jev', model: MODEL, usage } };
   } catch { return fallback('unavailable-or-refused'); }
 }
 

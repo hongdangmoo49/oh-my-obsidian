@@ -2,7 +2,7 @@
 
 This is an opt-in experimental search enhancement, not a replacement for local
 memory, summaries, filesystem authorization or safety checks. It reranks up to
-20 existing lexical candidates and returns up to 10. It cannot retrieve documents
+20 existing lexical candidates and returns up to 10 by default. It cannot retrieve documents
 that local search missed. No speed or Korean-language accuracy gain is claimed.
 
 ## Connect a key
@@ -68,6 +68,10 @@ consent. Missing keys, rejected text, invalid responses, HTTP errors and a
 2-second request timeout return the original local results. A `reranking` field
 reports whether Jev or local fallback was used. No retries or provider error
 bodies are printed. The model is pinned to `jev-1.13.0`; upgrades need evaluation.
+
+For read-only local inspection, `vault-ops.mjs recall --local-only --limit 20
+--query ...` bypasses Jev even if this project has consent and a key. `--limit`
+accepts integers 1 through 20; the normal default remains 10.
 
 ## Disable or remove
 
