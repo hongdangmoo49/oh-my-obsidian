@@ -161,7 +161,7 @@ function buildSearchGroups(query) {
   for (const word of uniqueValues(query.normalize('NFKC').toLowerCase().split(/\s+/)).slice(0, 8)) {
     const particle = word.match(/^([가-힣]{2,}|[a-z][a-z0-9_-]{1,})(?:에서|으로|에게|은|는|을|를|의|만|도|이|가)$/);
     const stem = particle ? particle[1] : word;
-    const known = aliases.find(group => group.some(term => stem === term || (/^[가-힣]{2,}$/.test(term) && stem.startsWith(term))));
+    const known = aliases.find(group => group.includes(stem));
     const key = known ? known[0] : stem;
     const group = groups.get(key) || { original: [], terms: [] };
     group.original = uniqueValues([...group.original, word]);
@@ -171,10 +171,30 @@ function buildSearchGroups(query) {
   return [...groups.values()];
 }
 
+function searchSpans(text, group) {
+  const positions = [];
+  for (const term of group.terms) {
+    if (term === '해시' && !group.original.includes(term)) {
+      let first = null, last = null;
+      // Inferred hash must not match unrelated compounds such as hashtags.
+      for (const match of text.matchAll(/해시(?:값)?(?:으로|에서|에게|은|는|을|를|의|만|도|이|가|로|와|과)?(?=$|[^\p{L}\p{N}_])/gu)) {
+        const span = { index: match.index, length: match[0].length };
+        if (!first) first = span;
+        last = span;
+      }
+      if (first) positions.push(first, last);
+    } else {
+      const first = text.indexOf(term);
+      if (first >= 0) positions.push({ index: first, length: term.length }, { index: text.lastIndexOf(term), length: term.length });
+    }
+  }
+  return positions;
+}
+
 function searchGroupScore(text, group, weight) {
   // Keep literal evidence stronger than an inferred alias or stripped particle.
   if (group.original.some(word => text.includes(word))) return weight;
-  return group.terms.some(word => text.includes(word)) ? weight / 3 : 0;
+  return searchSpans(text, group).length ? weight / 3 : 0;
 }
 
 async function recall() {
@@ -728,34 +748,83 @@ function buildCatalogOnlyResult(entry) {
   };
 }
 
+function excerptStructure(body) {
+  const headings = [], fences = [];
+  let open = null;
+  // ponytail: ATX headings and ordinary fenced blocks only, not a full Markdown parser.
+  for (const match of body.matchAll(/[^\r\n]*(?:\r?\n|$)/g)) {
+    const line = match[0].replace(/\r?\n$/, '');
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (open) {
+      if (marker && marker[1][0] === open.marker && marker[1].length >= open.length && !marker[2].trim()) {
+        open.end = match.index + match[0].length;
+        open = null;
+      }
+      continue;
+    }
+    if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {
+      open = { start: match.index, end: body.length, marker: marker[1][0], length: marker[1].length, opener: line.trim() };
+      fences.push(open);
+    } else if (/^ {0,3}#{1,6}[ \t]+.+$/.test(line)) headings.push({ offset: match.index, text: line.trim() });
+  }
+  return { headings, fences };
+}
+
 function extractExcerpt(content, groups) {
-  const body = content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
+  let body = content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
+  const sections = [];
+  let previous = 0;
+  // A heading starts a new context even without a blank line before it.
+  for (const entry of excerptStructure(body).headings) {
+    sections.push(body.slice(previous, entry.offset), '\n');
+    previous = entry.offset;
+  }
+  sections.push(body.slice(previous));
+  body = sections.join('').trim();
   const latestTie = extractTypeFromFrontmatter(content) === 'session-log';
   let best = body.slice(0, 1200);
   let bestScore = 0;
   let heading = '';
+  const structure = excerptStructure(body);
+  let offset = 0, headingIndex = 0, fenceIndex = 0;
   // Preserve paragraph qualifiers and section labels; a later line is not a newer fact.
-  for (const raw of body.split(/\r?\n\s*\r?\n/)) {
+  for (const [index, raw] of body.split(/(\r?\n\s*\r?\n)/).entries()) {
+    const startOffset = offset;
+    offset += raw.length;
+    if (index % 2) continue;
     const paragraph = raw.trim();
-    const headings = [...paragraph.matchAll(/^#{1,6}\s+.+$/gm)];
-    if (headings.length) heading = headings.at(-1)[0];
-    if (/^#{1,6}\s+[^\n]+$/.test(paragraph)) continue;
-    const prefix = heading && !paragraph.startsWith(heading) ? heading.slice(0, 180) + '\n\n' : '';
+    let introducedHeading = false;
+    while (headingIndex < structure.headings.length && structure.headings[headingIndex].offset < offset) {
+      heading = structure.headings[headingIndex++].text;
+      introducedHeading = true;
+    }
+    if (introducedHeading && /^#{1,6}[ \t]+[^\n]+$/.test(paragraph)) continue;
+    while (fenceIndex < structure.fences.length && structure.fences[fenceIndex].end <= startOffset) fenceIndex++;
+    const fence = structure.fences[fenceIndex];
+    const code = fence && fence.start < startOffset && startOffset < fence.end ? fence.opener : '';
+    const headingPrefix = heading && !paragraph.startsWith(heading) ? heading.slice(0, 180) + '\n\n' : '';
+    const prefix = headingPrefix + (code && !paragraph.startsWith(code) ? code.slice(0, 180) + '\n' : '');
     const budget = 1200 - prefix.length;
     const lower = paragraph.toLowerCase();
-    const hits = [...new Set(groups.flatMap(group => group.terms.flatMap(word => [lower.indexOf(word), lower.lastIndexOf(word)])).filter(hit => hit >= 0))];
-    if (!hits.length && !groups.some(group => group.terms.some(word => prefix.toLowerCase().includes(word)))) continue;
+    const spans = groups.map(group => searchSpans(lower, group));
+    const hits = [...new Set(spans.flat().map(span => span.index))];
+    const headingMatches = groups.map(group => headingPrefix && searchSpans(heading.toLowerCase(), group).some(span => span.index + span.length <= Math.min(heading.length, 180)));
+    if (!hits.length && !headingMatches.some(Boolean)) continue;
+    // Score full-source spans, not cropped text that can invent a word boundary.
+    const coverage = (start, end, contextEnd = 0) => groups.filter((_, index) => headingMatches[index] || spans[index].some(span =>
+      (span.index >= start && span.index + span.length <= end) || span.index + span.length <= contextEnd)).length;
     let chosen = paragraph.slice(0, budget);
-    let chosenScore = groups.filter(group => group.terms.some(word => chosen.toLowerCase().includes(word))).length;
+    let chosenScore = coverage(0, Math.min(paragraph.length, budget));
     for (const hit of hits) {
       const start = Math.max(0, hit - 160);
       const context = start > 200 ? paragraph.slice(0, 200) + '\n...\n' : '';
-      const candidate = context + paragraph.slice(start, start + budget - context.length);
-      const score = groups.filter(group => group.terms.some(word => candidate.toLowerCase().includes(word))).length;
+      const end = Math.min(paragraph.length, start + budget - context.length);
+      const candidate = context + paragraph.slice(start, end);
+      const score = coverage(start, end, start > 200 ? 200 : 0);
       if (score > chosenScore) { chosen = candidate; chosenScore = score; }
     }
     const excerpt = prefix + chosen;
-    const score = groups.filter(group => group.terms.some(word => excerpt.toLowerCase().includes(word))).length;
+    const score = chosenScore;
     if (score > bestScore || (latestTie && score === bestScore)) {
       best = excerpt;
       bestScore = score;

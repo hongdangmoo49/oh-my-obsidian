@@ -309,6 +309,19 @@ test('mixed technical terms and Korean particles retrieve body evidence without 
     await writeFile(join(fixture.vaultPath, '.oh-my-obsidian/session-catalog.json'), JSON.stringify({ sessions: [{ topic: '해시', documentGenerated: false }] }));
     run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
     assert(run.output.results.some(row => row.source === 'catalog-only'));
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', '해시태그']);
+    assert.equal(run.output.results.length, 0, 'Hashtags must not expand to cryptographic hash');
+    await writeFile(join(fixture.vaultPath, 'tags.md'), '해시태그는 문서 분류용이다.');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', '해시태그가']);
+    assert.deepEqual(run.output.results.map(row => row.path), ['tags.md']);
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+    assert(!run.output.results.some(row => row.path === 'tags.md'), 'Inferred hash must not match hashtag text');
+    await writeFile(join(fixture.vaultPath, 'value.md'), '해시값을 검증한다.');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+    assert(run.output.results.some(row => row.path === 'value.md'));
+    await writeFile(join(fixture.vaultPath, 'long.md'), '# Legacy\n\n' + 'x'.repeat(1198) + '해시태그'.repeat(300) + '\n\n# Decision\n\n해시값을 확인한다.');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+    assert.match(run.output.results.find(row => row.path === 'long.md').excerpt, /해시값을 확인/);
   } finally { await fixture.cleanup(); }
 });
 
@@ -328,6 +341,26 @@ test('recall preserves rejection headings and paragraph qualifiers while finding
     assert.match(run.output.results[0].excerpt, /Redis retry queue/);
     assert.match(run.output.results[0].excerpt, /proposal was rejected/);
     assert(run.output.results[0].excerpt.length <= 1200);
+  } finally { await fixture.cleanup(); }
+});
+
+test('fenced example headings cannot become the excerpt status, even across blank paragraphs', async () => {
+  const fixture = await makeFixture();
+  try {
+    const doc = join(fixture.vaultPath, 'example.md');
+    for (const marker of ['```md', '~~~~md']) {
+      const close = marker[0].repeat(5);
+      await writeFile(doc, `---\ntype: decision\n---\n# Superseded decision\n\nExample only:\n${marker}\n\n# Active decision\n\nhash example\n${close}\n`);
+      const run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+      assert.equal(run.result.status, 0);
+      assert.match(run.output.results[0].excerpt, /^# Superseded decision/);
+    }
+    await writeFile(doc, '---\ntype: decision\n---\n```md\n\n# Active decision\nhash example\n');
+    const run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+    assert.match(run.output.results[0].excerpt, /^```md/);
+    await writeFile(doc, '---\ntype: decision\n---\n# Rejected proposal\nhash old configuration\n# Active decision\nunrelated current change');
+    const sections = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+    assert.match(sections.output.results[0].excerpt, /^# Rejected proposal/);
   } finally { await fixture.cleanup(); }
 });
 

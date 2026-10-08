@@ -76,6 +76,14 @@ Local candidate search retains original words and adds a small set of hash,
 mismatch and overwrite equivalents plus common Korean particles. Exact matches
 have higher weight, and equivalent terms are not counted twice. This is a bounded
 heuristic, not general translation; it may introduce false matches.
+Query aliases require an exact known term after particle handling. Unrecognized
+compounds such as 해시태그 remain literal rather than expanding to cryptographic
+hash terminology. Other unknown compounds/inflections may still be missed.
+The inferred 해시 term in document text uses bounded hash/value forms rather
+than matching unrelated hashtag compounds. Literal query matching is retained.
+Excerpt section labels ignore ordinary fenced-code headings and retain the
+original fence when returning an interior example paragraph. Full Markdown
+extension parsing remains outside this bounded heuristic.
 
 ## Disable or remove
 
