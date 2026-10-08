@@ -4,6 +4,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $osError = 0
+$stage = 'load-type'
 try {
   Add-Type -TypeDefinition @'
 using System;
@@ -32,11 +33,14 @@ public static class OmobCredential {
 '@
   $target = $TargetName
   if ($Action -eq 'Set') {
+    $stage = 'read-input'
     $secret = Read-Host 'Jev API key (hidden; stored in Windows Credential Manager)' -AsSecureString
     $pointer = [IntPtr]::Zero
     try {
+      $stage = 'convert-input'
       $pointer = [Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($secret)
       $value = [Runtime.InteropServices.Marshal]::PtrToStringUni($pointer)
+      $stage = 'validate-input'
       if ($value.Length -lt 8 -or $value.Length -gt 1024 -or $value -match '[^\x21-\x7e]') { throw 'Invalid key' }
       $credential = New-Object OmobCredential+Credential
       $credential.Type = 1
@@ -45,6 +49,7 @@ public static class OmobCredential {
       $credential.Persist = 2
       $credential.CredentialBlobSize = $value.Length * 2
       $credential.CredentialBlob = $pointer
+      $stage = 'write-credential'
       if (-not [OmobCredential]::Write([ref]$credential, 0)) {
         $osError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
         throw 'Credential write failed'
@@ -69,6 +74,6 @@ public static class OmobCredential {
     } finally { if ($pointer -ne [IntPtr]::Zero) { [OmobCredential]::Free($pointer) } }
   }
 } catch {
-  [Console]::Error.WriteLine("Jev credential operation failed (osError=$osError). No plaintext fallback was used.")
+  [Console]::Error.WriteLine("Jev credential operation failed (stage=$stage, osError=$osError). No plaintext fallback was used.")
   exit 1
 }
