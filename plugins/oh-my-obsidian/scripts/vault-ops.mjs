@@ -18,6 +18,7 @@ import {
 } from "./vault-core.mjs";
 import { acquireAutoLock, commitAutoState, loadAutoState, verifyAutoReceipt, writeAutoReceipt } from "./auto-session-recovery.mjs";
 import { assertSafeAutoContent } from "./auto-session-safety.mjs";
+import { rerankRecall } from "./jev.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -39,7 +40,8 @@ async function main() {
   if (action === "recall") {
     const result = await recall();
     printJson(result);
-    process.exit(result.status === "failed" ? 1 : 0);
+    // Let fetch/Undici close its handles; forced exit can abort on Windows.
+    process.exitCode = result.status === "failed" ? 1 : 0;
     return;
   }
 
@@ -204,12 +206,14 @@ async function recall() {
     return right.modifiedAt.localeCompare(left.modifiedAt);
   });
 
+  const ranked = await rerankRecall(query, results, vault.vaultPath);
   return {
     status: "ok",
     action: "recall",
     query,
     source: "vault-walk",
-    results: results.slice(0, 10),
+    results: ranked.results,
+    reranking: ranked.reranking,
     guidance: results.length === 0 ? ["Run the setup skill if the vault is empty or not configured."] : [],
   };
 }

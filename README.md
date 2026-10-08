@@ -156,6 +156,12 @@ prompts or explicit skill invocation rather than Claude-style slash commands.
 
 ## Feature Matrix
 
+Optional experimental [Jev recall reranking](plugins/oh-my-obsidian/docs/jev.md)
+is local-off by default. It needs a user-supplied key and explicit project/vault
+consent before sending queries and candidate excerpts to TypeSafe. Windows
+supports masked Credential Manager storage; other platforms currently use
+protected environment credentials. No live accuracy or speed gain is claimed.
+
 | Capability | Claude Code Plugin | Codex v1 | Official Codex Hooks |
 | :--- | :--- | :--- | :--- |
 | Guided setup | Yes | Yes | N/A |

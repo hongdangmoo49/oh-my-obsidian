@@ -11,6 +11,11 @@ in the Obsidian vault.
 
 ## Contract
 
+- Optional Jev reranking requires separate project/vault consent. Never enable it
+  merely to answer a recall request. The helper reports `reranking.provider` and
+  falls back to local results on failure. See the `oh-my-obsidian-jev` skill for
+  setup; never collect keys in chat or tool input.
+
 - Resolve the vault through the Codex resolver contract. If the vault does not
   resolve, stop and direct the user to the `oh-my-obsidian setup` skill.
 - Do not mutate the vault.
