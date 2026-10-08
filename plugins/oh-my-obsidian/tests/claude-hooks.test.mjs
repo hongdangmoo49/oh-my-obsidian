@@ -97,6 +97,7 @@ for (const modern of [false, true]) {
       const prompt = hook("user-prompt-submit", "prompt-1");
       assert.equal(prompt.hookSpecificOutput.hookEventName, "UserPromptSubmit");
       const context = prompt.hookSpecificOutput.additionalContext;
+      assert.doesNotMatch(context, /Do not commit or push/);
       assert.doesNotMatch(context, /RAW_PROMPT_SHOULD_NOT_APPEAR|do-not-read/);
       const data = JSON.parse(context.split("\n").find((line) => line.startsWith("{")));
       assert.equal(data.sessionId, "claude:claude-test");
