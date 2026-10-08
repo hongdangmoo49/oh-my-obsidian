@@ -1,0 +1,31 @@
+{
+  "schema": "oh-my-obsidian/recall-evaluation/v1",
+  "description": "Synthetic stress corpus, not production notes. Every query asks for the active decision; obsolete decisions and keyword-only notes are distractors.",
+  "topics": [
+    {"id":"retry-queue","current":"재시도 작업은 SQLite 큐에 보관한다. Redis 큐 제안은 거절했다.","obsolete":"재시도 작업은 Redis 큐에 보관한다.","queries":["재시도 작업 보관 큐 결정","retry queue는 Redis인가 SQLite인가"]},
+    {"id":"cache-ttl","current":"검색 캐시 TTL은 60초다. 캐시 만료 뒤 새 검색을 수행한다.","obsolete":"검색 캐시 TTL은 300초다.","queries":["검색 캐시 만료 시간","cache TTL 60초 결정"]},
+    {"id":"auth-expiry","current":"인증 세션 만료 시간은 5분이다. 만료 뒤 다시 로그인한다.","obsolete":"인증 세션 만료 시간은 15분이다.","queries":["인증 세션 만료 시간","auth session expiry 몇 분인가"]},
+    {"id":"vault-layout","current":"볼트의 작업 요약은 작업기록/세션기록에 둔다. 서비스 문서와 분리한다.","obsolete":"작업 요약과 서비스 문서를 볼트 루트에 함께 둔다.","queries":["볼트 작업 요약 저장 위치","vault session notes와 서비스 문서 분리"]},
+    {"id":"quiet-stop","current":"Stop 훅은 조용히 종료한다. 저장이 실패해도 응답을 차단하지 않는다.","obsolete":"Stop 훅은 저장이 끝날 때까지 응답을 차단한다.","queries":["저장 실패 응답 차단 여부","Stop hook 저장 실패 때 block 하는가"]},
+    {"id":"auto-git","current":"자동 저장 헬퍼는 Git 명령을 실행하지 않는다. 코드 커밋 정책은 하네스가 관리한다.","obsolete":"자동 저장이 매 응답마다 Git 커밋을 만든다.","queries":["자동 저장 코드 커밋 정책","auto save가 Git commit 하는가"]},
+    {"id":"key-storage","current":"키 영구 저장은 Windows Credential Manager를 사용한다. 평문 파일 대체 저장은 금지한다.","obsolete":"키를 프로젝트의 평문 환경 설정 파일에 저장한다.","queries":["키 영구 저장 평문 파일 대체","Windows Credential Manager 키 저장 방식"]},
+    {"id":"external-consent","current":"외부 전송 동의는 프로젝트와 볼트별로 별도 승인한다. 키 등록은 전송 동의가 아니다.","obsolete":"키 등록만 하면 모든 볼트 외부 전송이 활성화된다.","queries":["키 등록 외부 전송 동의","project vault consent가 별도 필요한가"]},
+    {"id":"model-version","current":"재정렬 모델은 jev-1.13.0으로 고정한다. 모델 변경 전에 별도 평가한다.","obsolete":"재정렬 모델은 jev-latest를 자동으로 따라간다.","queries":["재정렬 모델 변경 평가 버전 고정","Jev model latest인가 pinned version인가"]},
+    {"id":"outbound-content","current":"외부 검색 요청에는 질문과 후보 본문 구절만 보낸다. 전체 볼트와 원문 대화는 보내지 않는다.","obsolete":"외부 검색 요청에 전체 볼트와 원문 대화를 보낸다.","queries":["외부 검색 요청 전체 볼트 원문 대화","recall outbound payload에 무엇을 보내나"]},
+    {"id":"revision-guard","current":"기존 노트 해시가 달라지면 저장을 거절한다. 사용자 편집을 덮어쓰지 않는다.","obsolete":"노트 해시가 달라도 최신 요약으로 덮어쓴다.","queries":["노트 해시 사용자 편집 덮어쓰기","expected hash mismatch 저장 결과"]},
+    {"id":"lock-owner","current":"실행 중인 프로세스의 잠금은 해제하지 않는다. 죽은 로컬 소유자만 복구한다.","obsolete":"잠금 파일이 있으면 소유자와 관계없이 삭제한다.","queries":["실행 중 프로세스 잠금 해제","live lock owner recovery 가능한가"]},
+    {"id":"state-recovery","current":"손상된 상태는 노트와 일치하는 검증된 백업으로 복구한다. 임의 초기화는 하지 않는다.","obsolete":"상태가 손상되면 백업 확인 없이 초기화한다.","queries":["손상 상태 백업 검증 복구","corrupt state backup 검증 없이 reset 가능한가"]},
+    {"id":"calendar-date","current":"작업 기록의 날짜 폴더는 로컬 달력 날짜를 사용한다. UTC 자정으로 폴더를 나누지 않는다.","obsolete":"날짜 폴더를 UTC 달력 날짜로 만든다.","queries":["날짜 폴더 로컬 달력 기준","session date folder local인가 UTC인가"]},
+    {"id":"history-import","current":"과거 대화 기록 복원은 별도 요청과 승인 후 수행한다. 기본 설정은 기록 복원을 시작하지 않는다.","obsolete":"설치 시 모든 과거 대화를 자동으로 복원한다.","queries":["과거 대화 기록 복원 기본 설정","history import 설치 시 자동 실행인가"]},
+    {"id":"mcp-optional","current":"기본 기억 조회는 로컬 검색이다. MCP 서버는 필수 설치가 아니며 이미 연결된 경우만 사용한다.","obsolete":"기억 조회를 위해 MCP 서버를 반드시 새로 설치한다.","queries":["기억 조회 서버 필수 설치","recall MCP server가 mandatory인가"]},
+    {"id":"agent-support","current":"지원 에이전트는 Codex CLI와 Claude Code다. 다른 에이전트 호환성은 검증하지 않았다.","obsolete":"모든 에이전트에서 같은 훅 자동 저장을 보장한다.","queries":["지원 에이전트 호환성 검증 범위","Codex Claude 외 agent compatibility 보장인가"]},
+    {"id":"setup-approval","current":"새 볼트 생성은 dry-run으로 계획을 보여준 후 승인받아 apply 한다. 기존 문서는 보존한다.","obsolete":"계획과 승인 없이 기존 볼트 문서를 재생성한다.","queries":["새 볼트 생성 계획 승인 기존 문서","setup dry-run 다음 apply 승인 필요"]},
+    {"id":"candidate-pool","current":"재정렬은 로컬 검색이 찾은 후보만 평가한다. 후보에 없는 문서를 새로 발견하지 못한다.","obsolete":"재정렬 API가 볼트 전체에서 빠진 문서를 직접 발견한다.","queries":["재정렬 후보에 없는 문서 발견","reranker가 candidate miss를 복구하는가"]},
+    {"id":"release-candidate","current":"배포 상태는 후보 릴리스다. 인증 세션 검증이 끝나기 전에 안정판이라고 설명하지 않는다.","obsolete":"인증 세션 검증 없이 안정판 배포 완료라고 설명한다.","queries":["배포 상태 후보 릴리스 안정판","release candidate인가 production verified인가"]},
+    {"id":"ci-platforms","current":"소스 회귀 검사는 Ubuntu와 Windows에서 수행한다. 모델 세션 검증은 별도 절차다.","obsolete":"Windows 소스 검사만으로 모든 운영체제 모델 세션 검증을 완료한다.","queries":["소스 회귀 운영체제 모델 세션 검증","Ubuntu Windows CI가 model E2E 증명인가"]},
+    {"id":"zip-paths","current":"ZIP 내부 경로는 슬래시 구분자를 사용한다. 개별 허용 파일만 배포한다.","obsolete":"ZIP 경로는 역슬래시를 사용하고 디렉터리를 통째로 복사한다.","queries":["압축 내부 경로 슬래시 허용 파일","ZIP path separator와 file allowlist 정책"]},
+    {"id":"catalog-privacy","current":"세션 카탈로그의 원문 질문과 파일 목록은 로컬에 남긴다. 외부 재정렬에 보내지 않는다.","obsolete":"카탈로그 원문 질문과 파일 목록을 외부 재정렬에 보낸다.","queries":["세션 카탈로그 원문 질문 파일 목록","catalog-only raw prompt 외부 전송 여부"]},
+    {"id":"policy-owner","current":"저장소의 커밋 정책은 에이전트 하네스의 지침이 관리한다. 플러그인 훅은 전역 정책을 강제하지 않는다.","obsolete":"플러그인 훅이 사용자의 코드 커밋과 푸시를 전역 금지한다.","queries":["저장소 커밋 정책 하네스 플러그인","AGENTS.md와 hook 중 Git policy 담당"]},
+    {"id":"request-timeout","current":"외부 재정렬 요청이 2초 안에 끝나지 않으면 로컬 결과로 돌아간다. 자동 재시도는 하지 않는다.","obsolete":"외부 재정렬이 끝날 때까지 무제한 대기하고 계속 재시도한다.","queries":["외부 재정렬 시간 초과 재시도","rerank timeout 뒤 local fallback 동작"]}
+  ]
+}

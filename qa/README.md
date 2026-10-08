@@ -191,3 +191,65 @@ Keep these local-only when a scenario fails:
 - helper JSON output
 
 Do not commit captured artifacts back into the repo.
+
+## Synthetic Recall Evaluation
+
+```text
+node qa/scripts/recall-evaluation.mjs
+node qa/scripts/recall-evaluation.mjs --jev --allow-billed-test
+```
+
+The first command is offline/local-only. The second permits up to 50 paid Jev
+requests using the already configured environment/OS credential; no retries.
+Only the bundled synthetic corpus is eligible. No actual vault is read, global
+consent changed, key printed or agent model session started.
+
+The fixture has 25 topics and 50 Korean/mixed-language questions, each with one
+labeled active decision. Every topic also has an obsolete decision and an
+unapproved keyword-list distractor (75 Markdown files total). This is a small
+hand-authored stress suite, not representative production evidence or a held-out
+training set. Labels and data are fixed before the first provider run.
+
+Reports are written to ignored dist/recall-evaluation-local.json and
+dist/recall-evaluation-jev.json. They contain only public synthetic question ids,
+paths, metrics and validated token counts, not credentials or response bodies.
+The corpus and source hashes identify the tested version.
+
+The comparison freezes the public local top-10 candidate pool, not production's
+internal top-20 pool. Report candidate Recall@10 separately from Hit@1, Hit@5,
+MRR@10 and nDCG@5; conditional Hit@5 excludes candidate misses. Jev failure falls
+back to local results and counts as a fallback, not a successful rerank.
+P95 includes local CLI process startup plus rerank time. It is not a production
+latency SLA. Costs are estimates from known provider-reported input tokens at
+the recorded official list price, not a bill; missing/failed responses can leave
+usage unaccounted for. Unknown usage is never treated as free.
+
+### First Live Stress Run (2026-10-08)
+
+Corpus SHA256: `1a2d4d21f5eef6fed29a742ace64228a559dd8ad3edce0d0422f097fffa14b33`.
+Model: `jev-1.13.0`. The paired comparison used the same local top-10 pool.
+
+| Metric | Local | Jev reranked |
+| --- | ---: | ---: |
+| Hit@1 | 0% | 98% |
+| Hit@5 | 94% | 98% |
+| Candidate Recall@10 | 98% | 98% |
+| MRR@10 | 0.4498 | 0.9800 |
+| nDCG@5 | 0.5723 | 0.9800 |
+| P95 including CLI startup | 357 ms | 1,570 ms |
+
+All 50 provider requests succeeded with no fallback. Reported usage: 82,896 input
+tokens and 7,255 output tokens. Estimated list-price input cost: USD 0.003481632,
+not an invoice. Korean Hit@1 was 100%; mixed-language Hit@1 was 96% after reranking.
+The known list price is USD 0.042 per million input tokens, output free, checked
+against https://docs.typesafe.ai/models on the run date.
+
+The unresolved query `revision-guard-1` (expected hash mismatch with Korean words)
+missed its gold document in the local top-10. Reranking cannot repair that miss.
+Two mixed-language answers moved into the top five (`external-consent-1` and
+`catalog-privacy-1`). No reachable gold answer moved down in this run.
+
+The 0% local Hit@1 is driven by deliberately keyword-stuffed distractors, not a
+measurement of ordinary user queries. Do not advertise the 98% score as real-vault
+accuracy or infer production top-20 performance. Before changing retrieval,
+evaluate candidate expansion and Korean/English terminology on a held-out set.
