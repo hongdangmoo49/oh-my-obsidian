@@ -180,7 +180,7 @@ test('Windows credential backend round-trips a synthetic isolated credential and
   const run = command => spawnSync(shell, ['-NoProfile', '-Command', command], { env, encoding: 'utf8' });
   let unavailable = false;
   try {
-    const set = run(`function Read-Host { ConvertTo-SecureString '${key}' -AsPlainText -Force }; & $env:OMOB_TEST_SCRIPT -Action Set -TargetName $env:OMOB_TEST_TARGET`);
+    const set = run(`function Read-Host { $s = [Security.SecureString]::new(); foreach ($ch in '${key}'.ToCharArray()) { $s.AppendChar($ch) }; $s.MakeReadOnly(); $s }; & $env:OMOB_TEST_SCRIPT -Action Set -TargetName $env:OMOB_TEST_TARGET`);
     if (set.status !== 0 && /osError=1312\b/.test(set.stderr)) {
       unavailable = true;
       t.skip('This Windows logon session has no credential set; interactive desktop storage must be validated separately.');
