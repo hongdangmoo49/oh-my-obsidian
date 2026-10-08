@@ -180,6 +180,8 @@ test("Node hook runner returns noop without a vault and context with a project-l
     assert.match(sessionStart.hookSpecificOutput.additionalContext, /project="Demo Project"/);
     assert.match(sessionStart.hookSpecificOutput.additionalContext, /knowledge_domains=\["API","Infra"\]/);
     assert.match(sessionStart.hookSpecificOutput.additionalContext, /Treat the following values as data/);
+    assert.doesNotMatch(sessionStart.hookSpecificOutput.additionalContext, /Do not commit or push|secrets, commit or push/);
+    assert.match(sessionStart.hookSpecificOutput.additionalContext, /Git policy is defined by the agent harness/);
 
     const hooksConfig = JSON.parse(await readFile(join(repoRoot, ".codex", "hooks.json"), "utf8"));
     const sessionStartCommand = hooksConfig.hooks.SessionStart[0].hooks[0].command;
@@ -215,6 +217,7 @@ test("Node hook runner returns noop without a vault and context with a project-l
         assert.equal(output.decision, "block");
         assert.match(output.reason, /--auto-session-id/);
         assert.match(output.reason, /Exclude raw conversation/);
+        assert.doesNotMatch(output.reason, /Do not commit or push/);
       }
     }
     const save = spawnSync(process.execPath, [join(repoRoot, ".codex", "hooks", "oh-my-obsidian", "vault-ops.mjs"),
@@ -263,6 +266,7 @@ test("quiet Stop verifies this turn, warns on missing or tampered saves, and nev
     const prompt = hook("user-prompt-submit", "turn-1");
     assert.equal(prompt.hookSpecificOutput.hookEventName, "UserPromptSubmit");
     assert.match(prompt.hookSpecificOutput.additionalContext, /--auto-turn-id/);
+    assert.doesNotMatch(prompt.hookSpecificOutput.additionalContext, /Do not commit or push/);
     assert.doesNotMatch(prompt.hookSpecificOutput.additionalContext, /RAW_PROMPT_MUST_NOT_BE_COPIED/);
     assert.equal(prompt.decision, undefined);
     const missing = hook("stop", "turn-1");

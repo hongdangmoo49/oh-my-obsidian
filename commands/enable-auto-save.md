@@ -1,37 +1,27 @@
 ---
-description: "Enable automatic session save on exit (Registers SessionEnd hook)"
+description: "Enable quiet automatic summaries and safely migrate the old PR #9 SessionEnd hook"
 allowed-tools: Bash, Read, Write
 ---
 
 ## Context
-This command registers the `SessionEnd` lifecycle hook in the user's Claude Code configuration so that `/oh-my-obsidian:session-save` runs automatically whenever the Claude Code session ends. This is specifically useful for existing users who already ran `/oh-my-obsidian:setup` before the auto-hook feature was introduced, or if a user accidentally wiped their `.claude` configuration directory.
+The plugin bundles SessionStart/UserPromptSubmit guidance and quiet Stop receipt verification.
+Do not launch another Claude process from SessionEnd. Automatic summaries are saved
+inside the current conversation before its final response using the shared safe helper.
 
 ## Your Task
 
-Execute the following Node.js code securely using your Bash tool (e.g., by writing to a temporary `inject-hook.js` file, running `node inject-hook.js`, and then deleting the file). This method avoids reliance on `jq` and ensures robust execution across Windows, Mac, and Linux:
+1. Resolve the existing vault and run the migration plan:
 
-```javascript
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
-const file = path.join(os.homedir(), ".claude", "settings.json");
-let data = {};
-if (fs.existsSync(file)) {
-  try { data = JSON.parse(fs.readFileSync(file, "utf8")); } catch(e){}
-}
-if (!data.hooks) data.hooks = {};
-if (!data.hooks.SessionEnd) data.hooks.SessionEnd = [];
-const cmd = "claude -p '/oh-my-obsidian:session-save'";
-data.hooks.SessionEnd = data.hooks.SessionEnd.filter(h => !(h.hooks && h.hooks[0] && h.hooks[0].command === cmd));
-data.hooks.SessionEnd.push({ matcher: "", hooks: [{ type: "command", command: cmd }] });
-fs.mkdirSync(path.dirname(file), { recursive: true });
-fs.writeFileSync(file, JSON.stringify(data, null, 2));
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/claude-auto-save.mjs" plan --vault "<vault>"
 ```
 
-After executing the script successfully, print the following Korean success message:
-
-```text
-🎉 자동 저장 훅(SessionEnd Hook)이 성공적으로 등록되었습니다!
-
-이제 실수로 터미널을 그냥 끄더라도, oh-my-obsidian이 백그라운드에서 현재 세션의 작업 내역과 의사결정 사항들을 옵시디언 볼트에 안전하게 자동 저장합니다. 코딩에만 집중하세요!
-```
+2. If the old vault has no setup-state, explain metadata-only attachment (no Markdown
+changes) and request explicit approval before adding `--attach-legacy` to plan/apply.
+3. Show the removed legacy callback count and the approved pointer change. Ask for
+approval, then run the same helper with `apply` instead of `plan`.
+4. Invalid settings JSON must stop migration, never be replaced with an empty object.
+Other hooks/settings are preserved. The original settings are backed up before removal.
+5. Reload the plugin or start a new session. Do not claim saves survive a forcibly
+closed terminal. Quiet saving is best effort; missing completion is reported briefly.
+6. To disable, plan/apply with `--disable`; do not disable unrelated plugins/hooks.

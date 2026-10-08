@@ -75,7 +75,7 @@ oh-my-obsidian/
 │   ├── recall.md                # Recall past documents
 │   ├── restore-history.md       # Session history restoration
 │   ├── session-save.md          # Save session to vault
-│   ├── enable-auto-save.md      # Register SessionEnd auto-save hook
+│   ├── enable-auto-save.md      # Quiet summaries and safe SessionEnd migration
 │   └── vault.md                 # Vault management
 ├── agents/
 │   ├── vault-architect.md       # Agent for vault structure design
@@ -131,7 +131,7 @@ plugins/oh-my-obsidian/
 ```json
 {
   "name": "oh-my-obsidian",
-  "version": "0.3.4",
+  "version": "0.3.6",
   "description": "Connect Obsidian vault to Claude Code for persistent team memory",
   "license": "MIT",
   "keywords": ["obsidian", "vault", "memory", "recall", "team"]
@@ -213,11 +213,14 @@ Manage vault: list, add, organize.
 
 ### 4.4 Hooks
 
-#### Stop Hook
-- **Event**: `Stop`
-- **Behavior**: Prompts user to save session before ending
-- **Skip**: User can type "session-save skip" to suppress
-- **Script**: `hooks/stop-hook.sh` — outputs prompt text asking to save
+#### Claude automatic summary hooks
+- **Events**: `SessionStart`, `UserPromptSubmit`, `Stop`
+- **Behavior**: The current agent saves a new-work summary, decisions, and next steps before its final response. No new Claude process is launched from SessionEnd.
+- **Storage**: Shared safe saver; session namespace, revision checks, prior-content preservation, sensitive-input scan, recovery and verified receipts match Codex.
+- **Compatibility**: Uses prompt_id when available and a metadata-only UUID marker otherwise.
+- **UX**: Quiet success and brief nonblocking warnings. This is best effort, not a forced-save or abrupt-terminal-close guarantee.
+- **Migration**: enable-auto-save removes only PR #9's exact old callback after plan/approval and preserves other hooks/settings.
+- **Entry point**: `hooks/hooks.json` invokes the shared Node runner with `--claude`; `stop-hook.sh` is compatibility-only.
 
 ### 4.5 MCP Configuration (`.mcp.json`)
 

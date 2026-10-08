@@ -239,6 +239,61 @@ test("recall returns relevant excerpts from managed markdown files", async () =>
   }
 });
 
+test('recall chooses bounded body evidence instead of frontmatter and prefers latest equal session evidence', async () => {
+  const fixture = await makeFixture();
+  try {
+    const doc = join(fixture.vaultPath, 'Demo_Project/API/body.md');
+    await writeFile(doc, '---\r\ntype: session-log\r\ntopic: retry queue\r\n---\r\n# Session\r\n\r\nOld retry queue was disabled.\r\n' + '\r\n'.repeat(8) + 'Latest retry queue is enabled.\r\n');
+    let run = runVaultOps(fixture.vaultPath, ['recall', '--query', 'retry queue']);
+    assert.equal(run.result.status, 0);
+    assert.match(run.output.results[0].excerpt, /Latest retry queue is enabled/);
+    assert(!run.output.results[0].excerpt.includes('topic:'));
+    assert(!run.output.results[0].excerpt.includes('Old retry queue'));
+    await writeFile(doc, '---\ntype: decision\ntopic: retry\n---\n' + 'x'.repeat(2000) + ' retry queue is durable.\n');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--query', 'retry queue']);
+    assert.match(run.output.results[0].excerpt, /retry queue is durable/);
+    assert(run.output.results[0].excerpt.length <= 1200);
+    await writeFile(doc, '---\ntype: decision\ntopic: retry\n---\nBody without matching keywords.\n');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--query', 'retry']);
+    assert.equal(run.output.results[0].excerpt, 'Body without matching keywords.');
+  } finally { await fixture.cleanup(); }
+});
+
+test('catalog expansion never reads a document outside the approved vault', async () => {
+  const fixture = await makeFixture();
+  try {
+    const outside = join(fixture.root, 'outside.md');
+    await writeFile(outside, 'OUTSIDE_CONTENT_MUST_NOT_BE_READ');
+    await writeFile(join(fixture.vaultPath, '.oh-my-obsidian/session-catalog.json'), JSON.stringify({ sessions: [
+      { topic: 'retry queue', documentGenerated: true, documentPath: '../outside.md' },
+      { topic: 'retry queue', documentGenerated: true, documentPath: outside },
+    ] }));
+    const run = runVaultOps(fixture.vaultPath, ['recall', '--query', 'retry queue']);
+    assert.equal(run.result.status, 0);
+    assert(!JSON.stringify(run.output).includes('OUTSIDE_CONTENT_MUST_NOT_BE_READ'));
+    assert(run.output.results.every(entry => entry.source === 'catalog-only'));
+  } finally { await fixture.cleanup(); }
+});
+
+test('recall preserves rejection headings and paragraph qualifiers while finding dense long-line evidence', async () => {
+  const fixture = await makeFixture();
+  try {
+    const doc = join(fixture.vaultPath, 'Demo_Project/API/queue.md');
+    await writeFile(doc, '---\ntype: session-log\n---\n# Session\n\n### Rejected proposal\n\nThe following proposal was explicitly rejected:\nUse Redis retry queue.\n');
+    let run = runVaultOps(fixture.vaultPath, ['recall', '--query', 'retry queue']);
+    assert.match(run.output.results[0].excerpt, /Rejected proposal/);
+    assert.match(run.output.results[0].excerpt, /explicitly rejected/);
+    await writeFile(doc, '---\ntype: session-log\n---\n### Redis retry queue\n\nRejected on Friday.\n');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--query', 'retry queue']);
+    assert.match(run.output.results[0].excerpt, /Rejected on Friday/);
+    await writeFile(doc, '---\ntype: decision\n---\nThis proposal was rejected. queue intro ' + 'x'.repeat(1600) + ' Redis retry queue is enabled.');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--query', 'Redis queue']);
+    assert.match(run.output.results[0].excerpt, /Redis retry queue/);
+    assert.match(run.output.results[0].excerpt, /proposal was rejected/);
+    assert(run.output.results[0].excerpt.length <= 1200);
+  } finally { await fixture.cleanup(); }
+});
+
 test("session-save groups work records by local month and day", async () => {
   const fixture = await makeFixture();
   try {

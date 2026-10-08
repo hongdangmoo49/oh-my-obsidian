@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: node --test
+      - run: node --test plugins/oh-my-obsidian/tests/*.test.mjs
         env:
           TEMP: ${{ runner.temp }}
           TMP: ${{ runner.temp }}

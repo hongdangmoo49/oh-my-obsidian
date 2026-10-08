@@ -156,6 +156,12 @@ prompts or explicit skill invocation rather than Claude-style slash commands.
 
 ## Feature Matrix
 
+Optional experimental [Jev recall reranking](plugins/oh-my-obsidian/docs/jev.md)
+is local-off by default. It needs a user-supplied key and explicit project/vault
+consent before sending queries and candidate excerpts to TypeSafe. Windows
+supports masked Credential Manager storage; other platforms currently use
+protected environment credentials. No live accuracy or speed gain is claimed.
+
 | Capability | Claude Code Plugin | Codex v1 | Official Codex Hooks |
 | :--- | :--- | :--- | :--- |
 | Guided setup | Yes | Yes | N/A |
@@ -204,7 +210,7 @@ installed skill surface, such as `$oh-my-obsidian-setup`,
 | `/oh-my-obsidian:refactor` | **Evolve** | Audits an existing vault and safely executes a structural migration |
 | `/oh-my-obsidian:recall <query>` | **Retrieve** | Uses configured MCP search when available, otherwise searches local Markdown |
 | `/oh-my-obsidian:session-save` | **Record** | Summarizes the current session and archives it to the vault |
-| `/oh-my-obsidian:enable-auto-save` | **Config** | Enables auto-save hook on SessionEnd for existing users |
+| `/oh-my-obsidian:enable-auto-save` | **Config** | Enables quiet automatic summaries and migrates the old SessionEnd callback safely |
 | `/oh-my-obsidian:vault` | **Manage** | General purpose vault management (list, add, organize) |
 
 ---

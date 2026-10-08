@@ -14,6 +14,11 @@ Search the Obsidian vault for relevant past context matching the user's query: {
 
 ### Search Strategy
 
+The helper may use optional Jev reranking only after separate project/vault
+consent. Never enable external transmission just to fulfill a recall request.
+Check `reranking.provider`; fallback remains local. Use the `jev` command for
+approved setup, never paste keys into chat or tools.
+
 1. **MCP Semantic Search (if available)**
    If the user has already configured an MCP server with recall/semantic search
    capability, use it first. Do not install, start, or require an MCP server.

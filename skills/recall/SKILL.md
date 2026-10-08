@@ -24,6 +24,11 @@ or any knowledge that should exist in the team's Obsidian vault.
 
 ## Activation Steps
 
+Optional Jev reranking runs only with separately approved project/vault consent.
+Never enable it just to answer a search. Check `reranking.provider` in helper
+output; failure preserves local results. Use the `jev` skill for setup and never
+collect keys in chat or tool input.
+
 1. **Check Environment**
    Verify `$OBSIDIAN_VAULT` is set and the directory exists.
    If not set, inform the user and suggest running `/oh-my-obsidian:setup`.

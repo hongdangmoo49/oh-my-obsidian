@@ -18,6 +18,7 @@ import {
 } from "./vault-core.mjs";
 import { acquireAutoLock, commitAutoState, loadAutoState, verifyAutoReceipt, writeAutoReceipt } from "./auto-session-recovery.mjs";
 import { assertSafeAutoContent } from "./auto-session-safety.mjs";
+import { rerankRecall } from "./jev.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -39,7 +40,8 @@ async function main() {
   if (action === "recall") {
     const result = await recall();
     printJson(result);
-    process.exit(result.status === "failed" ? 1 : 0);
+    // Let fetch/Undici close its handles; forced exit can abort on Windows.
+    process.exitCode = result.status === "failed" ? 1 : 0;
     return;
   }
 
@@ -164,14 +166,12 @@ async function recall() {
     const lowerContent = content.toLowerCase();
     const lowerBase = basename(file).toLowerCase();
     let score = 0;
-    let firstHit = -1;
     for (const keyword of keywords) {
       if (!keyword) continue;
       if (lowerBase.includes(keyword)) score += 5;
       const hit = lowerContent.indexOf(keyword);
       if (hit >= 0) {
         score += 3;
-        if (firstHit === -1 || hit < firstHit) firstHit = hit;
       }
     }
     if (score === 0) continue;
@@ -181,7 +181,7 @@ async function recall() {
       path: relPath,
       category: classifyPath(relPath),
       type: extractTypeFromFrontmatter(content),
-      excerpt: extractExcerpt(content, firstHit),
+      excerpt: extractExcerpt(content, keywords),
       score,
       modifiedAt: fileStat.mtime.toISOString(),
     });
@@ -204,13 +204,16 @@ async function recall() {
     return right.modifiedAt.localeCompare(left.modifiedAt);
   });
 
+  const ranked = await rerankRecall(query, results, vault.vaultPath);
   return {
     status: "ok",
     action: "recall",
     query,
     source: "vault-walk",
-    results: results.slice(0, 10),
-    guidance: results.length === 0 ? ["Run the setup skill if the vault is empty or not configured."] : [],
+    results: ranked.results,
+    reranking: ranked.reranking,
+    guidance: results.length === 0 ? ["Run the setup skill if the vault is empty or not configured."] :
+      ["Excerpts are historical evidence, not verified current state. Compare explicit updates and dates; modification time alone does not establish freshness."],
   };
 }
 
@@ -276,7 +279,7 @@ async function sessionSave() {
 
 async function autoSessionSave(vault, topic, details) {
   if (!details.trim()) throw new Error("automatic session-save requires a summary");
-  assertSafeAutoContent([args.sessionId, args.turnId, topic, details, ...args.decisions, ...args.nextSteps, ...args.services, ...args.relatedDocs]);
+  assertSafeAutoContent([args.sessionId, args.turnId, topic, details, ...args.decisions, ...args.nextSteps, ...args.services, ...args.relatedDocs, ...args.participants]);
   if (args.sessionId.length > 240 || /[\r\n\x00-\x1f]/.test(args.sessionId)) {
     throw new Error("invalid automatic session id");
   }
@@ -297,7 +300,7 @@ async function autoSessionSave(vault, topic, details) {
     let body = `${renderSessionNote({
       title: topic, topic, category: "세션기록", type: "session-log", details,
       decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps),
-      files: [], participants: [], tags: [], services: uniqueValues(args.services),
+      files: [], participants: uniqueValues(args.participants), tags: [], services: uniqueValues(args.services),
       relatedDocs: uniqueValues(args.relatedDocs), timestamp: state.createdAt,
     })}\n${marker}\n`;
     let previous = "";
@@ -310,7 +313,7 @@ async function autoSessionSave(vault, topic, details) {
       }
       assertSafeAutoContent([previous]);
     }
-    const inputHash = contentHash(JSON.stringify({ topic, details, decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps), services: uniqueValues(args.services), relatedDocs: uniqueValues(args.relatedDocs) }));
+    const inputHash = contentHash(JSON.stringify({ topic, details, decisions: uniqueValues(args.decisions), nextSteps: uniqueValues(args.nextSteps), services: uniqueValues(args.services), relatedDocs: uniqueValues(args.relatedDocs), ...(args.participants.length ? { participants: uniqueValues(args.participants) } : {}) }));
     const inputs = Array.isArray(state.inputs) ? state.inputs : [];
     if (previous && !inputs.includes(inputHash)) {
       if (!args.expectedNoteHash || args.expectedNoteHash !== contentHash(previous)) {
@@ -643,22 +646,18 @@ async function expandCatalogMatches(vaultPath, catalogMatches, keywords) {
   for (const match of catalogMatches) {
     if (match.documentGenerated && match.documentPath) {
       // Read the actual document for full excerpt
-      const docPath = join(vaultPath, match.documentPath.replace(/\\/g, "/"));
       try {
+        const target = await validatePlannedVaultTarget(vaultPath, match.documentPath);
+        if (!target.normalized.endsWith('.md') || target.normalized.split('/').some(part => ['.git', '.obsidian', '.oh-my-obsidian'].includes(part))) continue;
+        const docPath = target.targetPath;
+        if ((await lstat(docPath)).isSymbolicLink()) continue;
         const content = await readFile(docPath, "utf8");
-        const lowerContent = content.toLowerCase();
-        let firstHit = -1;
-        for (const kw of keywords) {
-          if (!kw) continue;
-          const hit = lowerContent.indexOf(kw);
-          if (hit >= 0 && (firstHit === -1 || hit < firstHit)) firstHit = hit;
-        }
         const fileStat = await stat(docPath);
         results.push({
           path: match.documentPath,
           category: match.category || classifyPath(match.documentPath),
           type: extractTypeFromFrontmatter(content),
-          excerpt: extractExcerpt(content, firstHit),
+          excerpt: extractExcerpt(content, keywords),
           score: match.score,
           modifiedAt: fileStat.mtime.toISOString(),
           source: "catalog+document",
@@ -699,17 +698,40 @@ function buildCatalogOnlyResult(entry) {
   };
 }
 
-function extractExcerpt(content, firstHit) {
-  const lines = content.split("\n");
-  if (firstHit < 0) return lines.slice(0, 6).join("\n");
-  let seen = 0;
-  let lineIndex = 0;
-  while (lineIndex < lines.length && seen + lines[lineIndex].length + 1 <= firstHit) {
-    seen += lines[lineIndex].length + 1;
-    lineIndex += 1;
+function extractExcerpt(content, keywords) {
+  const body = content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
+  const latestTie = extractTypeFromFrontmatter(content) === 'session-log';
+  let best = body.slice(0, 1200);
+  let bestScore = 0;
+  let heading = '';
+  // Preserve paragraph qualifiers and section labels; a later line is not a newer fact.
+  for (const raw of body.split(/\r?\n\s*\r?\n/)) {
+    const paragraph = raw.trim();
+    const headings = [...paragraph.matchAll(/^#{1,6}\s+.+$/gm)];
+    if (headings.length) heading = headings.at(-1)[0];
+    if (/^#{1,6}\s+[^\n]+$/.test(paragraph)) continue;
+    const prefix = heading && !paragraph.startsWith(heading) ? heading.slice(0, 180) + '\n\n' : '';
+    const budget = 1200 - prefix.length;
+    const lower = paragraph.toLowerCase();
+    const hits = [...new Set(keywords.flatMap(word => [lower.indexOf(word), lower.lastIndexOf(word)]).filter(hit => hit >= 0))];
+    if (!hits.length && !keywords.some(word => prefix.toLowerCase().includes(word))) continue;
+    let chosen = paragraph.slice(0, budget);
+    let chosenScore = keywords.filter(word => chosen.toLowerCase().includes(word)).length;
+    for (const hit of hits) {
+      const start = Math.max(0, hit - 160);
+      const context = start > 200 ? paragraph.slice(0, 200) + '\n...\n' : '';
+      const candidate = context + paragraph.slice(start, start + budget - context.length);
+      const score = keywords.filter(word => candidate.toLowerCase().includes(word)).length;
+      if (score > chosenScore) { chosen = candidate; chosenScore = score; }
+    }
+    const excerpt = prefix + chosen;
+    const score = keywords.filter(word => excerpt.toLowerCase().includes(word)).length;
+    if (score > bestScore || (latestTie && score === bestScore)) {
+      best = excerpt;
+      bestScore = score;
+    }
   }
-  const start = Math.max(0, lineIndex - 2);
-  return lines.slice(start, start + 5).join("\n");
+  return best;
 }
 
 function classifyPath(relativePath) {
