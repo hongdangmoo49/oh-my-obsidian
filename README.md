@@ -156,6 +156,9 @@ prompts or explicit skill invocation rather than Claude-style slash commands.
 
 ## Connect Jev (Optional)
 
+Already installed? Follow the [existing-user update guide](docs/UPDATING.md).
+Marketplace refresh alone does not refresh copied project hooks.
+
 Local memory works without Jev. Jev adds paid, external recall reranking; it is
 disabled until you approve it for a particular project and managed vault.
 
