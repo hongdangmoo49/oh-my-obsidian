@@ -285,6 +285,33 @@ test('explicit local recall exposes up to twenty candidates and rejects invalid 
   } finally { await fixture.cleanup(); }
 });
 
+test('mixed technical terms and Korean particles retrieve body evidence without duplicate synonym boosts', async () => {
+  const fixture = await makeFixture();
+  try {
+    await writeFile(join(fixture.vaultPath, 'alpha.md'), 'hash');
+    await writeFile(join(fixture.vaultPath, 'beta.md'), '해시');
+    let run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+    assert.equal(run.output.results.find(row => row.path === 'alpha.md').score, 3);
+    assert.equal(run.output.results.find(row => row.path === 'beta.md').score, 1);
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash 해시']);
+    assert(run.output.results.every(row => row.score === 3));
+    await writeFile(join(fixture.vaultPath, 'gamma.md'), '# Decision\n\n노트 해시가 달라지면 저장을 거절하며 덮어쓰지 않는다.');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'ｈａｓｈ mismatch overwrite']);
+    const body = run.output.results.find(row => row.path === 'gamma.md');
+    assert(body);
+    assert.match(body.excerpt, /해시가 달라지면/);
+    await writeFile(join(fixture.vaultPath, 'delta.md'), '소유자만 잠금을 복구한다.');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', '소유자의 잠금을']);
+    assert(run.output.results.some(row => row.path === 'delta.md'));
+    await writeFile(join(fixture.vaultPath, 'epsilon.md'), '동의 없는 전송은 금지한다.');
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', '동의']);
+    assert.equal(run.output.results[0].path, 'epsilon.md');
+    await writeFile(join(fixture.vaultPath, '.oh-my-obsidian/session-catalog.json'), JSON.stringify({ sessions: [{ topic: '해시', documentGenerated: false }] }));
+    run = runVaultOps(fixture.vaultPath, ['recall', '--local-only', '--query', 'hash']);
+    assert(run.output.results.some(row => row.source === 'catalog-only'));
+  } finally { await fixture.cleanup(); }
+});
+
 test('recall preserves rejection headings and paragraph qualifiers while finding dense long-line evidence', async () => {
   const fixture = await makeFixture();
   try {

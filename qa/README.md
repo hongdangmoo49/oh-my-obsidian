@@ -280,3 +280,29 @@ Hit@1 22% and Hit@5 90%. The misses were an English hash-mismatch query and two
 Korean queries with attached particles. Once used to diagnose and fix those
 misses, this set is a development regression set, not independent evidence of
 generalization. Keep the before-change report rather than overwriting it.
+
+### Development Regression After Bounded Query Expansion
+
+Only three technical equivalences (`hash`/해시, `mismatch`/불일치, `overwrite`/덮어)
+and common attached Korean particles are expanded. Original terms are retained
+and score three times as strongly as expansions. Repeated synonyms count once.
+This is not a translator or a full Korean morphological analyzer.
+
+| Separate 50-question set | Before | After local expansion | After Jev reranking |
+| --- | ---: | ---: | ---: |
+| Candidate Recall@20 | 94% | 100% | 100% |
+| Hit@1 | 22% | 26% | 100% |
+| Hit@5 | 90% | 96% | 100% |
+
+The three diagnosed misses are present after expansion. The original stress
+set still has 100% candidate Recall@20 and local Hit@5 is 98% after the change.
+The after-change separate-set live run used 50 requests, with 105,802 reported
+input tokens and estimated USD 0.004443684 cost; no fallback occurred. Paired
+P95 was 120 ms for local recall and 879 ms including Jev. The two live runs in
+this work used 100 requests total, estimated USD 0.009057552 before tax.
+
+The query set was inspected to diagnose these fixes, so these are development
+regression results, not unbiased held-out accuracy. A fresh independent corpus
+and negative/unanswerable cases are still needed before production accuracy
+claims. Limited particle stripping can introduce false matches; retain the
+stronger exact-match weight and review real-vault cases only with user approval.

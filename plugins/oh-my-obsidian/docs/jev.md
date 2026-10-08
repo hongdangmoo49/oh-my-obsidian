@@ -72,6 +72,10 @@ bodies are printed. The model is pinned to `jev-1.13.0`; upgrades need evaluatio
 For read-only local inspection, `vault-ops.mjs recall --local-only --limit 20
 --query ...` bypasses Jev even if this project has consent and a key. `--limit`
 accepts integers 1 through 20; the normal default remains 10.
+Local candidate search retains original words and adds a small set of hash,
+mismatch and overwrite equivalents plus common Korean particles. Exact matches
+have higher weight, and equivalent terms are not counted twice. This is a bounded
+heuristic, not general translation; it may introduce false matches.
 
 ## Disable or remove
 

@@ -154,18 +154,41 @@ function parseArgs(argv) {
   return parsed;
 }
 
+function buildSearchGroups(query) {
+  const aliases = [['hash', '해시'], ['mismatch', '불일치', '달라'], ['overwrite', '덮어']];
+  const groups = new Map();
+  // ponytail: bounded technical vocabulary and common particles, not translation or a Korean morphological analyzer.
+  for (const word of uniqueValues(query.normalize('NFKC').toLowerCase().split(/\s+/)).slice(0, 8)) {
+    const particle = word.match(/^([가-힣]{2,}|[a-z][a-z0-9_-]{1,})(?:에서|으로|에게|은|는|을|를|의|만|도|이|가)$/);
+    const stem = particle ? particle[1] : word;
+    const known = aliases.find(group => group.some(term => stem === term || (/^[가-힣]{2,}$/.test(term) && stem.startsWith(term))));
+    const key = known ? known[0] : stem;
+    const group = groups.get(key) || { original: [], terms: [] };
+    group.original = uniqueValues([...group.original, word]);
+    group.terms = uniqueValues([...group.terms, word, stem, ...(known || [])]);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
+function searchGroupScore(text, group, weight) {
+  // Keep literal evidence stronger than an inferred alias or stripped particle.
+  if (group.original.some(word => text.includes(word))) return weight;
+  return group.terms.some(word => text.includes(word)) ? weight / 3 : 0;
+}
+
 async function recall() {
   const query = String(args.query || "").trim();
   if (!query) throw new Error("--query is required");
   const vault = await resolveManagedVault({ allowIncomplete: true });
   if (!vault.ok) return vault;
 
-  const keywords = uniqueValues(query.split(/\s+/).map((part) => part.trim().toLowerCase())).slice(0, 8);
+  const groups = buildSearchGroups(query);
 
   // --- Step 1: Catalog search (supplement) ---
   const catalog = await loadSessionCatalog(vault.vaultPath);
   const catalogResults = catalog
-    ? scoreCatalogEntries(catalog.sessions || [], keywords)
+    ? scoreCatalogEntries(catalog.sessions || [], groups)
     : [];
 
   // --- Step 2: Full vault walk (always runs) ---
@@ -177,13 +200,9 @@ async function recall() {
     const lowerContent = content.toLowerCase();
     const lowerBase = basename(file).toLowerCase();
     let score = 0;
-    for (const keyword of keywords) {
-      if (!keyword) continue;
-      if (lowerBase.includes(keyword)) score += 5;
-      const hit = lowerContent.indexOf(keyword);
-      if (hit >= 0) {
-        score += 3;
-      }
+    for (const group of groups) {
+      score += searchGroupScore(lowerBase, group, 5);
+      score += searchGroupScore(lowerContent, group, 3);
     }
     if (score === 0) continue;
     const fileStat = await stat(file);
@@ -192,7 +211,7 @@ async function recall() {
       path: relPath,
       category: classifyPath(relPath),
       type: extractTypeFromFrontmatter(content),
-      excerpt: extractExcerpt(content, keywords),
+      excerpt: extractExcerpt(content, groups),
       score,
       modifiedAt: fileStat.mtime.toISOString(),
     });
@@ -201,7 +220,7 @@ async function recall() {
   // --- Step 3: Expand catalog matches and merge ---
   const seenPaths = new Set(results.map((r) => r.path));
   if (catalogResults.length > 0) {
-    const expandedResults = await expandCatalogMatches(vault.vaultPath, catalogResults, keywords);
+    const expandedResults = await expandCatalogMatches(vault.vaultPath, catalogResults, groups);
     for (const entry of expandedResults) {
       if (!seenPaths.has(entry.path)) {
         seenPaths.add(entry.path);
@@ -624,7 +643,7 @@ async function loadSessionCatalog(vaultPath) {
   }
 }
 
-function scoreCatalogEntries(sessions, keywords) {
+function scoreCatalogEntries(sessions, groups) {
   const results = [];
   for (const entry of sessions) {
     if (entry.isEmptySession) continue;
@@ -635,12 +654,11 @@ function scoreCatalogEntries(sessions, keywords) {
     const files = (entry.filesModified || []).join(" ").toLowerCase();
     const tools = (entry.toolsUsed || []).join(" ").toLowerCase();
 
-    for (const kw of keywords) {
-      if (!kw) continue;
-      if (topic.includes(kw)) score += 5;
-      if (firstMsg.includes(kw)) score += 3;
-      if (files.includes(kw)) score += 2;
-      if (tools.includes(kw)) score += 1;
+    for (const group of groups) {
+      score += searchGroupScore(topic, group, 5);
+      score += searchGroupScore(firstMsg, group, 3);
+      score += searchGroupScore(files, group, 2);
+      score += searchGroupScore(tools, group, 1);
     }
 
     if (score > 0) {
@@ -652,7 +670,7 @@ function scoreCatalogEntries(sessions, keywords) {
   return results.slice(0, 10);
 }
 
-async function expandCatalogMatches(vaultPath, catalogMatches, keywords) {
+async function expandCatalogMatches(vaultPath, catalogMatches, groups) {
   const results = [];
 
   for (const match of catalogMatches) {
@@ -669,7 +687,7 @@ async function expandCatalogMatches(vaultPath, catalogMatches, keywords) {
           path: match.documentPath,
           category: match.category || classifyPath(match.documentPath),
           type: extractTypeFromFrontmatter(content),
-          excerpt: extractExcerpt(content, keywords),
+          excerpt: extractExcerpt(content, groups),
           score: match.score,
           modifiedAt: fileStat.mtime.toISOString(),
           source: "catalog+document",
@@ -710,7 +728,7 @@ function buildCatalogOnlyResult(entry) {
   };
 }
 
-function extractExcerpt(content, keywords) {
+function extractExcerpt(content, groups) {
   const body = content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
   const latestTie = extractTypeFromFrontmatter(content) === 'session-log';
   let best = body.slice(0, 1200);
@@ -725,19 +743,19 @@ function extractExcerpt(content, keywords) {
     const prefix = heading && !paragraph.startsWith(heading) ? heading.slice(0, 180) + '\n\n' : '';
     const budget = 1200 - prefix.length;
     const lower = paragraph.toLowerCase();
-    const hits = [...new Set(keywords.flatMap(word => [lower.indexOf(word), lower.lastIndexOf(word)]).filter(hit => hit >= 0))];
-    if (!hits.length && !keywords.some(word => prefix.toLowerCase().includes(word))) continue;
+    const hits = [...new Set(groups.flatMap(group => group.terms.flatMap(word => [lower.indexOf(word), lower.lastIndexOf(word)])).filter(hit => hit >= 0))];
+    if (!hits.length && !groups.some(group => group.terms.some(word => prefix.toLowerCase().includes(word)))) continue;
     let chosen = paragraph.slice(0, budget);
-    let chosenScore = keywords.filter(word => chosen.toLowerCase().includes(word)).length;
+    let chosenScore = groups.filter(group => group.terms.some(word => chosen.toLowerCase().includes(word))).length;
     for (const hit of hits) {
       const start = Math.max(0, hit - 160);
       const context = start > 200 ? paragraph.slice(0, 200) + '\n...\n' : '';
       const candidate = context + paragraph.slice(start, start + budget - context.length);
-      const score = keywords.filter(word => candidate.toLowerCase().includes(word)).length;
+      const score = groups.filter(group => group.terms.some(word => candidate.toLowerCase().includes(word))).length;
       if (score > chosenScore) { chosen = candidate; chosenScore = score; }
     }
     const excerpt = prefix + chosen;
-    const score = keywords.filter(word => excerpt.toLowerCase().includes(word)).length;
+    const score = groups.filter(group => group.terms.some(word => excerpt.toLowerCase().includes(word))).length;
     if (score > bestScore || (latestTie && score === bestScore)) {
       best = excerpt;
       bestScore = score;
