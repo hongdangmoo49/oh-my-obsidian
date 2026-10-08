@@ -306,3 +306,57 @@ regression results, not unbiased held-out accuracy. A fresh independent corpus
 and negative/unanswerable cases are still needed before production accuracy
 claims. Limited particle stripping can introduce false matches; retain the
 stronger exact-match weight and review real-vault cases only with user approval.
+
+### Adversarial Fix Verification
+
+The evaluator executes a fresh snapshot of all six runtime helper dependencies,
+including `vault-core.mjs`, safety/recovery code and the Windows credential
+helper. Local retrieval and Jev imports both use that snapshot. Source and copied
+bytes are checked before provider calls and before saving a report; changing a
+shared helper during an offline reproduction now fails without writing results.
+The runner's own loaded-version hash and Node/platform metadata are also recorded.
+These are version-consistency checks, not a security boundary against the OS user.
+
+Question overlap and duplicate checks use NFKC, case folding, trimming and
+whitespace normalization. Technical query aliases now require an exact term
+after the bounded particle handling: a compound such as 해시태그 does not become
+cryptographic `hash` merely because it starts with 해시.
+
+The corrected 2026-10-08 separate-set live run completed 50 Jev requests with no
+fallback. Local Hit@1 was 26%, a query-blind filter retaining visible
+`Active decision` headings reached 94%, and Jev reached 100%. All three had
+100% candidate Recall@20; local Hit@5 was 96%, the status filter and Jev were 100%.
+The status filter uses only the same excerpt text visible to Jev, not gold paths.
+It is a synthetic-corpus diagnostic, not a new production filtering policy.
+
+Paired P95 was 190 ms for the status filter (including local CLI startup) versus
+1,244 ms with Jev. Reported input was 105,802 tokens, estimated USD 0.004443684
+excluding tax and not an invoice. Thus the measured incremental first-rank gain
+over this cheap baseline was 6 percentage points, not 74 points over raw lexical
+ordering. This inspected development set still cannot establish real-vault
+accuracy, generalization or that an external model is always necessary.
+
+### Follow-up Boundary Checks
+
+Snapshot verification now requires the complete fingerprint set and regular
+source/copy files on every check. A same-byte module symlink is refused because
+Node can otherwise resolve its relative imports from an unverified directory.
+This still does not make the process a sandbox against its own OS account.
+
+Fixture and question collections must be actual arrays; two-character strings
+are not two questions. Whitespace-only answer bodies are rejected. The cheap
+status baseline reads only the first nonempty Markdown heading (not headings in
+later examples, fenced code, indented code or split lines).
+The excerpt generator also keeps ordinary backtick/tilde fence context and does
+not promote example headings to section status. Real ATX headings start separate
+contexts even when the author omitted surrounding blank lines. This is bounded
+Markdown handling, not a full parser for every extension.
+
+Inferred Korean hash matches also require a bounded word form in document text.
+English `hash` no longer matches a hashtag-only note through the 해시 alias.
+Scoring and excerpts share full-source match spans so truncation cannot invent a
+word boundary. Original literal substring matching remains unchanged.
+
+These follow-up changes were checked offline. The live measurements above are
+historical evidence from their recorded source hashes, not a new paid run of
+this later version.
