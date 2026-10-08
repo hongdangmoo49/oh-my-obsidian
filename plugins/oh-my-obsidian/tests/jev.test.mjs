@@ -20,7 +20,7 @@ async function fixture() {
   const location = await consentLocation(vault, options);
   return { root, vault, options, location, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
-const response = answers => new Response(JSON.stringify({ model: 'jev-1.13.0', answers }));
+const response = (answers, usage) => new Response(JSON.stringify({ model: 'jev-1.13.0', answers, usage }));
 const answers = { c0: { type: 'noul', noul: 0.2 }, c1: { type: 'noul', noul: 0.9 } };
 
 test('no consent means no credential access or network; consent is project/vault bound and removable', async () => {
@@ -58,10 +58,11 @@ test('reranking only reorders local records; sends bounded excerpts without file
       assert(!init.body.includes(key));
       assert.equal(body.state.candidates.length, 2);
       assert.equal(body.questions.c0.type, 'noul');
-      return response(answers);
+      return response(answers, { input_tokens: 1234, output_tokens: 45 });
     } });
     assert.equal(calls, 1);
     assert.equal(result.reranking.provider, 'jev');
+    assert.deepEqual(result.reranking.usage, { inputTokens: 1234, outputTokens: 45 });
     assert.equal(result.results[0].path, entries[1].path);
     assert.equal(result.results[0].excerpt, entries[1].excerpt);
     assert.equal(result.results[0].score, 3);
@@ -81,6 +82,10 @@ test('provider failures, invalid responses and unsafe text preserve original res
       assert.equal(result.reranking.provider, 'local');
       assert(!JSON.stringify(result.reranking).includes(key));
     }
+    const invalidUsage = await rerankRecall('queue', entries, f.vault, { ...f.options,
+      fetcher: async () => response(answers, { input_tokens: -1, output_tokens: 'not-a-number' }) });
+    assert.equal(invalidUsage.reranking.provider, 'jev');
+    assert.deepEqual(invalidUsage.reranking.usage, { inputTokens: null, outputTokens: null });
     for (const query of ['contact person@example.com', key, 'User: private request\nAssistant: private answer', 'Cookie: session=synthetic-private-cookie']) {
       let sent = false;
       const result = await rerankRecall(query, entries, f.vault, { ...f.options, fetcher: () => { sent = true; throw Error(); } });
@@ -164,6 +169,10 @@ test('CLI enable requires explicit approval, status hides keys, disable restores
     const remoteRecall = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, resolve('plugins/oh-my-obsidian/scripts/vault-ops.mjs'), 'recall', '--query', 'queue'], { cwd: f.root, env, encoding: 'utf8' });
     assert.equal(remoteRecall.status, 0, remoteRecall.stderr);
     assert.equal(JSON.parse(remoteRecall.stdout).reranking.provider, 'jev');
+    const localOnly = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, resolve('plugins/oh-my-obsidian/scripts/vault-ops.mjs'),
+      'recall', '--local-only', '--limit', '20', '--query', 'queue'], { cwd: f.root, env, encoding: 'utf8' });
+    assert.equal(localOnly.status, 0);
+    assert.deepEqual(JSON.parse(localOnly.stdout).reranking, { provider: 'local', reason: 'explicit-local-only' });
     assert.equal(cli('disable').status, 0);
     assert.equal(await loadConsent(f.location), false);
     const recall = spawnSync(process.execPath, [resolve('plugins/oh-my-obsidian/scripts/vault-ops.mjs'), 'recall', '--query', 'queue'], { cwd: f.root, env, encoding: 'utf8' });

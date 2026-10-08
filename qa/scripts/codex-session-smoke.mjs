@@ -72,7 +72,14 @@ try {
   assert.notEqual(spawnSync("git", ["-C", project, "rev-parse", "--verify", "HEAD"], { encoding: "utf8", windowsHide: true }).status, 0, "smoke must not commit");
   const key = contentHash(sessionId);
   const statePath = join(vault, ".oh-my-obsidian/auto-sessions", `${key}.json`);
-  const state = JSON.parse(await readFile(statePath, "utf8"));
+  let state;
+  try { state = JSON.parse(await readFile(statePath, "utf8")); }
+  catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    const saves = events.filter(event => event.item?.type === 'command_execution' && /session-save/.test(event.item.command || ''));
+    const hookEvents = events.filter(event => /hook/i.test(event.type));
+    throw new Error(`Automatic note missing: saveCommands=${saves.length}, hookEvents=${hookEvents.length}, commandItems=${items.filter(item => item.type === 'command_execution').length}, eventTypes=${[...new Set(events.map(event => event.type))].join(',')}`);
+  }
   const receipt = JSON.parse(await readFile(`${statePath}.receipt`, "utf8"));
   assert.ok(["saved", "unchanged"].includes(receipt.status), "a substantive task must not be marked skipped");
   const verified = await verifyAutoReceipt(vault, sessionId, receipt.turnId);

@@ -25,7 +25,7 @@ const copy = (from, to = from) => {
   copyFileSync(join(root, from), join(stage, to));
 };
 try {
-  for (const path of ['LICENSE', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', '.agents/plugins/marketplace.json',
+  for (const path of ['LICENSE', 'docs/UPDATING.md', 'docs/releases/0.3.7.md', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', '.agents/plugins/marketplace.json',
     'hooks/hooks.json', 'scripts/claude-auto-save.mjs',
     'plugins/oh-my-obsidian/.codex-plugin/plugin.json', 'plugins/oh-my-obsidian/hooks/codex-hook-runner.mjs',
     'plugins/oh-my-obsidian/docs/jev.md',

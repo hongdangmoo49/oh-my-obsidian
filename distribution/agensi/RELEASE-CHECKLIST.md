@@ -13,7 +13,7 @@ node distribution/agensi/test.mjs
 node --test plugins/oh-my-obsidian/tests/*.test.mjs
 ```
 
-Output: dist/oh-my-obsidian-free-0.3.6-candidate-<payload-id>.zip and its .sha256 file.
+Output: dist/oh-my-obsidian-free-0.3.7-candidate-<payload-id>.zip and its .sha256 file.
 Existing ZIPs are never overwritten. Use --output-dir for an isolated build.
 The ZIP has SKILL.md at its root, MIT license, instructions, native manifests,
 shared helpers, hook runner, and templates. PACKAGE.json inventories file hashes.
@@ -31,13 +31,13 @@ Verified on Windows, Node 24.13.1, Codex 0.160.0, Claude Code 2.1.156:
   tests and is not sufficient artifact-level evidence.
 - Runtime coverage includes real note writes,
   recall, Claude turn-id variants, quiet Stop and Codex hook registration.
-- After the six adversarial-review fixes: extracted runtime 52 passed, 1 skipped,
-  0 failed; full source regression 93 passed, 9 skipped, 0 failed. Re-run before
+- After the 0.3.7 adversarial-review fixes: extracted runtime 55 passed, 1 skipped,
+  0 failed; full source regression 104 passed, 9 skipped, 0 failed. Re-run before
   release; these are local integration checks, not model-session E2E evidence.
 
 ## Gates before public upload
 
-- Verify PR #24 (including #23) is merged and the release points to that commit.
+- Verify the current release PR is merged and the release points to that commit.
 - Complete a real authenticated Claude model-session smoke test before promoting
   the candidate as production-verified. The 2026-10-08 retry still failed with
   authentication errors; local tests are not a substitute.

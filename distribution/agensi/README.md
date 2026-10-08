@@ -8,9 +8,10 @@ have their own costs. Community support, not a service-level agreement.
 
 ## Candidate validation status
 
-This 0.3.6 candidate includes the shared Claude auto-save implementation from
-PR #23, integrated together with the distribution work in PR #24. Do not describe
-it as fully production-validated. The 2026-10-08 live Claude smoke failed with an
+This 0.3.7 candidate includes the shared Claude auto-save implementation from
+PR #23, integrated together with the distribution work in PR #24. Retrieval and
+evaluation hardening is described in the 0.3.7 release notes. Do not describe it
+as fully production-validated. The 2026-10-08 live Claude smoke failed with an
 authentication error; local integration tests are separate from successful
 model-driven E2E. The same day's Codex Windows unelevated fresh-session smoke
 completed the task and verified the automatic summary receipt.
@@ -55,6 +56,9 @@ No raw transcript is read in the automatic path. The model still sees the normal
 conversation; local notes do not imply that your model runs locally.
 
 ## Updates and removal
+
+See [the existing-user update guide](docs/UPDATING.md) and
+[0.3.7 candidate release notes](docs/releases/0.3.7.md).
 
 Agensi distributes uploaded ZIP versions, not GitHub auto-sync. Download the new
 version, review it, replace the bundle at the same path and reinstall/update the

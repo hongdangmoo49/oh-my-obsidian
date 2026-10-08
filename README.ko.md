@@ -154,6 +154,51 @@ Codex hooks 기반 project-local memory context를 포함합니다. Codex에서�
 흐름들을 Claude식 slash command 대신 자연어 요청이나 특정 skill 직접
 호출로 주로 사용합니다.
 
+## Jev API 연결 (선택 사항)
+
+기존 설치 사용자는 [업데이트 가이드](docs/UPDATING.md)를 먼저 확인하세요.
+마켓플레이스 갱신만으로 프로젝트에 복사된 훅이 업데이트되지는 않습니다.
+
+기본 저장·조회에는 Jev가 필요하지 않습니다. Jev는 검색 후보를 외부 API로
+재정렬하는 선택 기능이며, 프로젝트와 볼트별 승인 전에는 비활성 상태입니다.
+
+1. [TypeSafe 공식 콘솔](https://console.typesafe.ai/settings/keys)에 로그인해 API 키를
+   발급하고 크레딧 잔액을 확인합니다. API 사용료는 OMOB 및 코딩 에이전트 요금과
+   별도입니다. 발급 절차는 [공식 가이드](https://docs.typesafe.ai/introduction/quickstart)를 참고하세요.
+2. 플러그인 설치 사용자는 Claude Code에서 `/oh-my-obsidian:jev connect`를 요청하거나,
+   Codex에서 `$oh-my-obsidian-jev`로 키 연결 방법을 안내해 달라고 요청합니다.
+   에이전트가 별도 터미널에서 실행할 절대 경로 명령을 알려주도록 합니다.
+   해당 명령이나 스킬이 없으면 기존 플러그인을 먼저 업데이트하세요.
+3. 별도 대화형 터미널에서 연결 명령을 실행합니다. 소스 체크아웃 사용자는 이 저장소
+   루트에서 다음 명령을 실행할 수 있습니다.
+
+```text
+node plugins/oh-my-obsidian/scripts/jev.mjs connect
+node plugins/oh-my-obsidian/scripts/jev.mjs status
+node plugins/oh-my-obsidian/scripts/jev.mjs test --allow-billed-test
+node plugins/oh-my-obsidian/scripts/jev.mjs enable --allow-external-text
+```
+
+키는 `connect`의 숨김 입력란에만 붙여 넣으세요. Windows에서는 Credential Manager에
+저장합니다. macOS/Linux는 현재 비밀정보 관리 도구나 보호된 환경변수
+`TYPESAFE_API_KEY`를 사용해야 합니다. 평문 파일 대체 저장이나 셸 프로필 변경은 하지 않습니다.
+키를 채팅·명령행 인자·Markdown·Git·로그에 넣으면 안 됩니다.
+
+`status`와 `enable` 전에 볼트 설정을 완료하세요. 프로젝트 연결 파일로 볼트를 찾지 못하면
+현재 셸에서만 `OBSIDIAN_VAULT`를 승인한 볼트 경로로 설정합니다. 다른 프로젝트를
+연결할 때는 작업 디렉터리를 그 프로젝트 루트에 두고 헬퍼의 절대 경로를 사용하세요.
+키 등록은 사용자 단위이고, 외부 전송 동의는 프로젝트·볼트별로 따로 관리합니다.
+
+- `test --allow-billed-test`: 합성 문장만 전송하는 연결 테스트이며 소액 과금될 수 있습니다.
+  실제 볼트 내용은 보내지 않고 검색도 활성화하지 않습니다.
+- `enable --allow-external-text`: 검색 질문과 제한된 후보 구절의 TypeSafe 전송 및 API 과금을 승인합니다.
+  키 등록만으로 이 동의가 생기지는 않습니다. 오류가 나면 로컬 검색 결과를 유지합니다.
+- `disable`: 현재 프로젝트·볼트의 외부 전송 동의를 해제합니다.
+- `disconnect`: 두 에이전트가 공유하는 Windows 저장 키를 삭제합니다.
+  별도로 설정한 환경변수는 원래 설정한 곳에서 제거해야 합니다.
+
+세부 동작과 개인정보 경계는 [Jev 연결 가이드](plugins/oh-my-obsidian/docs/jev.md)를 참고하세요.
+
 ## 기능 매트릭스
 
 | 기능 | Claude Code Plugin | Codex v1 | Official Codex Hooks |

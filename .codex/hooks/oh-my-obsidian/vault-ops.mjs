@@ -78,6 +78,8 @@ function parseArgs(argv) {
     action: argv[0] || "",
     subaction: argv[0] === "vault" ? argv[1] || "" : "",
     query: "",
+    localOnly: false,
+    limit: 10,
     topic: "",
     sessionId: "",
     turnId: "",
@@ -106,6 +108,15 @@ function parseArgs(argv) {
   for (let index = startIndex; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--query") parsed.query = argv[++index] || "";
+    else if (arg === "--local-only") {
+      if (parsed.action !== 'recall') throw new Error('--local-only is only supported for recall');
+      parsed.localOnly = true;
+    }
+    else if (arg === '--limit') {
+      const value = argv[++index];
+      if (parsed.action !== 'recall' || !/^(?:[1-9]|1[0-9]|20)$/.test(value || '')) throw new Error('recall --limit must be an integer from 1 to 20');
+      parsed.limit = Number(value);
+    }
     else if (arg === "--auto-session-id") {
       parsed.sessionId = argv[++index] || "";
       if (!parsed.sessionId.trim() || parsed.sessionId.startsWith("--")) throw new Error("--auto-session-id requires a session id");
@@ -143,18 +154,61 @@ function parseArgs(argv) {
   return parsed;
 }
 
+function buildSearchGroups(query) {
+  const aliases = [['hash', '해시'], ['mismatch', '불일치', '달라'], ['overwrite', '덮어']];
+  const groups = new Map();
+  // ponytail: bounded technical vocabulary and common particles, not translation or a Korean morphological analyzer.
+  for (const word of uniqueValues(query.normalize('NFKC').toLowerCase().split(/\s+/)).slice(0, 8)) {
+    const particle = word.match(/^([가-힣]{2,}|[a-z][a-z0-9_-]{1,})(?:에서|으로|에게|은|는|을|를|의|만|도|이|가)$/);
+    const stem = particle ? particle[1] : word;
+    const known = aliases.find(group => group.includes(stem));
+    const key = known ? known[0] : stem;
+    const group = groups.get(key) || { original: [], terms: [] };
+    group.original = uniqueValues([...group.original, word]);
+    group.terms = uniqueValues([...group.terms, word, stem, ...(known || [])]);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
+function searchSpans(text, group) {
+  const positions = [];
+  for (const term of group.terms) {
+    if (term === '해시' && !group.original.includes(term)) {
+      let first = null, last = null;
+      // Inferred hash must not match unrelated compounds such as hashtags.
+      for (const match of text.matchAll(/해시(?:값)?(?:으로|에서|에게|은|는|을|를|의|만|도|이|가|로|와|과)?(?=$|[^\p{L}\p{N}_])/gu)) {
+        const span = { index: match.index, length: match[0].length };
+        if (!first) first = span;
+        last = span;
+      }
+      if (first) positions.push(first, last);
+    } else {
+      const first = text.indexOf(term);
+      if (first >= 0) positions.push({ index: first, length: term.length }, { index: text.lastIndexOf(term), length: term.length });
+    }
+  }
+  return positions;
+}
+
+function searchGroupScore(text, group, weight) {
+  // Keep literal evidence stronger than an inferred alias or stripped particle.
+  if (group.original.some(word => text.includes(word))) return weight;
+  return searchSpans(text, group).length ? weight / 3 : 0;
+}
+
 async function recall() {
   const query = String(args.query || "").trim();
   if (!query) throw new Error("--query is required");
   const vault = await resolveManagedVault({ allowIncomplete: true });
   if (!vault.ok) return vault;
 
-  const keywords = uniqueValues(query.split(/\s+/).map((part) => part.trim().toLowerCase())).slice(0, 8);
+  const groups = buildSearchGroups(query);
 
   // --- Step 1: Catalog search (supplement) ---
   const catalog = await loadSessionCatalog(vault.vaultPath);
   const catalogResults = catalog
-    ? scoreCatalogEntries(catalog.sessions || [], keywords)
+    ? scoreCatalogEntries(catalog.sessions || [], groups)
     : [];
 
   // --- Step 2: Full vault walk (always runs) ---
@@ -166,13 +220,9 @@ async function recall() {
     const lowerContent = content.toLowerCase();
     const lowerBase = basename(file).toLowerCase();
     let score = 0;
-    for (const keyword of keywords) {
-      if (!keyword) continue;
-      if (lowerBase.includes(keyword)) score += 5;
-      const hit = lowerContent.indexOf(keyword);
-      if (hit >= 0) {
-        score += 3;
-      }
+    for (const group of groups) {
+      score += searchGroupScore(lowerBase, group, 5);
+      score += searchGroupScore(lowerContent, group, 3);
     }
     if (score === 0) continue;
     const fileStat = await stat(file);
@@ -181,7 +231,7 @@ async function recall() {
       path: relPath,
       category: classifyPath(relPath),
       type: extractTypeFromFrontmatter(content),
-      excerpt: extractExcerpt(content, keywords),
+      excerpt: extractExcerpt(content, groups),
       score,
       modifiedAt: fileStat.mtime.toISOString(),
     });
@@ -190,7 +240,7 @@ async function recall() {
   // --- Step 3: Expand catalog matches and merge ---
   const seenPaths = new Set(results.map((r) => r.path));
   if (catalogResults.length > 0) {
-    const expandedResults = await expandCatalogMatches(vault.vaultPath, catalogResults, keywords);
+    const expandedResults = await expandCatalogMatches(vault.vaultPath, catalogResults, groups);
     for (const entry of expandedResults) {
       if (!seenPaths.has(entry.path)) {
         seenPaths.add(entry.path);
@@ -204,7 +254,8 @@ async function recall() {
     return right.modifiedAt.localeCompare(left.modifiedAt);
   });
 
-  const ranked = await rerankRecall(query, results, vault.vaultPath);
+  const ranked = args.localOnly ? { results: results.slice(0, args.limit), reranking: { provider: 'local', reason: 'explicit-local-only' } } :
+    await rerankRecall(query, results, vault.vaultPath, { limit: args.limit });
   return {
     status: "ok",
     action: "recall",
@@ -612,7 +663,7 @@ async function loadSessionCatalog(vaultPath) {
   }
 }
 
-function scoreCatalogEntries(sessions, keywords) {
+function scoreCatalogEntries(sessions, groups) {
   const results = [];
   for (const entry of sessions) {
     if (entry.isEmptySession) continue;
@@ -623,12 +674,11 @@ function scoreCatalogEntries(sessions, keywords) {
     const files = (entry.filesModified || []).join(" ").toLowerCase();
     const tools = (entry.toolsUsed || []).join(" ").toLowerCase();
 
-    for (const kw of keywords) {
-      if (!kw) continue;
-      if (topic.includes(kw)) score += 5;
-      if (firstMsg.includes(kw)) score += 3;
-      if (files.includes(kw)) score += 2;
-      if (tools.includes(kw)) score += 1;
+    for (const group of groups) {
+      score += searchGroupScore(topic, group, 5);
+      score += searchGroupScore(firstMsg, group, 3);
+      score += searchGroupScore(files, group, 2);
+      score += searchGroupScore(tools, group, 1);
     }
 
     if (score > 0) {
@@ -640,7 +690,7 @@ function scoreCatalogEntries(sessions, keywords) {
   return results.slice(0, 10);
 }
 
-async function expandCatalogMatches(vaultPath, catalogMatches, keywords) {
+async function expandCatalogMatches(vaultPath, catalogMatches, groups) {
   const results = [];
 
   for (const match of catalogMatches) {
@@ -657,7 +707,7 @@ async function expandCatalogMatches(vaultPath, catalogMatches, keywords) {
           path: match.documentPath,
           category: match.category || classifyPath(match.documentPath),
           type: extractTypeFromFrontmatter(content),
-          excerpt: extractExcerpt(content, keywords),
+          excerpt: extractExcerpt(content, groups),
           score: match.score,
           modifiedAt: fileStat.mtime.toISOString(),
           source: "catalog+document",
@@ -698,34 +748,83 @@ function buildCatalogOnlyResult(entry) {
   };
 }
 
-function extractExcerpt(content, keywords) {
-  const body = content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
+function excerptStructure(body) {
+  const headings = [], fences = [];
+  let open = null;
+  // ponytail: ATX headings and ordinary fenced blocks only, not a full Markdown parser.
+  for (const match of body.matchAll(/[^\r\n]*(?:\r?\n|$)/g)) {
+    const line = match[0].replace(/\r?\n$/, '');
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (open) {
+      if (marker && marker[1][0] === open.marker && marker[1].length >= open.length && !marker[2].trim()) {
+        open.end = match.index + match[0].length;
+        open = null;
+      }
+      continue;
+    }
+    if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {
+      open = { start: match.index, end: body.length, marker: marker[1][0], length: marker[1].length, opener: line.trim() };
+      fences.push(open);
+    } else if (/^ {0,3}#{1,6}[ \t]+.+$/.test(line)) headings.push({ offset: match.index, text: line.trim() });
+  }
+  return { headings, fences };
+}
+
+function extractExcerpt(content, groups) {
+  let body = content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
+  const sections = [];
+  let previous = 0;
+  // A heading starts a new context even without a blank line before it.
+  for (const entry of excerptStructure(body).headings) {
+    sections.push(body.slice(previous, entry.offset), '\n');
+    previous = entry.offset;
+  }
+  sections.push(body.slice(previous));
+  body = sections.join('').trim();
   const latestTie = extractTypeFromFrontmatter(content) === 'session-log';
   let best = body.slice(0, 1200);
   let bestScore = 0;
   let heading = '';
+  const structure = excerptStructure(body);
+  let offset = 0, headingIndex = 0, fenceIndex = 0;
   // Preserve paragraph qualifiers and section labels; a later line is not a newer fact.
-  for (const raw of body.split(/\r?\n\s*\r?\n/)) {
+  for (const [index, raw] of body.split(/(\r?\n\s*\r?\n)/).entries()) {
+    const startOffset = offset;
+    offset += raw.length;
+    if (index % 2) continue;
     const paragraph = raw.trim();
-    const headings = [...paragraph.matchAll(/^#{1,6}\s+.+$/gm)];
-    if (headings.length) heading = headings.at(-1)[0];
-    if (/^#{1,6}\s+[^\n]+$/.test(paragraph)) continue;
-    const prefix = heading && !paragraph.startsWith(heading) ? heading.slice(0, 180) + '\n\n' : '';
+    let introducedHeading = false;
+    while (headingIndex < structure.headings.length && structure.headings[headingIndex].offset < offset) {
+      heading = structure.headings[headingIndex++].text;
+      introducedHeading = true;
+    }
+    if (introducedHeading && /^#{1,6}[ \t]+[^\n]+$/.test(paragraph)) continue;
+    while (fenceIndex < structure.fences.length && structure.fences[fenceIndex].end <= startOffset) fenceIndex++;
+    const fence = structure.fences[fenceIndex];
+    const code = fence && fence.start < startOffset && startOffset < fence.end ? fence.opener : '';
+    const headingPrefix = heading && !paragraph.startsWith(heading) ? heading.slice(0, 180) + '\n\n' : '';
+    const prefix = headingPrefix + (code && !paragraph.startsWith(code) ? code.slice(0, 180) + '\n' : '');
     const budget = 1200 - prefix.length;
     const lower = paragraph.toLowerCase();
-    const hits = [...new Set(keywords.flatMap(word => [lower.indexOf(word), lower.lastIndexOf(word)]).filter(hit => hit >= 0))];
-    if (!hits.length && !keywords.some(word => prefix.toLowerCase().includes(word))) continue;
+    const spans = groups.map(group => searchSpans(lower, group));
+    const hits = [...new Set(spans.flat().map(span => span.index))];
+    const headingMatches = groups.map(group => headingPrefix && searchSpans(heading.toLowerCase(), group).some(span => span.index + span.length <= Math.min(heading.length, 180)));
+    if (!hits.length && !headingMatches.some(Boolean)) continue;
+    // Score full-source spans, not cropped text that can invent a word boundary.
+    const coverage = (start, end, contextEnd = 0) => groups.filter((_, index) => headingMatches[index] || spans[index].some(span =>
+      (span.index >= start && span.index + span.length <= end) || span.index + span.length <= contextEnd)).length;
     let chosen = paragraph.slice(0, budget);
-    let chosenScore = keywords.filter(word => chosen.toLowerCase().includes(word)).length;
+    let chosenScore = coverage(0, Math.min(paragraph.length, budget));
     for (const hit of hits) {
       const start = Math.max(0, hit - 160);
       const context = start > 200 ? paragraph.slice(0, 200) + '\n...\n' : '';
-      const candidate = context + paragraph.slice(start, start + budget - context.length);
-      const score = keywords.filter(word => candidate.toLowerCase().includes(word)).length;
+      const end = Math.min(paragraph.length, start + budget - context.length);
+      const candidate = context + paragraph.slice(start, end);
+      const score = coverage(start, end, start > 200 ? 200 : 0);
       if (score > chosenScore) { chosen = candidate; chosenScore = score; }
     }
     const excerpt = prefix + chosen;
-    const score = keywords.filter(word => excerpt.toLowerCase().includes(word)).length;
+    const score = chosenScore;
     if (score > bestScore || (latestTie && score === bestScore)) {
       best = excerpt;
       bestScore = score;

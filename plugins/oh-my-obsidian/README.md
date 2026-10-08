@@ -194,6 +194,12 @@ the oh-my-obsidian `SessionStart` and `Stop` entries from
 
 ## Safety Boundaries
 
+For optional paid Jev reranking, use `$oh-my-obsidian-jev` to get the correct
+absolute helper command, then register the key yourself in a separate terminal.
+Read [the Jev connection guide](docs/jev.md) before synthetic tests or approving
+project/vault external-text transmission. Never paste the key into agent chat.
+Key registration alone does not enable Jev. Local memory needs no API key.
+
 Separate approval is required before:
 
 - package-manager installs for Obsidian desktop
