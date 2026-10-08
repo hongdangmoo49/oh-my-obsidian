@@ -172,22 +172,28 @@ test('CLI enable requires explicit approval, status hides keys, disable restores
   } finally { await f.cleanup(); }
 });
 
-test('Windows credential backend round-trips a synthetic isolated credential and deletes it', { skip: process.platform !== 'win32' }, () => {
+test('Windows credential backend round-trips a synthetic isolated credential and deletes it', { skip: process.platform !== 'win32' }, (t) => {
   const target = `oh-my-obsidian/jev/test-${randomUUID()}`;
   const script = resolve('plugins/oh-my-obsidian/scripts/jev-credential.ps1');
   const shell = join(process.env.SystemRoot || 'C:/Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe');
   const env = { ...process.env, OMOB_TEST_TARGET: target, OMOB_TEST_SCRIPT: script };
   const run = command => spawnSync(shell, ['-NoProfile', '-Command', command], { env, encoding: 'utf8' });
+  let unavailable = false;
   try {
     const set = run(`function Read-Host { ConvertTo-SecureString '${key}' -AsPlainText -Force }; & $env:OMOB_TEST_SCRIPT -Action Set -TargetName $env:OMOB_TEST_TARGET`);
-    assert.equal(set.status, 0, 'Synthetic OS credential write failed');
+    if (set.status !== 0 && /osError=1312\b/.test(set.stderr)) {
+      unavailable = true;
+      t.skip('This Windows logon session has no credential set; interactive desktop storage must be validated separately.');
+      return;
+    }
+    assert.equal(set.status, 0, 'Synthetic OS credential write failed: ' + set.stderr);
     const status = run('& $env:OMOB_TEST_SCRIPT -Action Status -TargetName $env:OMOB_TEST_TARGET');
     assert.equal(status.stdout, 'present');
     const get = run('& $env:OMOB_TEST_SCRIPT -Action Get -TargetName $env:OMOB_TEST_TARGET');
     assert.equal(get.status, 0);
     assert(get.stdout === key, 'Synthetic OS credential mismatch');
   } finally {
-    assert.equal(run('& $env:OMOB_TEST_SCRIPT -Action Delete -TargetName $env:OMOB_TEST_TARGET').status, 0);
+    if (!unavailable) assert.equal(run('& $env:OMOB_TEST_SCRIPT -Action Delete -TargetName $env:OMOB_TEST_TARGET').status, 0);
   }
   assert.equal(run('& $env:OMOB_TEST_SCRIPT -Action Status -TargetName $env:OMOB_TEST_TARGET').stdout, 'absent');
 });

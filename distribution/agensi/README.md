@@ -6,13 +6,14 @@ License: MIT; see LICENSE. No paid tier, license key or subscription is required
 by this package. Your agent/API provider and Obsidian's optional services may
 have their own costs. Community support, not a service-level agreement.
 
-## Candidate, not a published release
+## Candidate validation status
 
-This 0.3.6 package depends on the Claude auto-save work in Draft PR #23.
-Do not upload it as fully production-validated until that PR and the actual
-Claude CLI smoke gate are complete. Claude API authentication currently returns
-401 in the maintainer's live test environment; local integration tests are
-separate from successful model-driven E2E. Codex Windows unelevated smoke passed.
+This 0.3.6 candidate includes the shared Claude auto-save implementation from
+PR #23, integrated together with the distribution work in PR #24. Do not describe
+it as fully production-validated. The 2026-10-08 live Claude smoke failed with an
+authentication error; local integration tests are separate from successful
+model-driven E2E. The same day's Codex Windows unelevated fresh-session smoke
+completed the task and verified the automatic summary receipt.
 macOS/Linux and Windows elevated CLI smoke remain separate validation targets.
 
 ## Requirements

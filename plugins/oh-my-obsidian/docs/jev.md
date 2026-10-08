@@ -24,6 +24,9 @@ an existing protected environment. Do not paste literal-key shell commands into
 agent chat/history. Environment credentials take precedence over OS storage.
 macOS/Linux persistent keychain adapters are not implemented; there is no
 automatic plaintext file fallback. No shell profiles are modified.
+Windows service/network logons without a credential set cannot use Credential
+Manager. Use protected environment credentials explicitly in that environment;
+the helper still fails closed rather than writing a plaintext fallback.
 
 ## Consent and test
 

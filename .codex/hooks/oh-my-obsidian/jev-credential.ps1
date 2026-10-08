@@ -3,6 +3,7 @@ param(
   [ValidatePattern('^oh-my-obsidian/jev(?:/test-[a-f0-9-]{36})?$')][string]$TargetName = 'oh-my-obsidian/jev'
 )
 $ErrorActionPreference = 'Stop'
+$osError = 0
 try {
   Add-Type -TypeDefinition @'
 using System;
@@ -44,7 +45,10 @@ public static class OmobCredential {
       $credential.Persist = 2
       $credential.CredentialBlobSize = $value.Length * 2
       $credential.CredentialBlob = $pointer
-      if (-not [OmobCredential]::Write([ref]$credential, 0)) { throw 'Credential write failed' }
+      if (-not [OmobCredential]::Write([ref]$credential, 0)) {
+        $osError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw 'Credential write failed'
+      }
     } finally {
       $value = $null
       if ($pointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($pointer) }
@@ -65,6 +69,6 @@ public static class OmobCredential {
     } finally { if ($pointer -ne [IntPtr]::Zero) { [OmobCredential]::Free($pointer) } }
   }
 } catch {
-  [Console]::Error.WriteLine('Jev credential operation failed. No plaintext fallback was used.')
+  [Console]::Error.WriteLine("Jev credential operation failed (osError=$osError). No plaintext fallback was used.")
   exit 1
 }

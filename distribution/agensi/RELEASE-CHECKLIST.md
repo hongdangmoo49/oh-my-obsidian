@@ -37,11 +37,12 @@ Verified on Windows, Node 24.13.1, Codex 0.160.0, Claude Code 2.1.156:
 
 ## Gates before public upload
 
-- Merge/release the 0.3.6 source candidate (PR #23); it is not on main yet.
-- Complete a real authenticated Claude model-session smoke test. Previous
-  attempt failed with HTTP 401; local tests are not a substitute.
+- Verify PR #24 (including #23) is merged and the release points to that commit.
+- Complete a real authenticated Claude model-session smoke test before promoting
+  the candidate as production-verified. The 2026-10-08 retry still failed with
+  authentication errors; local tests are not a substitute.
 - Run a fresh Codex model-session smoke test against this distribution artifact.
-  Prior source-branch smoke success is not artifact-level E2E confirmation.
+  The 2026-10-08 source-branch smoke passed; this is not artifact-level E2E confirmation.
 - Review skipped platform tests; macOS/Linux are not verified by this build.
 - Confirm Agensi's current upload/license terms and inspect its preview/security
   review. Do not claim generic skill extraction activates native hooks.
