@@ -267,3 +267,16 @@ All 50 requests succeeded, with 109,854 reported input tokens and an estimated
 USD 0.004613868 list-price cost. Paired P95: local 129 ms, Jev total 924 ms.
 Do not compare timings across separate runs as controlled speed improvements.
 These remain synthetic keyword-stuffing stress results, not real-vault accuracy.
+
+### Separate Query Set
+
+`node qa/scripts/recall-evaluation.mjs --heldout` evaluates 50 different questions
+against the unchanged 75-document corpus. Keyword distractors retain the original
+questions: the new test questions are not copied into the documents. Query hashes
+are recorded separately from the corpus hash.
+
+Before search changes, this set had candidate Recall@20 94% (three misses),
+Hit@1 22% and Hit@5 90%. The misses were an English hash-mismatch query and two
+Korean queries with attached particles. Once used to diagnose and fix those
+misses, this set is a development regression set, not independent evidence of
+generalization. Keep the before-change report rather than overwriting it.

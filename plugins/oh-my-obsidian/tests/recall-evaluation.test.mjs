@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { rankingMetrics, summarize, validateFixture } from '../../../qa/scripts/recall-evaluation.mjs';
+import { rankingMetrics, summarize, validateFixture, validateHeldout } from '../../../qa/scripts/recall-evaluation.mjs';
 
 test('ranking metrics handle first, fifth, missing and out-of-cutoff answers', () => {
   assert.deepEqual(rankingMetrics(['answer'], 'answer'), { hit1: 1, hit5: 1, mrr10: 1, ndcg5: 1 });
@@ -42,4 +42,12 @@ test('live evaluation rejects missing approval and unknown flags before invoking
     assert.equal(child.status, 1);
     assert(!child.stderr.includes('Evaluation:'));
   }
+});
+
+test('held-out queries cover every topic without repeating a training query', async () => {
+  const fixture = JSON.parse(await readFile(new URL('../../../qa/fixtures/recall-evaluation.json', import.meta.url), 'utf8'));
+  const queries = JSON.parse(await readFile(new URL('../../../qa/fixtures/recall-evaluation-heldout.json', import.meta.url), 'utf8'));
+  assert.equal(Object.values(validateHeldout(queries, fixture)).flat().length, 50);
+  const leaked = structuredClone(queries); leaked['retry-queue'][0] = fixture.topics[0].queries[0];
+  assert.throws(() => validateHeldout(leaked, fixture));
 });

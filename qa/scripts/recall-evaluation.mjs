@@ -27,6 +27,16 @@ export function validateFixture(data) {
   return data;
 }
 
+export function validateHeldout(data, fixture) {
+  assert.deepEqual(Object.keys(data).sort(), fixture.topics.map(topic => topic.id).sort());
+  const training = new Set(fixture.topics.flatMap(topic => topic.queries));
+  for (const queries of Object.values(data)) {
+    assert.equal(queries.length, 2);
+    for (const query of queries) assert(typeof query === 'string' && query.trim() && query.length <= 200 && !training.has(query));
+  }
+  return data;
+}
+
 export function rankingMetrics(paths, target) {
   const rank = paths.indexOf(target) + 1;
   return { hit1: rank === 1 ? 1 : 0, hit5: rank > 0 && rank <= 5 ? 1 : 0,
@@ -45,9 +55,11 @@ export function summarize(rows, field, candidateLimit = 10) {
     p95Ms: latencies[Math.ceil(latencies.length * 0.95) - 1] };
 }
 
-export async function evaluate({ live = false } = {}) {
+export async function evaluate({ live = false, heldout = false } = {}) {
   const fixtureBytes = await readFile(fixtureFile);
   const data = validateFixture(JSON.parse(fixtureBytes));
+  const heldoutBytes = heldout ? await readFile(join(repo, 'qa/fixtures/recall-evaluation-heldout.json')) : null;
+  const querySet = heldout ? validateHeldout(JSON.parse(heldoutBytes), data) : null;
   const root = await mkdtemp(join(tmpdir(), 'omob-recall-evaluation-'));
   const project = join(root, 'project');
   const vault = join(root, 'vault');
@@ -74,7 +86,7 @@ export async function evaluate({ live = false } = {}) {
     // Live consent applies only to this disposable synthetic corpus, never the user's vault.
     if (live) await setConsent(location, true);
     for (const topic of data.topics) {
-      for (const [index, query] of topic.queries.entries()) {
+      for (const [index, query] of (querySet?.[topic.id] || topic.queries).entries()) {
         const started = performance.now();
         const child = spawnSync(process.execPath, [join(repo, 'plugins/oh-my-obsidian/scripts/vault-ops.mjs'), 'recall', '--local-only', '--limit', '20', '--query', query],
           { cwd: project, env: { ...process.env, HOME: localHome, USERPROFILE: localHome, PWD: project, OBSIDIAN_VAULT: vault, TYPESAFE_API_KEY: '' }, encoding: 'utf8', timeout: 30000 });
@@ -101,7 +113,8 @@ export async function evaluate({ live = false } = {}) {
     const inputTokens = known.reduce((total, row) => total + row.inputTokens, 0);
     for (const [path, expected] of Object.entries(sourceHashes)) assert.equal(hash(await readFile(join(repo, path))), expected, 'Source changed during evaluation; discard the mixed-version run');
     return { schema: 'oh-my-obsidian/recall-evaluation-result/v2', createdAt: new Date().toISOString(),
-      corpusHash: hash(fixtureBytes), sourceHashes, documents: 75, queries: rows.length, candidatePoolSize: 20, live,
+      corpusHash: hash(fixtureBytes), queryHash: hash(heldoutBytes || fixtureBytes), querySet: heldout ? 'heldout' : 'stress',
+      sourceHashes, documents: 75, queries: rows.length, candidatePoolSize: 20, live,
       scope: 'Synthetic stress test with keyword-only and obsolete distractors. Production-sized top-20 candidate cap, normal top-10 output; not real-vault accuracy.',
       local: summarize(rows, 'localPaths', 20), jev: live ? summarize(rows, 'rankedPaths', 20) : null,
       byLanguage: Object.fromEntries(['ko', 'mixed'].map(language => {
@@ -121,11 +134,12 @@ export async function evaluate({ live = false } = {}) {
 
 async function main() {
   const args = process.argv.slice(2);
-  assert(args.every(arg => ['--jev', '--allow-billed-test'].includes(arg)), 'Usage: recall-evaluation.mjs [--jev --allow-billed-test]');
+  assert(args.every(arg => ['--jev', '--allow-billed-test', '--heldout'].includes(arg)), 'Usage: recall-evaluation.mjs [--heldout] [--jev --allow-billed-test]');
   const live = args.includes('--jev');
   assert.equal(live, args.includes('--allow-billed-test'), 'Live evaluation requires both --jev and --allow-billed-test');
-  const result = await evaluate({ live });
-  const output = join(repo, 'dist', `recall-evaluation-20-${live ? 'jev' : 'local'}.json`);
+  const heldout = args.includes('--heldout');
+  const result = await evaluate({ live, heldout });
+  const output = join(repo, 'dist', `recall-evaluation-20-${heldout ? 'heldout-' : ''}${live ? 'jev' : 'local'}.json`);
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify({ output, local: result.local, jev: result.jev, usage: result.usage }, null, 2));
